@@ -5,9 +5,9 @@
 // Hover lights the edge teal.
 //
 // MODES: both palettes live in $modes below, and every rule is scoped under
-// .light or .dark — the class of each window's root box, bound to the `theme`
-// variable. `eww update theme=dark` therefore restyles instantly with no reload;
-// icons follow the same variable (assets/<theme>/).
+// .light or .dark, the class of each window's root box. Switching modes rebuilds
+// that box with the other class (see LIGHT / DARK in utils.yuck); nothing
+// reloads. Icons follow the same `theme` variable (assets/<theme>/).
 //
 // CONTRAST: the bar window is transparent, so cells sit straight on the navy
 // wallpaper (#14141F -> #05050D). Keep each mode's `text` (and the icons) readable
