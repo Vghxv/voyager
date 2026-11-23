@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-BAT=$(ls -d /sys/class/power_supply/BAT* 2>/dev/null | head -1)
-[[ -n "$BAT" ]] || { echo "No battery"; exit 0; }
+name=$("$(dirname "$0")/battery_name.sh")
+[[ -n "$name" ]] || { echo "No battery"; exit 0; }
+BAT=/sys/class/power_supply/$name
 
 read_file() {
   local f="$1"

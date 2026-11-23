@@ -26,11 +26,10 @@ exec-once = eww daemon && eww open bar            # in hyprland.conf
 
 ## Machine-specific settings
 
-Everything else is detected: the wifi connection (any interface name), the backlight and its maximum, the battery for the time-left tooltip. Paths use eww's `EWW_CONFIG_DIR` and `EWW_CMD`, so the bar works from any home folder and any eww binary.
+Everything else is detected: the wifi connection (any interface name), the backlight and its maximum, the system battery (`scripts/battery_name.sh`: the first power supply of type Battery, skipping mouse and keyboard batteries; the battery cell hides on machines without one). Paths use eww's `EWW_CONFIG_DIR` and `EWW_CMD`, so the bar works from any home folder and any eww binary.
 
 | Setting | Where | Default |
 |---|---|---|
-| Battery shown in the bar | `BAT_NAME` in `var.yuck` (`ls /sys/class/power_supply`) | `BAT0` |
 | Webcam USB port | `DEVICE_ID` in `scripts/webcam.sh` (`grep -il camera /sys/bus/usb/devices/*/product`) | `1-3` |
 | Monitor | `:monitor "[1,0]"` in `eww.yuck`: the second monitor if there is one, else the first | |
 

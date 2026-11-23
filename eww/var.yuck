@@ -1,5 +1,5 @@
-; VAR — the only machine-specific setting
-(defvar BAT_NAME "BAT0")        ; battery key in EWW_BATTERY: ls /sys/class/power_supply
+; BATTERY: key of the system battery in EWW_BATTERY (BAT0, BAT1, ...); "" without one
+(defpoll BAT_NAME :interval "1h" :initial "" "scripts/battery_name.sh")
 
 ; Script paths are relative to the eww config folder.
 

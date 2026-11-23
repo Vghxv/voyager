@@ -30,11 +30,11 @@
 
 (defwidget w_battery []
  (inp
-    :class {EWW_BATTERY[BAT_NAME]["status"] != "Discharging" ? "bat-charging" :
-     EWW_BATTERY[BAT_NAME]["capacity"] < 25 ? "bat-low" :
-     EWW_BATTERY[BAT_NAME]["capacity"] < 50 ? "bat-mid" : "element" }
+    :class {EWW_BATTERY?.[BAT_NAME]?.status != "Discharging" ? "bat-charging" :
+     EWW_BATTERY?.[BAT_NAME]?.capacity < 25 ? "bat-low" :
+     EWW_BATTERY?.[BAT_NAME]?.capacity < 50 ? "bat-mid" : "element" }
     :filename "battery.png"
-    :text "${EWW_BATTERY[BAT_NAME]["capacity"]}%"
+    :text "${EWW_BATTERY?.[BAT_NAME]?.capacity}%"
     :tooltip "${battery_estimate}"
   )
 )
@@ -139,6 +139,7 @@
       )
     (box
       :width 80
+      :visible {BAT_NAME != ""}
       (w_battery)
       )
     (box
