@@ -1,0 +1,2 @@
+# command[|alternative]  package  [required]   — read by install.sh and check.sh
+hyprlock      hyprlock   required

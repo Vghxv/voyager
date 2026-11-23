@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Print time until empty or full for the battery tooltip ("Depleted in - 3h:12m").
+# Reads energy_* (or charge_*) from sysfs; prints "No battery" without one.
 name=$("$(dirname "$0")/battery_name.sh")
 [[ -n "$name" ]] || { echo "No battery"; exit 0; }
 BAT=/sys/class/power_supply/$name
