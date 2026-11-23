@@ -14,7 +14,7 @@ sudo pacman -S jq socat inotify-tools libpulse wireplumber pavucontrol   # what 
 
 `eww` itself must be on `PATH`. Arch ships it in the AUR (`eww`), or build it from source.
 
-The installer copies the whole bar into `~/.config/eww`: `eww.yuck`, `var.yuck`, `utils.yuck`, `audio/`, `scripts/`, `eww.scss`, `themes/`, the icons into `assets/light/` and `assets/dark/`, and the saved mode as `theme.scss`. It also installs the mode switcher to `~/.local/bin/voyager-theme`. It reports any missing packages and reloads eww if it is running.
+The installer copies the whole bar into `~/.config/eww`: `eww.yuck`, `var.yuck`, `utils.yuck`, `audio/`, `scripts/`, `eww.scss`, and the icons into `assets/light/` and `assets/dark/`. It also installs the mode switcher to `~/.local/bin/voyager-theme`. It reports any missing packages and reloads eww if it is running.
 
 Deployment is one way: repo → `~/.config/eww`. Nothing is read back and no backups are made. Files with the same name are overwritten, and other files in `~/.config/eww` are left alone. Edit the files here and run the installer again.
 
@@ -60,7 +60,9 @@ voyager-theme                   # print the current mode
 hl.bind("SUPER + T", hl.dsp.exec_cmd("EWW=/path/to/eww " .. os.getenv("HOME") .. "/.local/bin/voyager-theme toggle"))   -- hyprland.lua
 ```
 
-The mode is saved in `~/.config/voyager/theme` and survives restarts. Switching copies `themes/<mode>.scss` to `~/.config/eww/theme.scss`, which `eww.scss` imports, points the icons at `assets/<mode>/`, and reloads eww. Set `EWW=` if eww is not on `PATH`.
+The mode is saved in `~/.config/voyager/theme` and survives restarts. Switching is a single variable change, `eww update theme=<mode>`: `eww.scss` holds both palettes, with every rule scoped under `.light` or `.dark`, the class of each window's root box, and the icons load from `assets/<theme>/`. Nothing in `~/.config/eww` is written, so eww does not reload: windows stay open and the bar's scripts keep running. Set `EWW=` if eww is not on `PATH`.
+
+Tooltips are separate GTK windows outside the themed box, so they keep one fixed dark style in both modes.
 
 ## Contrast
 
@@ -70,7 +72,7 @@ The bar window is transparent, so every cell sits directly on the dark navy wall
 - **dark**: navy glass fill (`rgba(10,10,20,.82)`) with mist `#D9D9F2` text and icons, so the frame and bottom edge do the separating;
 - every cell has a 1px indigo frame and a 2px bottom edge, so cells sitting next to each other stay separate.
 
-Each mode's colors are only variables, in `eww/themes/light.scss` and `eww/themes/dark.scss`. Keep text and icons in contrast with `$fill`.
+Each mode's colors are one map in the `$modes` block at the top of `eww/eww.scss`. Keep `text` and the icons in contrast with `fill`.
 
 ## Icons
 

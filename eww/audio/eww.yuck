@@ -12,7 +12,7 @@
    )
   :stacking "fg"
   :focusable "none"
-  (box :orientation "h"
+  (box :orientation "h" :class theme
     (
      audio-control 
      :device-type "SINK" 

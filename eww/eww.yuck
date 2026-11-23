@@ -163,10 +163,13 @@
   :stacking "fg"
   :exclusive true
   :focusable "none"
-  (centerbox
-    (cBoxStart :monitor monitor)
-    (cBoxMiddle)
-    (cBoxEnd)
+  ; class = light|dark: eww.scss scopes every rule under it (see var.yuck)
+  (box :class theme
+    (centerbox
+      (cBoxStart :monitor monitor)
+      (cBoxMiddle)
+      (cBoxEnd)
+      )
     )
   )
 
@@ -189,7 +192,7 @@
 
 (defwidget power_menu_layout []
   (box
-    :class "power-menu-container"
+    :class "power-menu-container ${theme}"
     :orientation "v"
     :space-evenly false
     (power_menu)

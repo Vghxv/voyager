@@ -3,7 +3,7 @@
 #
 #   ./eww/install.sh
 #
-# Installs the whole bar (yuck, scripts, eww.scss, light/dark themes and icons) and
+# Installs the whole bar (yuck, scripts, eww.scss, light and dark icons) and
 # the voyager-theme switcher to ~/.local/bin. Nothing is read back
 # from ~/.config/eww and no backups are made — this repo is the source of truth.
 # Files of the same name are overwritten; other files there are left alone.
@@ -35,16 +35,15 @@ if (( ${#missing[@]} )); then
   echo "  sudo pacman -S ${missing[*]}"
 fi
 
-install -d "$DEST/audio" "$DEST/scripts" "$DEST/themes" "$DEST/assets/light" "$DEST/assets/dark"
+install -d "$DEST/audio" "$DEST/scripts" "$DEST/assets/light" "$DEST/assets/dark"
 install -m 644 "$SRC"/eww.yuck "$SRC"/var.yuck "$SRC"/utils.yuck "$SRC"/eww.scss "$DEST"/
 install -m 644 "$SRC"/audio/*.yuck "$DEST/audio"/
 install -m 755 "$SRC"/scripts/*.sh "$DEST/scripts"/
-install -m 644 "$SRC"/themes/*.scss "$DEST/themes"/
 install -m 644 "$SRC"/icons/light/*.png "$DEST/assets/light"/
 install -m 644 "$SRC"/icons/dark/*.png "$DEST/assets/dark"/
 install -D -m 755 "$SRC/../lib/voyager-theme.sh" "$HOME/.local/bin/voyager-theme"
+rm -rf "$DEST/theme.scss" "$DEST/themes"   # from an earlier version: both modes now live in eww.scss
 mode="$("$HOME/.local/bin/voyager-theme")"
-install -m 644 "$SRC/themes/$mode.scss" "$DEST/theme.scss"
 echo "Installed the bar to $DEST ($mode mode; switch with: voyager-theme toggle)"
 
 if eww ping >/dev/null 2>&1; then

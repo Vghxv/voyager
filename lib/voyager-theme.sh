@@ -29,14 +29,12 @@ esac
 mkdir -p "${STATE%/*}"
 echo "$mode" > "$STATE"
 
-# eww: swap theme.scss (eww reloads its CSS when it changes), switch the icon set
-if [[ -f "$EWW_DIR/themes/$mode.scss" ]]; then
-  cp "$EWW_DIR/themes/$mode.scss" "$EWW_DIR/theme.scss"
-  if "$EWW" ping >/dev/null 2>&1; then
-    "$EWW" update theme="$mode"
-    "$EWW" reload >/dev/null 2>&1 || true
-    EWW="$EWW" "$EWW_DIR/scripts/bars.sh"   # reopen any bar the reload dropped
-  fi
+# eww: just a variable. eww.scss holds both modes, scoped under .light / .dark, the
+# class of every window's root box; the icon set follows it too. Nothing in
+# ~/.config/eww is written, so eww's file watcher never triggers a full reload.
+# A daemon that is not running reads the saved mode when it starts.
+if [[ -d "$EWW_DIR/assets/$mode" ]] && "$EWW" ping >/dev/null 2>&1; then
+  "$EWW" update theme="$mode"
 fi
 
 # dunst: the mode's colors are a drop-in read after dunstrc

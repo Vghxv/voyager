@@ -1,23 +1,56 @@
 // voyager — eww bar, HUD style
 // Same palette as the Plymouth boot screen, hyprlock, dunst and the awww wallpaper.
-// Selectors match the original eww.scss, so eww.yuck needs no changes.
 //
 // LOOK: square cells, no rounded corners anywhere. Each cell is a readout: a thin
 // 1px frame and a 2px accent edge along the bottom (indigo, or teal / amber / red
 // for states). Hover lights the edge teal with a faint glow.
 //
-// MODES: the mode's colors come from theme.scss, which voyager-theme copies from
-// themes/light.scss or themes/dark.scss. Icons follow the same mode (assets/<mode>/).
-// Keep text and icons in contrast with $fill in both modes: the bar window is
-// transparent, so cells sit straight on the deep-navy wallpaper.
-
-@import "theme";
+// MODES: both palettes live here. Every window's root box carries the class of the
+// `theme` variable (light or dark), and all rules are scoped under it, so
+// `eww update theme=dark` restyles the bar instantly: no file changes, no reload.
+// Icons follow the same variable (assets/<theme>/). Keep text and icons in contrast
+// with the fill in both modes: the bar window is transparent, so cells sit straight
+// on the deep-navy wallpaper.
 
 // ---------- fixed accents (both modes) ----------
 $indigo: #8B8FF0;
 $teal:   #5EEAD4;
 $amber:  #F0C674;
 $red:    #FF3355;                        // hyprlock fail color
+
+// ---------- modes ----------
+$modes: (
+  light: (
+    fill:       rgba(217, 217, 242, 0.92),   // mist
+    fill-hover: rgba(236, 236, 252, 0.97),
+    text:       #14141F,                     // navy ink (= wallpaper top)
+    dim:        #5A5A78,
+    frame:      rgba(139, 143, 240, 0.70),
+    ok-fill:    rgba(178, 242, 231, 0.95),
+    warn-fill:  rgba(248, 226, 180, 0.95),
+    bad-fill:   rgba(255, 179, 192, 0.95),
+    ok-text:    #14141F,
+    warn-text:  #14141F,
+    bad-text:   #14141F,
+    trough:     rgba(20, 20, 31, 0.20),
+    on-accent:  #14141F,
+  ),
+  dark: (
+    fill:       rgba(10, 10, 20, 0.82),      // navy glass
+    fill-hover: rgba(24, 24, 44, 0.90),
+    text:       #D9D9F2,                     // mist
+    dim:        #7A7AA0,
+    frame:      rgba(139, 143, 240, 0.45),
+    ok-fill:    rgba(94, 234, 212, 0.14),
+    warn-fill:  rgba(240, 198, 116, 0.14),
+    bad-fill:   rgba(255, 51, 85, 0.18),
+    ok-text:    #5EEAD4,
+    warn-text:  #F0C674,
+    bad-text:   #FF6680,
+    trough:     rgba(217, 217, 242, 0.15),
+    on-accent:  #05050D,
+  ),
+);
 
 $global-padding: 0px 10px 0px 10px;
 
@@ -27,151 +60,127 @@ $global-padding: 0px 10px 0px 10px;
   font-size: 12px;
 }
 
-.bar {
-  margin: 5px;
+.bar, .power_menu, .sound {
   background-color: transparent;
 }
+.bar { margin: 5px; }
 
-.power_menu {
-  background-color: transparent;
-}
-
-// ---------- the cell ----------
-%element-base {
-  border-radius: 0;
-  border: 1px solid $frame;
-  border-bottom: 2px solid $indigo;
-  background-color: $fill;
-  background-image: none;                // drop the GTK theme's button gradient
-  box-shadow: none;
-  text-shadow: none;
-  color: $text;
-}
-
-%hover {
-  background-color: $fill-hover;
-  border-color: $teal;
-  box-shadow: 0 0 6px rgba(94, 234, 212, 0.45);
-}
-
-// states: tinted fill + colored bottom edge
-%ok   { background-color: $ok-fill;   color: $ok-text;   border-bottom-color: $teal; }
-%warn { background-color: $warn-fill; color: $warn-text; border-bottom-color: $amber; }
-%bad  { background-color: $bad-fill;  color: $bad-text;  border-color: $red; }
-
-.element {
-  @extend %element-base;
-  &:hover { @extend %hover; }
-}
-
-// ---------- workspaces ----------
-.btn-ws {
-  .active {
-    @extend %element-base;
-    background-color: $indigo;
-    border-color: $indigo;
-    border-bottom-color: $teal;
-    color: $on-accent;
-    font-weight: bold;
-    &:hover { background-color: lighten($indigo, 5%); }
-  }
-  .inactive {
-    @extend %element-base;
-    border-bottom-color: $frame;
-    color: $dim;
-    &:hover { @extend %hover; color: $text; }
-  }
-}
-
-// ---------- right side ----------
-.systray {
-  @extend %element-base;
-  padding: $global-padding;
-}
-
-.sound {
-  @extend %element-base;
-  padding: $global-padding;
-}
-
-.camera_on {
-  @extend %element-base;
-  @extend %ok;
-  padding: $global-padding;
-}
-
-.bat-low      { @extend %element-base; @extend %bad; }
-.bat-mid      { @extend %element-base; @extend %warn; }
-.bat-charging { @extend %element-base; @extend %ok; }
-
-.wifi-connected {
-  @extend %element-base;
-  @extend %ok;
-  padding: $global-padding;
-}
-
-.wifi-disconnected {
-  @extend %element-base;
-  @extend %bad;
-  padding: $global-padding;
-}
-
-// volume slider inside .sound: flat, square
-scale {
-  trough {
-    min-height: 4px;
-    min-width: 60px;
-    border-radius: 0;
-    background-color: $trough;
-    border: none;
-  }
-  highlight {
-    border-radius: 0;
-    background-image: linear-gradient(to right, $indigo, $teal);
-  }
-  slider {
-    min-width: 6px;
-    min-height: 12px;
-    border-radius: 0;
-    border: none;
-    background-image: none;
-    background-color: $text;
-    box-shadow: none;
-  }
-}
-
-progress, progressbar trough {
-  border-radius: 0;
-}
-progressbar progress {
-  background-image: linear-gradient(to top, $indigo, $teal);
-}
-
+// tooltips are separate GTK windows, outside the themed box: one fixed (dark) style
 tooltip {
   border-radius: 0;
-  border: 1px solid $frame;
+  border: 1px solid rgba(139, 143, 240, 0.60);
   border-bottom: 2px solid $teal;
-  background-color: $fill;
-  color: $text;
+  background-color: rgba(10, 10, 20, 0.92);
+  color: #D9D9F2;
   padding: 4px 8px;
 }
 
-// ---------- power menu ----------
-.menu-item {
-  @extend %element-base;
-  padding: 10px 20px;
+// ---------- building blocks (take a mode's palette) ----------
+@mixin cell($p) {
+  border-radius: 0;
+  border: 1px solid map-get($p, frame);
+  border-bottom: 2px solid $indigo;
+  background-color: map-get($p, fill);
+  background-image: none;                // drop the GTK theme's button gradient
+  box-shadow: none;
+  text-shadow: none;
+  color: map-get($p, text);
+}
+@mixin hover($p) {
+  background-color: map-get($p, fill-hover);
+  border-color: $teal;
+  box-shadow: 0 0 6px rgba(94, 234, 212, 0.45);
+}
+// states: tinted fill + colored bottom edge
+@mixin ok($p)   { background-color: map-get($p, ok-fill);   color: map-get($p, ok-text);   border-bottom-color: $teal; }
+@mixin warn($p) { background-color: map-get($p, warn-fill); color: map-get($p, warn-text); border-bottom-color: $amber; }
+@mixin bad($p)  { background-color: map-get($p, bad-fill);  color: map-get($p, bad-text);  border-color: $red; }
 
-  &:hover          { @extend %hover; }
-  &.suspend:hover  { @extend %ok; }
-  &.reboot:hover   { border-color: $indigo; border-bottom-color: $indigo; }
-  &.shutdown:hover { @extend %bad; }
+// ---------- every rule, for one mode ----------
+@mixin hud($p) {
+  $text: map-get($p, text);
+  $frame: map-get($p, frame);
+
+  .element {
+    @include cell($p);
+    &:hover { @include hover($p); }
+  }
+
+  // workspaces
+  .btn-ws {
+    .active {
+      @include cell($p);
+      background-color: $indigo;
+      border-color: $indigo;
+      border-bottom-color: $teal;
+      color: map-get($p, on-accent);
+      font-weight: bold;
+      &:hover { background-color: lighten($indigo, 5%); }
+    }
+    .inactive {
+      @include cell($p);
+      border-bottom-color: $frame;
+      color: map-get($p, dim);
+      &:hover { @include hover($p); color: $text; }
+    }
+  }
+
+  // right side
+  .systray, .sound { @include cell($p); padding: $global-padding; }
+  .camera_on       { @include cell($p); @include ok($p); padding: $global-padding; }
+  .bat-low         { @include cell($p); @include bad($p); }
+  .bat-mid         { @include cell($p); @include warn($p); }
+  .bat-charging    { @include cell($p); @include ok($p); }
+  .wifi-connected    { @include cell($p); @include ok($p);  padding: $global-padding; }
+  .wifi-disconnected { @include cell($p); @include bad($p); padding: $global-padding; }
+
+  // volume slider inside .sound: flat, square
+  scale {
+    trough {
+      min-height: 4px;
+      min-width: 60px;
+      border-radius: 0;
+      background-color: map-get($p, trough);
+      border: none;
+    }
+    highlight {
+      border-radius: 0;
+      background-image: linear-gradient(to right, $indigo, $teal);
+    }
+    slider {
+      min-width: 6px;
+      min-height: 12px;
+      border-radius: 0;
+      border: none;
+      background-image: none;
+      background-color: $text;
+      box-shadow: none;
+    }
+  }
+
+  progress, progressbar trough { border-radius: 0; }
+  progressbar progress { background-image: linear-gradient(to top, $indigo, $teal); }
+
+  // power menu
+  .menu-item {
+    @include cell($p);
+    padding: 10px 20px;
+
+    &:hover          { @include hover($p); }
+    &.suspend:hover  { @include ok($p); }
+    &.reboot:hover   { border-color: $indigo; border-bottom-color: $indigo; }
+    &.shutdown:hover { @include bad($p); }
+  }
+
+  .menu-button {
+    @include cell($p);
+    padding: 0px;
+    min-width: 40px;
+    min-height: 40px;
+    &:hover { @include hover($p); }
+  }
 }
 
-.menu-button {
-  @extend %element-base;
-  padding: 0px;
-  min-width: 40px;
-  min-height: 40px;
-
-  &:hover { @extend %hover; }
+@each $mode, $p in $modes {
+  .#{$mode} { @include hud($p); }
 }
