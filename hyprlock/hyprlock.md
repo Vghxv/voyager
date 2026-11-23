@@ -27,6 +27,7 @@ hyprlock                       # test: unlock with your user password
 
 - Every monitor shows the full lock screen (starfield, probe, title, clock, password field). To limit the widgets to one screen, set `monitor = <name>` in each widget block of `hyprlock/hyprlock.conf` (`hyprctl monitors | grep ^Monitor`).
 - The frames are rendered at 1920×1080.
+- Re-render the frames and probe with `src/gen-hyprlock.py` (`--size`, `--seed`), then run `./hyprlock/install.sh`. It reuses the wallpaper's gradient and stars, so both use the same palette. It writes 6 frames, matching `next-frame.sh`.
 - If `✦` renders as a box, your font lacks the glyph: set `dots_text_format = *` or install `noto-fonts`.
 
 > On Arch, hyprlock uses `pam_faillock`: **3 wrong passwords lock you out for 10 minutes** (`/etc/security/faillock.conf`).
