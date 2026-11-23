@@ -45,6 +45,7 @@ fi
 mkdir -p "$DEST"
 install -m 644 "$SRC/wallpaper.webp" "$SRC/wallpaper.png" "$DEST/"
 echo "Copied wallpaper to $DEST"
+warn_if_small "$SRC/wallpaper.png" "src/gen-wallpaper.py --size auto"
 
 # point ExecStart at wherever awww-daemon is installed (/usr/bin, ~/.local/bin, ~/.cargo/bin, ...)
 unit="$(mktemp)"; trap 'rm -f "$unit"' EXIT

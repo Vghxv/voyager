@@ -27,6 +27,7 @@ command -v hyprlock >/dev/null || { red "hyprlock is not installed (sudo pacman 
 
 mkdir -p "$DEST"
 install -m 644 "$SRC"/stars-*.png "$SRC"/probe.png "$DEST"/
+warn_if_small "$SRC/stars-0.png" "src/gen-hyprlock.py --size auto"
 install -m 755 "$SRC"/next-frame.sh "$DEST"/
 echo "Copied assets to $DEST"
 

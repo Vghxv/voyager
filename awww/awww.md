@@ -47,6 +47,7 @@ listener {
 src/gen-wallpaper.py                          # 1920x1080 → awww/wallpaper.webp + awww/wallpaper.png
 src/gen-wallpaper.py --fps 8 --frames 32      # lighter animation, same 4 s loop
 src/gen-wallpaper.py --size 3840x2160         # 4K
+src/gen-wallpaper.py --size auto              # your largest monitor (the installer warns when one is bigger than the wallpaper)
 src/gen-wallpaper.py --seed 42                # different star layout
 ./awww/install.sh                             # install the new files
 ```

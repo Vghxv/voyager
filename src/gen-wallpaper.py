@@ -9,6 +9,7 @@ a pale blue dot in the upper-left.
 
     src/gen-wallpaper.py                    # 1920x1080 -> awww/wallpaper.png + awww/wallpaper.webp
     src/gen-wallpaper.py --size 3840x2160 --seed 7 --frames 0   # 4K still only
+    src/gen-wallpaper.py --size auto                             # your largest monitor
 
 Python stdlib only; needs rsvg-convert (librsvg) and ImageMagick (WebP).
 """
@@ -153,9 +154,29 @@ def render(svg, w, h, out):
         subprocess.run(["rsvg-convert", "-w", str(w), "-h", str(h), f.name, "-o", out], check=True)
 
 
+def parse_size(size):
+    """'WxH', or 'auto' for the largest connected monitor (hyprctl), rotation included."""
+    if size.lower() != "auto":
+        w, h = (int(v) for v in size.lower().split("x"))
+        return w, h
+    import json
+    try:
+        mons = json.loads(subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True,
+                                         text=True, check=True).stdout)
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as e:
+        raise SystemExit(f"--size auto needs a running Hyprland (hyprctl monitors -j): {e}")
+    if not mons:
+        raise SystemExit("--size auto: hyprctl reports no monitors")
+    # transforms 1, 3, 5, 7 rotate by 90 degrees and swap width and height
+    sizes = [(m["height"], m["width"]) if m.get("transform", 0) % 2 else (m["width"], m["height"])
+             for m in mons]
+    return max(sizes, key=lambda wh: wh[0] * wh[1])
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--size", default="1920x1080", help="WxH (default 1920x1080)")
+    ap.add_argument("--size", default="1920x1080",
+                    help="WxH, or 'auto' for the largest connected monitor (default 1920x1080)")
     ap.add_argument("--seed", type=int, default=1977, help="star layout seed (default 1977)")
     ap.add_argument("--out", default=str(ROOT / "awww" / "wallpaper.png"), help="static PNG (--static)")
     ap.add_argument("--anim", default=str(ROOT / "awww" / "wallpaper.webp"), help="animated WebP")
@@ -165,7 +186,7 @@ def main():
     ap.add_argument("--svg", help="also keep the static SVG here")
     a = ap.parse_args()
 
-    w, h = (int(v) for v in a.size.lower().split("x"))
+    w, h = parse_size(a.size)
     static = build_svg(w, h, a.seed)
     if a.svg:
         Path(a.svg).write_text(static)

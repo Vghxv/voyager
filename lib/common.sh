@@ -32,3 +32,19 @@ restore_latest() {
   green "Restored $last -> $target"
 }
 
+# warn_if_small <png> <re-render command>: warn when the largest connected monitor
+# is bigger than <png>, which then gets upscaled (soft). Silent without Hyprland or jq.
+warn_if_small() {
+  local png="$1" cmd="$2" pw ph mw mh
+  command -v hyprctl >/dev/null && command -v jq >/dev/null || return 0
+  read -r pw ph < <(od -An -tu1 -j16 -N8 "$png" \
+    | awk '{ print $1*16777216 + $2*65536 + $3*256 + $4, $5*16777216 + $6*65536 + $7*256 + $8 }') || return 0
+  read -r mw mh < <(hyprctl monitors -j 2>/dev/null | jq -r '
+    map(if .transform % 2 == 1 then [.height, .width] else [.width, .height] end)
+    | max_by(.[0] * .[1]) // empty | "\(.[0]) \(.[1])"') || return 0
+  [[ -n "$mw" && -n "$pw" ]] || return 0
+  if (( mw > pw || mh > ph )); then
+    yellow "  ! $(basename "$png") is ${pw}x${ph} but your largest monitor is ${mw}x${mh} — it will look soft."
+    echo "    Re-render for your screens, then re-run this installer:  $cmd"
+  fi
+}

@@ -9,6 +9,7 @@ draws the probe and the password field on top.
 
     src/gen-hyprlock.py                       # 1920x1080, 6 frames -> hyprlock/
     src/gen-hyprlock.py --size 2560x1440      # other monitor size
+    src/gen-hyprlock.py --size auto           # your largest monitor
     src/gen-hyprlock.py --seed 42             # different star layout
     ./hyprlock/install.sh                     # install the new files
 
@@ -52,12 +53,13 @@ def build_svg(w, h, seed, frame):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--size", default="1920x1080", help="WxH (default 1920x1080)")
+    ap.add_argument("--size", default="1920x1080",
+                    help="WxH, or 'auto' for the largest connected monitor (default 1920x1080)")
     ap.add_argument("--seed", type=int, default=1977, help="star layout seed (default 1977)")
     ap.add_argument("--out-dir", default=str(ROOT / "hyprlock"), help="output folder (default hyprlock/)")
     a = ap.parse_args()
 
-    w, h = (int(v) for v in a.size.lower().split("x"))
+    w, h = wp.parse_size(a.size)
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
