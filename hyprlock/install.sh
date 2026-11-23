@@ -26,6 +26,7 @@ esac
 command -v hyprlock >/dev/null || { red "hyprlock is not installed (sudo pacman -S hyprlock)."; exit 1; }
 
 mkdir -p "$DEST"
+rm -f "$DEST"/stars-*.png   # next-frame.sh loops over all of them: no leftovers from a longer run
 install -m 644 "$SRC"/stars-*.png "$SRC"/probe.png "$DEST"/
 warn_if_small "$SRC/stars-0.png" "src/gen-hyprlock.py --size auto"
 install -m 755 "$SRC"/next-frame.sh "$DEST"/
