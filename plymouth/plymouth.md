@@ -83,10 +83,10 @@ Back to your desktop: **Ctrl+Alt+F1** or **F2**. Add **Fn** if your F-keys are m
 
 ```bash
 sudo ./plymouth/install.sh --apply
-lsinitcpio /boot/initramfs-linux.img | grep themes/voyager     # expect 7 files
+lsinitcpio /boot/initramfs-linux.img | grep themes/voyager     # expect 7 files (use your kernel's image)
 ```
 
-`--apply` prints your previous theme and the command to switch back. Before rebuilding, it copies the current image to `/boot/initramfs-linux.img.pre-voyager` if `/boot` has room. Delete that copy once you have booted fine.
+`--apply` prints your previous theme and the command to switch back. Before rebuilding, it copies each kernel's current image (`/boot/initramfs-<kernel>.img`, fallbacks skipped) to `…img.pre-voyager` if `/boot` has room, and afterwards checks that voyager is inside each one. Delete those copies once you have booted fine.
 
 The theme lives inside the initramfs — re-run `sudo ./plymouth/install.sh --apply` after **any** edit.
 
@@ -102,7 +102,7 @@ sudo ./plymouth/install.sh --remove
 | Script | Touches | Safety |
 |---|---|---|
 | `install.sh` | `/usr/share/plymouth/themes/voyager/` | only checks `mkinitcpio.conf` / cmdline, never edits them |
-| `install.sh --apply` | `Theme=` in `/etc/plymouth/plymouthd.conf`, rebuilds all initramfs images | backs up `initramfs-linux.img` → `.pre-voyager` · prints revert command |
+| `install.sh --apply` | `Theme=` in `/etc/plymouth/plymouthd.conf`, rebuilds all initramfs images | backs up each `initramfs-<kernel>.img` → `.pre-voyager` · prints revert command |
 | `install.sh --remove` | deletes the theme dir | refuses while voyager is the default |
 | `preview.sh` | default theme, temporarily (no rebuild) | restored on exit |
 

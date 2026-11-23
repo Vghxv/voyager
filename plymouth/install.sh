@@ -15,7 +15,11 @@ HERE="$(dirname "$(readlink -f "$0")")"
 source "$HERE/../lib/common.sh"
 SRC="$HERE/$THEME"
 DEST="/usr/share/plymouth/themes/$THEME"
-IMG=/boot/initramfs-linux.img
+# every kernel's main initramfs (linux, linux-lts, linux-zen, ...), not the fallbacks
+shopt -s nullglob
+IMGS=()
+for f in /boot/initramfs-*.img; do [[ "$f" == *-fallback.img ]] || IMGS+=("$f"); done
+shopt -u nullglob
 
 require_root
 command -v plymouth-set-default-theme >/dev/null || { red "plymouth is not installed (pacman -S plymouth)."; exit 1; }
@@ -39,18 +43,19 @@ check_prereqs() {
   if [[ $ok -eq 1 ]]; then green "  prerequisites look good"; else yellow "  see plymouth/plymouth.md → Prerequisites"; fi
 }
 
-# Keep a copy of the current initramfs before rebuilding, if /boot has room.
+# Keep a copy of each current initramfs before rebuilding, if /boot has room.
 backup_initramfs() {
-  [[ -f "$IMG" ]] || return 0
-  local need free
-  need=$(( $(stat -c %s "$IMG") / 1024 + 51200 ))   # image + 50 MB margin, in KB
-  free=$(df --output=avail -k /boot | tail -1)
-  if (( free > need )); then
-    cp -p "$IMG" "$IMG.pre-voyager"
-    green "  backed up $IMG -> $IMG.pre-voyager"
-  else
-    yellow "  ! not enough space in /boot to back up $IMG — continuing without a backup"
-  fi
+  local img need free
+  for img in "${IMGS[@]}"; do
+    need=$(( $(stat -c %s "$img") / 1024 + 51200 ))   # image + 50 MB margin, in KB
+    free=$(df --output=avail -k /boot | tail -1)
+    if (( free > need )); then
+      cp -p "$img" "$img.pre-voyager"
+      green "  backed up $img -> $img.pre-voyager"
+    else
+      yellow "  ! not enough space in /boot to back up $img — continuing without a backup"
+    fi
+  done
 }
 
 case "${1:-}" in
@@ -61,7 +66,9 @@ case "${1:-}" in
     fi
     rm -rf "$DEST"
     green "Removed $DEST"
-    [[ -f "$IMG.pre-voyager" ]] && echo "Old initramfs backup still at $IMG.pre-voyager — delete it once you boot fine."
+    for img in "${IMGS[@]}"; do
+      [[ -f "$img.pre-voyager" ]] && echo "Old initramfs backup still at $img.pre-voyager — delete it once you boot fine."
+    done
     exit 0
     ;;
   ""|--apply) ;;
@@ -82,11 +89,16 @@ if [[ "${1:-}" == "--apply" ]]; then
   backup_initramfs
   echo "Setting default theme and rebuilding initramfs…"
   plymouth-set-default-theme -R "$THEME"
-  if lsinitcpio "$IMG" 2>/dev/null | grep -q "themes/$THEME/voyager.script"; then
-    green "Done — voyager is inside the initramfs. Reboot to see it."
-  else
-    yellow "Rebuild finished, but voyager was not found in $IMG — check the mkinitcpio output above."
-  fi
+  missing=0
+  for img in "${IMGS[@]}"; do
+    if lsinitcpio "$img" 2>/dev/null | grep -q "themes/$THEME/voyager.script"; then
+      green "  voyager is inside $img"
+    else
+      yellow "  ! voyager was not found in $img — check the mkinitcpio output above"; missing=1
+    fi
+  done
+  (( ${#IMGS[@]} )) || { yellow "  ! no /boot/initramfs-*.img found — check the mkinitcpio output above"; missing=1; }
+  (( missing )) || green "Done. Reboot to see it."
 else
   echo
   echo "Next steps:"
