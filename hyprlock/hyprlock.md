@@ -21,7 +21,6 @@ hyprlock                       # test: unlock with your user password
 - Assets go to `~/.config/hypr/voyager/`, the config to `~/.config/hypr/hyprlock.conf`.
 - Your current `hyprlock.conf` is backed up to `hyprlock.conf.bak-<date>`. If it already is the voyager config, nothing is backed up, so re-running never hides your original.
 - Undo: `./hyprlock/install.sh --restore` restores the newest backup. The assets in `~/.config/hypr/voyager/` stay.
-- No backup? If `~/.config` is a dotfiles git repo, the original is in its history: `git -C ~/.config checkout -- hypr/hyprlock.conf`.
 
 ## Notes
 
