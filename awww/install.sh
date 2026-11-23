@@ -55,6 +55,9 @@ for _ in $(seq 20); do awww query >/dev/null 2>&1 && break; sleep 0.25; done
 awww query >/dev/null 2>&1 || { red "awww-daemon did not come up — see: journalctl --user -u $UNIT"; exit 1; }
 
 img="$DEST/wallpaper.webp"; [[ "${1:-}" == "--static" ]] && img="$DEST/wallpaper.png"
+# awww caches decoded animation frames by path + size; after a re-render the path is the
+# same, so a stale cache would play the old frames over the new first frame.
+awww clear-cache
 awww img "$img" --transition-type fade --transition-duration 1.5
 green "Showing $img"
 
