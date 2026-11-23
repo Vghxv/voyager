@@ -131,6 +131,6 @@ Tunables at the top of `plymouth/voyager/voyager.script`:
 
 Other edits:
 
-- **Logo** — replace `plymouth/voyager/logo.png` (transparent PNG, ~400 px). If you change the artwork, update the dish position in the script (`dish_x` / `dish_y`, coordinates in the 400×400 logo) so the rings start at the right spot.
+- **Images** — every PNG in `plymouth/voyager/` is rendered from `src/` (`logo`, `ring`, `star`, `streak`, `flash` `.svg`). Edit the SVG, run `src/gen-plymouth.py`, then `sudo ./plymouth/install.sh --apply`. If you change the probe artwork, update the dish position in the script (`dish_x` / `dish_y`, coordinates in the 400×400 logo) so the rings start at the right spot.
 - **Title / hint text** — `Image.Text("voyager", …)` and `Image.Text("type your passphrase…", …)`.
-- **Colors** — `Window.SetBackgroundTopColor` / `BottomColor` (RGB 0–1); ring and streak colors live in `src/*.svg`. Re-render with `rsvg-convert -w <W> -h <H> src/ring.svg -o plymouth/voyager/ring.png`.
+- **Colors** — `Window.SetBackgroundTopColor` / `BottomColor` (RGB 0–1); ring, star, streak and flash colors live in `src/*.svg` (re-render with `src/gen-plymouth.py`).

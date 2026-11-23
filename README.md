@@ -19,7 +19,7 @@ hyprlock/    lock screen config + assets, install.sh
 awww/        animated + still wallpaper, systemd unit, install.sh
 eww/         complete bar: yuck, scripts, eww.scss, icons, install.sh
 lib/         shared shell helpers
-src/         SVG sources, wallpaper + hyprlock generators
+src/         SVG sources, wallpaper + hyprlock + plymouth generators
 docs/        preview images
 ```
 
