@@ -22,7 +22,8 @@ $amber:      #F0C674;
 
 $global-padding: 0px 10px 0px 10px;
 
-* {
+// bar + power menu only, so systray menus keep the system font
+.bar, .power-menu-container, tooltip {
   font-family: "DejaVu Sans";
 }
 
