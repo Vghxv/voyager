@@ -20,7 +20,7 @@
   `nmcli -t -f NAME,TYPE connection show --active | awk -F: '$2 == "802-11-wireless" { print $1; exit }'`)
 
 ; WORKSPACES
-(deflisten workspace_state :initial "" "scripts/workspaces.sh")
+(deflisten workspace_state :initial '{"workspaces":[],"active":0}' "scripts/workspaces.sh")
 
 ; BATTERY ESTIMATE
 (defpoll battery_estimate :interval "60s" "scripts/battery_estimate.sh")
