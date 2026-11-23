@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-SRC="$(cd "$(dirname "$0")" && pwd)"
+SRC="$(dirname "$(readlink -f "$0")")"
 source "$SRC/../lib/common.sh"
 
 HYPR="$HOME/.config/hypr"

@@ -26,14 +26,8 @@ The bar window is transparent, so every cell sits directly on the dark navy wall
 - text and icons are navy `#14141F`, so they read on the light fill;
 - every cell has a 1px indigo border, so cells sitting next to each other stay separate.
 
-If you change the palette, keep the cell fill light. If you switch to dark cells, also recolor the icons to a light color (see below), or they will disappear.
+If you change the palette, keep the cell fill light. If you switch to dark cells, also recolor `eww/icons/` to a light color, or they will disappear.
 
 ## Icons
 
-`eww/assets/` holds the original black icons. `eww/icons/` holds the copies that actually get installed, recolored to navy. To regenerate them (needs ImageMagick):
-
-```bash
-eww/recolor.sh               # navy #14141F
-eww/recolor.sh '#D9D9F2'     # any other color, e.g. mist for a dark bar
-./eww/install.sh
-```
+`eww/icons/` holds the icons the bar uses (battery, brightness, menu-burger, sound-wave, wifi), colored navy `#14141F` so they read on the light cells. The installer copies them into `~/.config/eww/assets/`.

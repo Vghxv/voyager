@@ -11,7 +11,7 @@
 set -euo pipefail
 
 THEME=voyager
-HERE="$(cd "$(dirname "$0")" && pwd)"
+HERE="$(dirname "$(readlink -f "$0")")"
 source "$HERE/../lib/common.sh"
 SRC="$HERE/$THEME"
 DEST="/usr/share/plymouth/themes/$THEME"

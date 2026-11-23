@@ -17,7 +17,7 @@ Plymouth needs a systemd initramfs with `sd-encrypt` — read its [prerequisites
 plymouth/    boot theme, install.sh, preview.sh
 hyprlock/    lock screen config + assets, install.sh
 awww/        animated + still wallpaper, systemd unit, install.sh
-eww/         bar eww.scss, icons (originals + recolored), install.sh
+eww/         bar eww.scss, navy icons, install.sh
 lib/         shared shell helpers
 src/         SVG sources + wallpaper generator
 docs/        preview images
