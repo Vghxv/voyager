@@ -1,0 +1,269 @@
+# =====================================================================
+#  voyager  -  Plymouth LUKS unlock screen
+#  twinkling stars + warp on typing + signal pulses + wrong-pass shake
+# =====================================================================
+
+# ---------------- tunables ----------------
+NUM_STARS   = 110;    # number of stars
+KEY_BOOST   = 1.4;    # warp burst per typed character
+BACK_PULL   = 1.0;    # reverse pull per backspace
+WARP_MAX    = 6;      # warp speed after Enter
+STREAK_AT   = 1.2;    # speed above which stars turn into streaks
+ROT_SIGN    = 1;      # set to -1 if streaks point the wrong way
+
+# ---------------- background ----------------
+Window.SetBackgroundTopColor(0.08, 0.08, 0.12);
+Window.SetBackgroundBottomColor(0.02, 0.02, 0.05);
+
+W  = Window.GetWidth();
+H  = Window.GetHeight();
+cx = W / 2;
+cy = H / 2;
+DT = 0.02;            # refresh runs ~50 times per second
+t  = 0;
+
+speed     = 0;
+warping   = 0;
+submitted = 0;
+prev      = 0;
+shake     = 0;
+flash_a   = 0;
+hint_a    = 0;
+hint_target = 1;
+
+# ---------------- stars ----------------
+star_src   = Image("star.png");
+streak_src = Image("streak.png");
+
+fun aim_star(i) {
+  ang = Math.ATan2(global.star[i].y - global.cy, global.star[i].x - global.cx);
+  global.star[i].streak = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang);
+  global.star[i].sw2 = global.star[i].streak.GetWidth() / 2;
+  global.star[i].sh2 = global.star[i].streak.GetHeight() / 2;
+  if (global.star[i].mode == 1) {
+    global.star[i].sprite.SetImage(global.star[i].streak);
+  }
+}
+
+fun place_star(i) {
+  global.star[i].x = Math.Random() * global.W;
+  global.star[i].y = Math.Random() * global.H;
+  global.star[i].fade = 0;
+  aim_star(i);
+}
+
+for (i = 0; i < NUM_STARS; i++) {
+  size = 4 + Math.Int(Math.Random() * 12);
+  star[i].dot = star_src.Scale(size, size);
+  star[i].streak_base = streak_src.Scale(size * 5, size);
+  star[i].half = size / 2;
+  star[i].sprite = Sprite(star[i].dot);
+  star[i].mode = 0;
+  star[i].peak  = 0.3 + Math.Random() * 0.7;
+  star[i].low   = Math.Random() * 0.2;
+  star[i].freq  = 0.15 + Math.Random() * 1.2;
+  star[i].phase = Math.Random() * 6.2832;
+  place_star(i);
+  star[i].fade = 1;
+}
+
+# ---------------- logo ----------------
+logo_img = Image("logo.png");
+logo_s = 1;
+if (logo_img.GetWidth() > W / 3) {
+  logo_s = (W / 3) / logo_img.GetWidth();
+}
+logo_img = logo_img.Scale(logo_img.GetWidth() * logo_s, logo_img.GetHeight() * logo_s);
+logo_x = cx - logo_img.GetWidth() / 2;
+logo_y = cy - logo_img.GetHeight() - 40;
+logo_sprite = Sprite(logo_img);
+logo_sprite.SetPosition(logo_x, logo_y, 10);
+
+dish_x = logo_x + 190 * logo_s;      # dish centre inside the 400x400 probe logo
+dish_y = logo_y + 147 * logo_s;
+
+# ---------------- title + hint ----------------
+title_img = Image.Text("voyager", 0.85, 0.85, 0.95);
+title_sprite = Sprite(title_img);
+title_sprite.SetPosition(cx - title_img.GetWidth() / 2, cy, 10);
+
+hint_img = Image.Text("type your passphrase, press enter to launch", 0.5, 0.5, 0.62);
+hint_sprite = Sprite(hint_img);
+hint_sprite.SetPosition(cx - hint_img.GetWidth() / 2, cy + 50, 10);
+hint_sprite.SetOpacity(0);
+
+# ---------------- signal rings (pre-scaled frames) ----------------
+RING_FRAMES = 24;
+ring_src = Image("ring.png");
+for (k = 0; k < RING_FRAMES; k++) {
+  d = 16 + k * 22;
+  ring_img[k] = ring_src.Scale(d, d);
+}
+
+NUM_RINGS = 6;
+for (r = 0; r < NUM_RINGS; r++) {
+  ring[r].sprite = Sprite(ring_img[0]);
+  ring[r].sprite.SetOpacity(0);
+  ring[r].active = 0;
+}
+next_ring = 0;
+
+fun spawn_ring(dir) {
+  r = global.next_ring;
+  global.ring[r].active = 1;
+  global.ring[r].dir = dir;
+  if (dir > 0) {
+    global.ring[r].f = 0;
+  } else {
+    global.ring[r].f = global.RING_FRAMES - 1;
+  }
+  global.next_ring = r + 1;
+  if (global.next_ring >= global.NUM_RINGS) {
+    global.next_ring = 0;
+  }
+}
+
+# ---------------- red flash ----------------
+flash_sprite = Sprite(Image("flash.png").Scale(W, H));
+flash_sprite.SetPosition(0, 0, 50);
+flash_sprite.SetOpacity(0);
+
+# ================= animation loop =================
+fun refresh_callback() {
+  global.t += global.DT;
+
+  # warp speed: ramps up after Enter, otherwise decays back to still
+  if (global.warping) {
+    global.speed = global.speed + (global.WARP_MAX - global.speed) * 0.04;
+  } else {
+    global.speed = global.speed * 0.92;
+  }
+  fast = 0;
+  if (Math.Abs(global.speed) > global.STREAK_AT) {
+    fast = 1;
+  }
+
+  # stars
+  for (i = 0; i < global.NUM_STARS; i++) {
+    dx = global.star[i].x - global.cx;
+    dy = global.star[i].y - global.cy;
+    global.star[i].x += dx * global.speed * global.DT;
+    global.star[i].y += dy * global.speed * global.DT;
+    x = global.star[i].x;
+    y = global.star[i].y;
+
+    if (x < -20 || x > global.W + 20 || y < -20 || y > global.H + 20 ||
+        (global.speed < 0 && Math.Abs(dx) < 3 && Math.Abs(dy) < 3)) {
+      place_star(i);
+      x = global.star[i].x;
+      y = global.star[i].y;
+    }
+    if (global.star[i].fade < 1) {
+      global.star[i].fade += 0.04;
+    }
+
+    if (fast != global.star[i].mode) {
+      global.star[i].mode = fast;
+      if (fast) {
+        global.star[i].sprite.SetImage(global.star[i].streak);
+      } else {
+        global.star[i].sprite.SetImage(global.star[i].dot);
+      }
+    }
+
+    wave = 0.5 + 0.5 * Math.Sin(6.2832 * global.star[i].freq * global.t + global.star[i].phase);
+    a = global.star[i].low + (global.star[i].peak - global.star[i].low) * wave;
+    a = a + Math.Abs(global.speed) * 0.15;
+    if (a > 1) {
+      a = 1;
+    }
+    global.star[i].sprite.SetOpacity(a * global.star[i].fade);
+
+    if (fast) {
+      global.star[i].sprite.SetPosition(x - global.star[i].sw2, y - global.star[i].sh2, 0);
+    } else {
+      global.star[i].sprite.SetPosition(x - global.star[i].half, y - global.star[i].half, 0);
+    }
+  }
+
+  # signal rings
+  for (r = 0; r < global.NUM_RINGS; r++) {
+    if (global.ring[r].active) {
+      f = global.ring[r].f;
+      img = global.ring_img[Math.Int(f)];
+      global.ring[r].sprite.SetImage(img);
+      global.ring[r].sprite.SetPosition(global.dish_x - img.GetWidth() / 2, global.dish_y - img.GetHeight() / 2, 5);
+      global.ring[r].sprite.SetOpacity(0.9 * (1 - f / global.RING_FRAMES));
+      global.ring[r].f += 0.6 * global.ring[r].dir;
+      if (global.ring[r].f >= global.RING_FRAMES || global.ring[r].f < 0) {
+        global.ring[r].active = 0;
+        global.ring[r].sprite.SetOpacity(0);
+      }
+    }
+  }
+
+  # probe shake (wrong passphrase)
+  global.shake = global.shake * 0.9;
+  ox = Math.Sin(global.t * 70) * global.shake;
+  global.logo_sprite.SetPosition(global.logo_x + ox, global.logo_y, 10);
+
+  # red flash (wrong passphrase)
+  if (global.flash_a > 0.005) {
+    global.flash_a = global.flash_a * 0.92;
+  } else {
+    global.flash_a = 0;
+  }
+  global.flash_sprite.SetOpacity(global.flash_a);
+
+  # hint text fade
+  global.hint_a += (global.hint_target - global.hint_a) * 0.1;
+  global.hint_sprite.SetOpacity(global.hint_a);
+}
+Plymouth.SetRefreshFunction(refresh_callback);
+
+# ================= password input =================
+fun display_password_callback(prompt, bullets) {
+  # asked again after Enter -> passphrase was wrong
+  if (global.submitted) {
+    global.submitted = 0;
+    global.warping = 0;
+    global.speed = -1.5;
+    global.flash_a = 0.35;
+    global.shake = 14;
+    global.prev = 0;
+  }
+
+  if (bullets > global.prev) {          # character typed
+    global.speed += global.KEY_BOOST;
+    if (global.speed > 5) {
+      global.speed = 5;
+    }
+    spawn_ring(1);
+  }
+  if (bullets < global.prev) {          # backspace
+    global.speed -= global.BACK_PULL;
+    if (global.speed < -2.5) {
+      global.speed = -2.5;
+    }
+    spawn_ring(-1);
+  }
+  global.prev = bullets;
+
+  if (bullets == 0) {
+    global.hint_target = 1;
+  } else {
+    global.hint_target = 0;
+  }
+}
+
+fun display_normal_callback() {
+  # prompt closed after typing -> passphrase submitted: launch
+  if (global.prev > 0) {
+    global.submitted = 1;
+    global.warping = 1;
+    global.hint_target = 0;
+  }
+}
+
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
