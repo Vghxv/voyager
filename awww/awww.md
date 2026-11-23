@@ -20,7 +20,7 @@ sudo pacman -S awww
 What the installer does:
 
 - Copies `wallpaper.webp` and `wallpaper.png` to `~/.config/hypr/voyager/`.
-- Installs `awww.service` (the package ships none) to `~/.config/systemd/user/` and enables it. An existing unit with the same name is backed up first.
+- Installs `awww.service` (the package ships none) to `~/.config/systemd/user/`, pointing `ExecStart` at wherever `awww-daemon` is on `PATH`, and enables it. An existing unit with the same name is backed up first.
 - `awww img … --transition-type fade` shows the wallpaper. awww caches it and shows it again at next login.
 
 `--restore` stops and disables `awww.service`. awww is the only wallpaper daemon voyager uses: hyprpaper is not needed and the installer never touches it.

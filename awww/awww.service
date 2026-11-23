@@ -10,6 +10,7 @@ ConditionEnvironment=WAYLAND_DISPLAY
 [Service]
 Type=simple
 # re-shows the last image from awww's cache on start
+# install.sh replaces /usr/bin with wherever awww-daemon is installed
 ExecStart=/usr/bin/awww-daemon --quiet
 Restart=on-failure
 Slice=session.slice

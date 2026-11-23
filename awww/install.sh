@@ -46,8 +46,11 @@ mkdir -p "$DEST"
 install -m 644 "$SRC/wallpaper.webp" "$SRC/wallpaper.png" "$DEST/"
 echo "Copied wallpaper to $DEST"
 
-backup_file "$UNIT_DIR/$UNIT" "$SRC/$UNIT"
-install -D -m 644 "$SRC/$UNIT" "$UNIT_DIR/$UNIT"
+# point ExecStart at wherever awww-daemon is installed (/usr/bin, ~/.local/bin, ~/.cargo/bin, ...)
+unit="$(mktemp)"; trap 'rm -f "$unit"' EXIT
+sed "s|^ExecStart=/usr/bin/awww-daemon|ExecStart=$(command -v awww-daemon)|" "$SRC/$UNIT" > "$unit"
+backup_file "$UNIT_DIR/$UNIT" "$unit"
+install -D -m 644 "$unit" "$UNIT_DIR/$UNIT"
 systemctl --user daemon-reload
 systemctl --user enable --now "$UNIT"
 
