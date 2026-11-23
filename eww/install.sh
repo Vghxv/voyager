@@ -42,9 +42,11 @@ install -m 644 "$SRC"/icons/*.png "$DEST/assets"/
 echo "Installed the bar to $DEST"
 
 if eww ping >/dev/null 2>&1; then
-  eww reload && green "Reloaded eww"
+  # eww 0.6's reload cannot reopen windows that take arguments (the bar does): restart instead
+  eww kill >/dev/null 2>&1; sleep 0.5
+  "$DEST/scripts/bars.sh" && green "Restarted eww"
 else
   echo
-  echo "eww is not running. Start it now:   eww daemon && eww open bar"
-  echo "Start it at login (hyprland.conf):  exec-once = eww daemon && eww open bar"
+  echo "eww is not running. Start it now:   $DEST/scripts/bars.sh"
+  echo "Start it at login (hyprland.conf):  exec-once = $DEST/scripts/bars.sh watch"
 fi

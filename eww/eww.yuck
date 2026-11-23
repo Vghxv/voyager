@@ -77,12 +77,12 @@
   )
 
 
-(defwidget cBoxStart []
+(defwidget cBoxStart [monitor]
   (box :space-evenly false
        :spacing 10
     (button
       :class "element menu-button"
-      :onclick "${EWW_CMD} open --toggle power_menu"
+      :onclick "${EWW_CMD} open --toggle power_menu --screen '${monitor}'"
       (bimage :filename "menu-burger.png")
       )
     (box
@@ -98,8 +98,8 @@
       :spacing 10
       (for ws in "${workspace_state?.workspaces}"
         (button 
-          :onclick "hyprctl dispatch workspace ${ws}"
-          :class {ws == workspace_state.active ? "active" : "inactive"}
+          :onclick "${EWW_CONFIG_DIR}/scripts/workspace.sh ${ws}"
+          :class {ws == (workspace_state?.monitors?.[monitor] ?: workspace_state.active) ? "active" : "inactive"}
           "${ws}"
           )
         )
@@ -149,8 +149,9 @@
     )
   )
 
-(defwindow bar
-  :monitor "[1,0]"
+; One bar per monitor: scripts/bars.sh opens `bar --id bar-<name> --arg monitor=<name>`.
+(defwindow bar [monitor]
+  :monitor monitor
   :geometry
   (geometry
     :x "0px"
@@ -163,7 +164,7 @@
   :exclusive true
   :focusable "none"
   (centerbox
-    (cBoxStart)
+    (cBoxStart :monitor monitor)
     (cBoxMiddle)
     (cBoxEnd)
     )
