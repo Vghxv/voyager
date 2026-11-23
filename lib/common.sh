@@ -46,13 +46,14 @@ check_deps() {
 
 # ---------- backups ----------
 # backup_file <target> <new-content>
-# Copies <target> to <target>.bak-YYYYmmdd-HHMMSS, unless it does not exist or
-# already equals <new-content> (re-installing must never back up voyager's own
-# file, or --restore would bring voyager back instead of your original).
+# Copies <target> to <target>.bak-YYYYmmdd-HHMMSS, unless it does not exist or is
+# already voyager's (same content, or an older voyager version: first line starts
+# with "# voyager"). Backing up voyager's own file would make --restore bring
+# voyager back instead of your original.
 backup_file() {
   local target="$1" new="$2" bak
   [[ -f "$target" ]] || return 0
-  if cmp -s "$target" "$new"; then
+  if cmp -s "$target" "$new" || [[ "$(head -1 "$target")" == "# voyager"* ]]; then
     echo "  $target is already voyager's — no backup needed"
     return 0
   fi
@@ -121,3 +122,16 @@ check_same() {
   elif ! cmp -s "$1" "$2"; then fail "$2 differs from the repo" "$3"
   else pass "${2/#$HOME/\~} is current"; fi
 }
+
+# check_files <label> <fix> <repo dir> <installed dir> <file>...: one ✓ when every
+# installed copy matches the repo, else one ✗ naming the files that are off.
+check_files() {
+  local label="$1" fix="$2" src="$3" dest="$4" f bad=()
+  shift 4
+  for f in "$@"; do cmp -s "$src/$f" "$dest/$f" || bad+=("$f"); done
+  if (( ${#bad[@]} )); then fail "$label: missing or changed: ${bad[*]}" "$fix"
+  else pass "$label match the repo"; fi
+}
+
+# run_checks: the last line of every check.sh — exit 1 if anything failed.
+run_checks() { exit "$FAILED"; }

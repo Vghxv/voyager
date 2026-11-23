@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Install the voyager wallpaper with awww (the renamed swww).
+# Install the wallpaper and run it with awww as a systemd user service.
 #
-#   ./awww/install.sh            animated: looping WebP (twinkling stars, ring pulse)
-#   ./awww/install.sh --static   still PNG instead (no CPU cost)
+#   ./awww/install.sh            animated
+#   ./awww/install.sh --static   still image
 #   ./awww/install.sh --restore  stop and disable awww
 #
-# awww is the only wallpaper daemon: hyprpaper is not used or touched.
-# Run as your normal user — NOT with sudo.
+# Docs: awww/awww.md
 
 set -euo pipefail
 
@@ -27,10 +26,10 @@ restore() {
 case "${1:-}" in
   --restore) restore; exit ;;
   ""|--static) ;;
-  *) red "Unknown option: $1"; exit 1 ;;
+  *) red "Unknown option: $1 (use --static, --restore or nothing)"; exit 1 ;;
 esac
 
-command -v awww-daemon >/dev/null || { red "awww is not installed (sudo pacman -S awww)."; exit 1; }
+check_deps "$SRC/deps"
 
 # awww.service starts with graphical-session.target and needs WAYLAND_DISPLAY in
 # the systemd user environment. A session manager (e.g. uwsm) provides both;
@@ -64,6 +63,4 @@ img="$DEST/wallpaper.webp"; [[ "${1:-}" == "--static" ]] && img="$DEST/wallpaper
 awww clear-cache
 awww img "$img" --transition-type fade --transition-duration 1.5
 green "Showing $img"
-
-echo
-echo "Static:  ./awww/install.sh --static      Undo:  ./awww/install.sh --restore"
+echo "Undo:  ./awww/install.sh --restore"

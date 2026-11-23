@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# voyager Plymouth theme installer
+# Install the Plymouth boot theme. Never edits mkinitcpio.conf or the bootloader.
 #
-#   sudo ./plymouth/install.sh            copy theme files only
-#   sudo ./plymouth/install.sh --apply    copy + set as default + rebuild initramfs
-#   sudo ./plymouth/install.sh --remove   delete the theme (switch default theme first!)
+#   sudo ./plymouth/install.sh            copy the theme, check prerequisites
+#   sudo ./plymouth/install.sh --apply    also make it the default and rebuild the initramfs
+#   sudo ./plymouth/install.sh --remove   delete it (switch to another theme first)
 #
-# This script never edits /etc/mkinitcpio.conf or your bootloader config.
-# It only checks them and tells you what is missing.
+# Docs: plymouth/plymouth.md
 
 set -euo pipefail
 
@@ -22,25 +21,13 @@ for f in /boot/initramfs-*.img; do [[ "$f" == *-fallback.img ]] || IMGS+=("$f");
 shopt -u nullglob
 
 require_root
-command -v plymouth-set-default-theme >/dev/null || { red "plymouth is not installed (pacman -S plymouth)."; exit 1; }
+check_deps "$HERE/deps"
 
 check_prereqs() {
-  local ok=1 hooks
-  hooks="$(grep -E '^HOOKS=' /etc/mkinitcpio.conf || true)"
-
-  for h in systemd plymouth sd-encrypt; do
-    if ! grep -qw "$h" <<<"$hooks"; then
-      yellow "  ! HOOKS is missing '$h'"; ok=0
-    fi
-  done
-  if grep -qw plymouth <<<"$hooks" && grep -qw sd-encrypt <<<"$hooks"; then
-    local order
-    order="$(grep -oE 'systemd|plymouth|sd-encrypt' <<<"$hooks" | tr '\n' ' ')"
-    [[ "$order" == "systemd plymouth sd-encrypt " ]] || { yellow "  ! hook order should be: systemd … plymouth … sd-encrypt (got: $order)"; ok=0; }
-  fi
-  grep -qw splash /proc/cmdline || { yellow "  ! 'splash' is not on the running kernel cmdline"; ok=0; }
-
-  if [[ $ok -eq 1 ]]; then green "  prerequisites look good"; else yellow "  see plymouth/plymouth.md → Prerequisites"; fi
+  local problems
+  problems="$("$HERE/prereqs.sh")"
+  if [[ -z "$problems" ]]; then green "  prerequisites look good"
+  else while read -r p; do yellow "  ! $p"; done <<<"$problems"; yellow "  see plymouth/plymouth.md#prerequisites"; fi
 }
 
 # Keep a copy of each current initramfs before rebuilding, if /boot has room.
@@ -72,7 +59,7 @@ case "${1:-}" in
     exit 0
     ;;
   ""|--apply) ;;
-  *) red "Unknown option: $1"; exit 1 ;;
+  *) red "Unknown option: $1 (use --apply, --remove or nothing)"; exit 1 ;;
 esac
 
 echo "Checking prerequisites…"

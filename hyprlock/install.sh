@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Install the voyager hyprlock theme for the current user.
+# Install the lock screen: assets to ~/.config/hypr/voyager, config to hyprlock.conf.
 #
 #   ./hyprlock/install.sh            install (backs up your current hyprlock.conf)
-#   ./hyprlock/install.sh --restore  put the most recent backup back
+#   ./hyprlock/install.sh --restore  put that backup back
 #
-# Run as your normal user — NOT with sudo.
+# Docs: hyprlock/hyprlock.md
 
 set -euo pipefail
 
@@ -20,10 +20,10 @@ require_user
 case "${1:-}" in
   --restore) restore_latest "$CONF"; exit ;;
   "") ;;
-  *) red "Unknown option: $1"; exit 1 ;;
+  *) red "Unknown option: $1 (use --restore or nothing)"; exit 1 ;;
 esac
 
-command -v hyprlock >/dev/null || { red "hyprlock is not installed (sudo pacman -S hyprlock)."; exit 1; }
+check_deps "$SRC/deps"
 
 mkdir -p "$DEST"
 rm -f "$DEST"/stars-*.png   # next-frame.sh loops over all of them: no leftovers from a longer run
@@ -37,5 +37,5 @@ install -m 644 "$SRC"/hyprlock.conf "$CONF"
 echo "Installed $CONF"
 
 echo
-echo "Test it now:  hyprlock      (unlock with your user password)"
-echo "Undo:         ./hyprlock/install.sh --restore"
+echo "Try it:  hyprlock   (unlock with your user password)"
+echo "Undo:    ./hyprlock/install.sh --restore"
