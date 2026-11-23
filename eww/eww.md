@@ -31,3 +31,11 @@ If you change the palette, keep the cell fill light. If you switch to dark cells
 ## Icons
 
 `eww/icons/` holds the icons the bar uses (battery, brightness, menu-burger, sound-wave, wifi), colored navy `#14141F` so they read on the light cells. The installer copies them into `~/.config/eww/assets/`.
+
+Your yuck must load icons from that folder. The bar finds them through `ASSET_PATH` in `var.yuck`:
+
+```lisp
+(defvar ASSET_PATH "/home/<you>/.config/eww/assets")
+```
+
+If yours points somewhere else, the cells show no icons.
