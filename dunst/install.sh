@@ -2,7 +2,10 @@
 # Install the voyager dunst theme for the current user.
 #
 #   ./dunst/install.sh            install (backs up your current dunstrc)
-#   ./dunst/install.sh --restore  put the most recent backup back
+#   ./dunst/install.sh --restore  put the most recent backup back, drop the voyager colors
+#
+# Also installs the light/dark color drop-ins and the voyager-theme switcher
+# (~/.local/bin/voyager-theme) that the eww bar shares.
 #
 # Run as your normal user — NOT with sudo.
 
@@ -11,7 +14,9 @@ set -euo pipefail
 SRC="$(dirname "$(readlink -f "$0")")"
 source "$SRC/../lib/common.sh"
 
-CONF="$HOME/.config/dunst/dunstrc"
+DIR="$HOME/.config/dunst"
+CONF="$DIR/dunstrc"
+DROPIN="$DIR/dunstrc.d/90-voyager-theme.conf"
 
 require_user
 
@@ -28,7 +33,7 @@ reload() {
 }
 
 case "${1:-}" in
-  --restore) restore_latest "$CONF"; reload; exit ;;
+  --restore) rm -f "$DROPIN"; restore_latest "$CONF" || true; reload; exit ;;
   "") ;;
   *) red "Unknown option: $1"; exit 1 ;;
 esac
@@ -38,7 +43,12 @@ command -v notify-send >/dev/null || yellow "notify-send is missing (sudo pacman
 
 backup_file "$CONF" "$SRC/dunstrc"
 install -D -m 644 "$SRC/dunstrc" "$CONF"
-echo "Installed $CONF"
+install -d "$DIR/themes"
+install -m 644 "$SRC"/themes/*.conf "$DIR/themes"/
+install -D -m 755 "$SRC/../lib/voyager-theme.sh" "$HOME/.local/bin/voyager-theme"
+mode="$("$HOME/.local/bin/voyager-theme")"
+install -D -m 644 "$SRC/themes/$mode.conf" "$DROPIN"
+echo "Installed $CONF ($mode mode; switch with: voyager-theme toggle)"
 reload
 
 echo

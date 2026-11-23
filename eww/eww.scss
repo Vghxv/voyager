@@ -1,30 +1,30 @@
-// voyager — eww bar
-// Same palette as the Plymouth boot screen, hyprlock and the awww wallpaper.
+// voyager — eww bar, HUD style
+// Same palette as the Plymouth boot screen, hyprlock, dunst and the awww wallpaper.
 // Selectors match the original eww.scss, so eww.yuck needs no changes.
 //
-// CONTRAST: the bar window is transparent, so every cell sits directly on the
-// deep-navy wallpaper (#14141F -> #05050D). Cells are light mist "panels" with
-// dark navy text and icons (eww/icons/), so they stand out clearly from the
-// night sky. Each cell also has a 1px indigo edge so neighbouring cells stay
-// separate. If you change colors, keep the cell fill light, or the cells sink
-// into the wallpaper.
+// LOOK: square cells, no rounded corners anywhere. Each cell is a readout: a thin
+// 1px frame and a 2px accent edge along the bottom (indigo, or teal / amber / red
+// for states). Hover lights the edge teal with a faint glow.
+//
+// MODES: the mode's colors come from theme.scss, which voyager-theme copies from
+// themes/light.scss or themes/dark.scss. Icons follow the same mode (assets/<mode>/).
+// Keep text and icons in contrast with $fill in both modes: the bar window is
+// transparent, so cells sit straight on the deep-navy wallpaper.
 
-// ---------- palette ----------
-$ink:        #14141F;                    // text + icons on cells (= wallpaper top)
-$cell:       rgba(217, 217, 242, 0.92);  // mist
-$cell-hover: rgba(236, 236, 252, 0.97);
-$border:     rgba(139, 143, 240, 0.70);  // indigo edge
-$indigo:     #8B8FF0;
-$teal:       #5EEAD4;
-$dim:        #5A5A78;                    // inactive workspace number
-$red:        #FF3355;                    // hyprlock fail color
-$amber:      #F0C674;
+@import "theme";
+
+// ---------- fixed accents (both modes) ----------
+$indigo: #8B8FF0;
+$teal:   #5EEAD4;
+$amber:  #F0C674;
+$red:    #FF3355;                        // hyprlock fail color
 
 $global-padding: 0px 10px 0px 10px;
 
 // bar + power menu only, so systray menus keep the system font
 .bar, .power-menu-container, tooltip {
-  font-family: "DejaVu Sans";
+  font-family: "GeistMono Nerd Font", "JetBrains Mono", monospace;
+  font-size: 12px;
 }
 
 .bar {
@@ -38,23 +38,30 @@ $global-padding: 0px 10px 0px 10px;
 
 // ---------- the cell ----------
 %element-base {
-  border-radius: 8px;
-  border: 1px solid $border;
-  background-color: $cell;
+  border-radius: 0;
+  border: 1px solid $frame;
+  border-bottom: 2px solid $indigo;
+  background-color: $fill;
   background-image: none;                // drop the GTK theme's button gradient
   box-shadow: none;
   text-shadow: none;
-  color: $ink;
+  color: $text;
 }
 
-// state tints: still light, so the dark icon/text keeps reading
-%ok   { background-color: rgba(178, 242, 231, 0.95); border-color: darken($teal, 15%); }
-%warn { background-color: rgba(248, 226, 180, 0.95); border-color: darken($amber, 15%); }
-%bad  { background-color: rgba(255, 179, 192, 0.95); border-color: $red; }
+%hover {
+  background-color: $fill-hover;
+  border-color: $teal;
+  box-shadow: 0 0 6px rgba(94, 234, 212, 0.45);
+}
+
+// states: tinted fill + colored bottom edge
+%ok   { background-color: $ok-fill;   color: $ok-text;   border-bottom-color: $teal; }
+%warn { background-color: $warn-fill; color: $warn-text; border-bottom-color: $amber; }
+%bad  { background-color: $bad-fill;  color: $bad-text;  border-color: $red; }
 
 .element {
   @extend %element-base;
-  &:hover { background-color: $cell-hover; border-color: $teal; }
+  &:hover { @extend %hover; }
 }
 
 // ---------- workspaces ----------
@@ -62,14 +69,17 @@ $global-padding: 0px 10px 0px 10px;
   .active {
     @extend %element-base;
     background-color: $indigo;
-    border-color: darken($indigo, 15%);
+    border-color: $indigo;
+    border-bottom-color: $teal;
+    color: $on-accent;
     font-weight: bold;
     &:hover { background-color: lighten($indigo, 5%); }
   }
   .inactive {
     @extend %element-base;
+    border-bottom-color: $frame;
     color: $dim;
-    &:hover { background-color: $cell-hover; border-color: $teal; color: $ink; }
+    &:hover { @extend %hover; color: $text; }
   }
 }
 
@@ -106,39 +116,43 @@ $global-padding: 0px 10px 0px 10px;
   padding: $global-padding;
 }
 
-// volume slider inside .sound
+// volume slider inside .sound: flat, square
 scale {
   trough {
-    min-height: 6px;
+    min-height: 4px;
     min-width: 60px;
-    border-radius: 3px;
-    background-color: rgba(20, 20, 31, 0.25);
+    border-radius: 0;
+    background-color: $trough;
     border: none;
   }
   highlight {
-    border-radius: 3px;
-    background-image: linear-gradient(to right, $indigo, darken($teal, 10%));
+    border-radius: 0;
+    background-image: linear-gradient(to right, $indigo, $teal);
   }
   slider {
-    min-width: 12px;
+    min-width: 6px;
     min-height: 12px;
-    border-radius: 6px;
-    background-color: $ink;
+    border-radius: 0;
+    border: none;
+    background-image: none;
+    background-color: $text;
+    box-shadow: none;
   }
 }
 
 progress, progressbar trough {
-  border-radius: 3px;
+  border-radius: 0;
 }
 progressbar progress {
   background-image: linear-gradient(to top, $indigo, $teal);
 }
 
 tooltip {
-  border-radius: 8px;
-  border: 1px solid $border;
-  background-color: $cell;
-  color: $ink;
+  border-radius: 0;
+  border: 1px solid $frame;
+  border-bottom: 2px solid $teal;
+  background-color: $fill;
+  color: $text;
   padding: 4px 8px;
 }
 
@@ -147,9 +161,9 @@ tooltip {
   @extend %element-base;
   padding: 10px 20px;
 
-  &:hover          { background-color: $cell-hover; }
+  &:hover          { @extend %hover; }
   &.suspend:hover  { @extend %ok; }
-  &.reboot:hover   { background-color: lighten($indigo, 12%); border-color: $indigo; }
+  &.reboot:hover   { border-color: $indigo; border-bottom-color: $indigo; }
   &.shutdown:hover { @extend %bad; }
 }
 
@@ -159,5 +173,5 @@ tooltip {
   min-width: 40px;
   min-height: 40px;
 
-  &:hover { background-color: $cell-hover; border-color: $teal; }
+  &:hover { @extend %hover; }
 }

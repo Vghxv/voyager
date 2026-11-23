@@ -23,3 +23,7 @@
 
 ; BATTERY ESTIMATE
 (defpoll battery_estimate :interval "60s" "scripts/battery_estimate.sh")
+
+; THEME: light or dark, picks the icon set (assets/<theme>/). voyager-theme saves the
+; mode to ~/.config/voyager/theme and sets this var right away with `eww update`.
+(defpoll theme :interval "1h" :initial "light" "cat ~/.config/voyager/theme 2>/dev/null || echo light")

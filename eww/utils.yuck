@@ -1,6 +1,6 @@
 ; IMAGE HELPER
 (defwidget bimage [filename]
-  (image :path "${EWW_CONFIG_DIR}/assets/${filename}" :halign "center" :image-width "20" :image-height "20")
+  (image :path "${EWW_CONFIG_DIR}/assets/${theme}/${filename}" :halign "center" :image-width "20" :image-height "20")
   )
 
 (defwidget tbutton [var value_on text_on text_off color_on color_off cmd]

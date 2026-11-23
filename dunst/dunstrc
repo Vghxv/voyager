@@ -1,14 +1,12 @@
-# voyager — dunst notifications
+# voyager — dunst notifications, HUD style
 # Same palette as the eww bar, hyprlock, Plymouth and the awww wallpaper.
 #
-# Notifications look like the bar's cells: light mist panels, dark navy text,
-# 1px indigo edge, 8px corners. They drop in below the bar, top-right.
-#   low       dim text, faint edge, 5 s
-#   normal    indigo edge, teal progress bar, 8 s
-#   critical  pink tint + red edge (hyprlock's fail color), stays until clicked
+# Square panels, no rounded corners: a 1px frame, monospace text, a "▸" marker on
+# the summary. They drop in below the bar, top-right.
 #
-# Palette (see eww/eww.scss):
-#   ink #14141F · mist #D9D9F2 · indigo #8B8FF0 · teal #5EEAD4 · dim #5A5A78 · red #FF3355
+# COLORS live in the mode drop-in, not here: voyager-theme copies themes/light.conf
+# or themes/dark.conf to ~/.config/dunst/dunstrc.d/90-voyager-theme.conf, which
+# dunst reads after this file.
 
 [global]
     monitor = 0
@@ -26,23 +24,23 @@
     horizontal_padding = 12
     text_icon_padding = 12
     frame_width = 1
-    corner_radius = 8
+    corner_radius = 0
     separator_height = 0
     transparency = 0
 
     # ---------- progress bar (notify-send -h int:value:NN) ----------
     progress_bar = true
-    progress_bar_height = 6
+    progress_bar_height = 4
     progress_bar_frame_width = 0
     progress_bar_min_width = 150
     progress_bar_max_width = 316
-    progress_bar_corner_radius = 3
+    progress_bar_corner_radius = 0
 
     # ---------- text ----------
-    font = DejaVu Sans 10
+    font = GeistMono Nerd Font, JetBrains Mono, monospace 10
     line_height = 0
     markup = full
-    format = "<b>%s</b>\n%b"
+    format = "<span letter_spacing='1200'><b>▸ %s</b></span>\n%b"
     alignment = left
     vertical_alignment = center
     show_age_threshold = 60
@@ -60,7 +58,7 @@
     icon_position = left
     min_icon_size = 32
     max_icon_size = 48
-    icon_corner_radius = 6
+    icon_corner_radius = 0
 
     # ---------- behaviour ----------
     sticky_history = yes
@@ -74,27 +72,3 @@
     mouse_left_click = do_action, close_current
     mouse_middle_click = close_current
     mouse_right_click = close_all
-
-[urgency_low]
-    background = "#D9D9F2EB"
-    foreground = "#5A5A78"
-    frame_color = "#8B8FF080"
-    highlight = "#5EEAD4"
-    timeout = 5
-    default_icon = dialog-information
-
-[urgency_normal]
-    background = "#D9D9F2EB"
-    foreground = "#14141F"
-    frame_color = "#8B8FF0"
-    highlight = "#5EEAD4"
-    timeout = 8
-    default_icon = dialog-information
-
-[urgency_critical]
-    background = "#FFB3C0F2"
-    foreground = "#14141F"
-    frame_color = "#FF3355"
-    highlight = "#FF3355"
-    timeout = 0
-    default_icon = dialog-warning
