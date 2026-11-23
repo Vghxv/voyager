@@ -4,7 +4,7 @@ The desktop wallpaper, animated: the Plymouth background gradient, twinkling sta
 
 ![wallpaper](wallpaper.webp)
 
-It runs on [awww](https://codeberg.org/LGFae/awww) (the renamed swww). hyprpaper only shows still images and can't animate or fade.
+It runs on [awww](https://codeberg.org/LGFae/awww) (the renamed swww).
 
 ## Install
 
@@ -12,17 +12,16 @@ It runs on [awww](https://codeberg.org/LGFae/awww) (the renamed swww). hyprpaper
 sudo pacman -S awww
 ./awww/install.sh               # as your user, not sudo — animated (48 frames, 12 fps, 4 s loop)
 ./awww/install.sh --static      # still image instead, no animation cost
-./awww/install.sh --restore     # back to your previous hyprpaper setup
+./awww/install.sh --restore     # stop and disable awww
 ```
 
 What the installer does:
 
 - Copies `wallpaper.webp` and `wallpaper.png` to `~/.config/hypr/voyager/`.
-- **Disables `hyprpaper.service`**, since awww and hyprpaper both draw the background and only one can. It leaves a marker so `--restore` can turn hyprpaper back on. `hyprpaper.conf` is not touched.
 - Installs `awww.service` (the package ships none) to `~/.config/systemd/user/` and enables it. An existing unit with the same name is backed up first.
 - `awww img … --transition-type fade` shows the wallpaper. awww caches it and shows it again at next login.
 
-`--restore` stops and disables awww and re-enables hyprpaper. If an earlier voyager install pointed `hyprpaper.conf` at the voyager wallpaper, it also restores your `hyprpaper.conf.bak-*`.
+`--restore` stops and disables `awww.service`. awww is the only wallpaper daemon voyager uses: hyprpaper is not needed and the installer never touches it.
 
 Check what is shown: `awww query`.
 
