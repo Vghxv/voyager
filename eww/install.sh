@@ -18,8 +18,9 @@ DEST="$HOME/.config/eww"
 require_user
 
 [[ $# -eq 0 ]] || { red "Unknown option: $1"; exit 1; }
+[[ -f "$DEST/eww.yuck" ]] || { red "No eww bar found ($DEST/eww.yuck) — set up eww first; voyager only restyles it."; exit 1; }
 
-install -D -m 644 "$SRC/eww.scss" "$DEST/eww.scss"
+install -m 644 "$SRC/eww.scss" "$DEST/eww.scss"
 echo "Installed $DEST/eww.scss"
 
 install -d "$DEST/assets"
