@@ -23,6 +23,8 @@ case "${1:-}" in
   *) red "Unknown option: $1"; exit 1 ;;
 esac
 
+command -v hyprlock >/dev/null || { red "hyprlock is not installed (sudo pacman -S hyprlock)."; exit 1; }
+
 mkdir -p "$DEST"
 install -m 644 "$SRC"/stars-*.png "$SRC"/probe.png "$DEST"/
 install -m 755 "$SRC"/next-frame.sh "$DEST"/
