@@ -24,9 +24,11 @@ command -v eww >/dev/null || { red "eww is not installed (it must be on PATH as 
 # command -> Arch package, for everything the bar's scripts and buttons call
 missing=()
 for dep in hyprctl:hyprland jq:jq socat:socat inotifywait:inotify-tools pactl:libpulse \
-           wpctl:wireplumber nmcli:networkmanager pavucontrol:pavucontrol; do
+           wpctl:wireplumber pavucontrol:pavucontrol; do
   command -v "${dep%%:*}" >/dev/null || missing+=("${dep#*:}")
 done
+# wifi: NetworkManager or, without it, iw
+command -v nmcli >/dev/null || command -v iw >/dev/null || missing+=(iw)
 if (( ${#missing[@]} )); then
   yellow "Missing packages — parts of the bar will stay empty until installed:"
   echo "  sudo pacman -S ${missing[*]}"

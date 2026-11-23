@@ -7,7 +7,8 @@ Left: power menu, clock, date, Hyprland workspaces. Right: wifi, volume slider, 
 ## Install
 
 ```bash
-sudo pacman -S jq socat inotify-tools libpulse wireplumber networkmanager pavucontrol   # what the bar's scripts call
+sudo pacman -S jq socat inotify-tools libpulse wireplumber pavucontrol   # what the bar's scripts call
+                                                                          # + networkmanager or iw, for wifi
 ./eww/install.sh             # as your user, not sudo
 ```
 
@@ -26,11 +27,14 @@ exec-once = eww daemon && eww open bar            # in hyprland.conf
 
 ## Machine-specific settings
 
-Everything else is detected: the wifi connection (any interface name), the backlight and its maximum, the system battery (`scripts/battery_name.sh`: the first power supply of type Battery, skipping mouse and keyboard batteries; the battery cell hides on machines without one), the webcam's USB port (`scripts/webcam.sh`: the first USB device with a video interface or "cam" in its product name; set `CAM_USB=<port>` in eww's environment to override). Paths use eww's `EWW_CONFIG_DIR` and `EWW_CMD`, so the bar works from any home folder and any eww binary.
+Nothing needs editing: the bar detects the machine it runs on.
 
-| Setting | Where | Default |
-|---|---|---|
-| Monitor | `:monitor "[1,0]"` in `eww.yuck`: the second monitor if there is one, else the first | |
+- **Battery**: `scripts/battery_name.sh` picks the first power supply of type Battery, skipping mouse and keyboard batteries. Without one, the battery cell hides.
+- **Webcam**: `scripts/webcam.sh` picks the first USB device with a video interface or "cam" in its product name. To pick a port yourself, set `CAM_USB=<port>` in eww's environment (`grep -il cam /sys/bus/usb/devices/*/product`).
+- **Wifi**: `scripts/wifi.sh` reads the active connection from NetworkManager, or the SSID from `iw` without it, whatever the interface is called.
+- **Backlight**: `scripts/brightness.sh` uses the first device in `/sys/class/backlight` and its maximum. Without one, the cell stays empty.
+- **Monitor**: every window (`bar` and `power_menu` in `eww.yuck`, `sound` in `audio/eww.yuck`) uses `:monitor "[1,0]"`, which means the second monitor if there is one, else the first. To pin the bar to one screen, replace it in all three with the monitor's name (`hyprctl monitors | grep ^Monitor`).
+- **Paths**: everything goes through eww's `EWW_CONFIG_DIR` and `EWW_CMD`, so the bar works from any home folder and any eww binary.
 
 The webcam button turns the camera off by unbinding its USB device, which needs root. It uses `sudo -n`, so add a sudoers rule for exactly those two commands (`sudo visudo -f /etc/sudoers.d/webcam`):
 

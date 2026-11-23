@@ -15,9 +15,8 @@
 ; CAMERA (webcam USB port is set in scripts/webcam.sh)
 (defpoll camera :interval "0.5s" "scripts/webcam.sh status")
 
-; WIFI: name of the active wireless connection, whatever the interface is called
-(defpoll wifi_name :interval "10s"
-  `nmcli -t -f NAME,TYPE connection show --active | awk -F: '$2 == "802-11-wireless" { print $1; exit }'`)
+; WIFI: name of the active wireless connection (NetworkManager, else iw)
+(defpoll wifi_name :interval "10s" "scripts/wifi.sh")
 
 ; WORKSPACES
 (deflisten workspace_state :initial '{"workspaces":[],"active":0}' "scripts/workspaces.sh")
