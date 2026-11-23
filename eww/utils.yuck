@@ -1,0 +1,54 @@
+; IMAGE HELPER
+(defwidget bimage [filename]
+  (image :path "${EWW_CONFIG_DIR}/assets/${filename}" :halign "begin" :image-width "20" :image-height "20")
+  )
+
+(defwidget tbutton [var value_on text_on text_off color_on color_off cmd]
+  (button
+    :class {var == value_on ? color_on : color_off}
+    :onclick cmd
+    "${var == value_on ? text_on : text_off}"
+    )
+  )
+
+(defwidget inp [class filename text ?tooltip]
+  (box
+    :space-evenly false
+    :class class
+    (box
+      :width 40
+      (bimage 
+        :filename filename)
+      )
+    (box
+      (label :text text
+             :tooltip tooltip)
+      )
+    )
+  )
+
+(defwidget power_menu []
+  (box
+    :class "power-menu"
+    :orientation "v"
+    :space-evenly false
+    :spacing 5
+    (button
+      :class "menu-item suspend"
+      :onclick "systemctl suspend"
+      "Suspend"
+      )
+    (button
+      :class "menu-item reboot"
+      :onclick "reboot"
+      "Reboot"
+    )
+    (button
+      :class "menu-item shutdown"
+      :onclick "shutdown now"
+      "Shutdown"
+      )
+    )
+  )
+
+

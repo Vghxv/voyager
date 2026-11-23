@@ -1,0 +1,195 @@
+(include "var.yuck")
+(include "utils.yuck")
+(include "audio/eww.yuck")
+
+; https://docs.rs/chrono/latest/chrono/format/strftime/index.html
+(defwidget w_time [class format]
+  (button 
+    :class class "${formattime(EWW_TIME, format)}")
+  )
+
+(defwidget w_systray []
+  (systray 
+    :icon-size 20
+    :spacing 10
+    )
+  )
+
+(defwidget w_camera []
+  (tbutton 
+    :var camera 
+    :value_on "On"
+    :text_on "📸"
+    :text_off "📷" 
+    :color_on "camera_on" 
+    :color_off "element" 
+    :cmd "${EWW_CONFIG_DIR}/scripts/webcam.sh toggle"
+    )
+  )
+
+
+(defwidget w_battery []
+ (inp
+    :class {EWW_BATTERY[BAT_NAME]["status"] != "Discharging" ? "bat-charging" :
+     EWW_BATTERY[BAT_NAME]["capacity"] < 25 ? "bat-low" :
+     EWW_BATTERY[BAT_NAME]["capacity"] < 50 ? "bat-mid" : "element" }
+    :filename "battery.png"
+    :text "${EWW_BATTERY[BAT_NAME]["capacity"]}%"
+    :tooltip "${battery_estimate}"
+  )
+)
+
+(defwidget w_brightness [class]
+  (inp
+    :class class
+    :filename "brightness.png"
+    :text "${brightness}%"
+  )
+)
+
+(defwidget w_wifi []
+  (inp
+    :class {wifi_name != '' ? "wifi-connected" : "wifi-disconnected"}
+    :filename "wifi.png"
+    :text "${wifi_name != '' ? wifi_name : 'Disconnected'}"
+  )
+)
+
+(defwidget w_volctl [class]
+  (button 
+    :class class 
+    :onclick "sh -c 'pavucontrol &'"
+    (bimage 
+      :filename "sound-wave.png")
+    )
+  )
+
+(defwidget w_sound [class]
+    (box
+      :class class
+      (scale
+        :min 0
+        :max 101
+        :onchange "wpctl set-volume @DEFAULT_AUDIO_SINK@ {}%"
+        :value {volume == "Muted" || volume == "" ? 0 : volume}
+        )
+      )
+  )
+
+
+(defwidget cBoxStart []
+  (box :space-evenly false
+       :spacing 10
+    (button
+      :class "element menu-button"
+      :onclick "${EWW_CMD} open --toggle power_menu"
+      (bimage :filename "menu-burger.png")
+      )
+    (box
+      :width 80
+      (w_time :class "element" :format "%R")
+      )
+    (box
+      :width 80
+      (w_time :class "element" :format "%a %v")
+      )
+    (box 
+      :class "btn-ws"
+      :spacing 10
+      (for ws in "${workspace_state?.workspaces}"
+        (button 
+          :onclick "hyprctl dispatch workspace ${ws}"
+          :class {ws == workspace_state.active ? "active" : "inactive"}
+          "${ws}"
+          )
+        )
+      )
+    )
+  )
+
+(defwidget cBoxMiddle []
+  (box  
+    )
+  )
+
+(defwidget cBoxEnd []
+  (box 
+    :spacing 10 
+    :space-evenly false 
+    :halign "end"
+    (box
+      :width 80
+      (w_wifi)
+    )
+    (box
+      :width 100
+      (w_sound :class "sound")
+      )
+    (box
+      :width 40
+      (w_volctl :class "element")
+      )
+    (box
+      :width 80
+      (w_brightness :class "element")
+      )
+    (box
+      :width 40
+      (w_camera) 
+      )
+    (box
+      :width 80
+      (w_battery)
+      )
+    (box
+      :class "systray"
+      (w_systray)
+      )
+    )
+  )
+
+(defwindow bar
+  :monitor "[1,0]"
+  :geometry
+  (geometry
+    :x "0px"
+    :y "0px"
+    :width "100%"
+    :height "3%"
+    :anchor "top center"
+    )
+  :stacking "fg"
+  :exclusive true
+  :focusable "none"
+  (centerbox
+    (cBoxStart)
+    (cBoxMiddle)
+    (cBoxEnd)
+    )
+  )
+
+(defwindow power_menu
+  :monitor "[1,0]"
+  :geometry
+  (geometry
+    :x "0px"
+    :y "0px"
+    :width "150px"
+    :height "100px"
+    :anchor "top left"
+    )
+  :stacking "fg"
+  :windowtype "dialog"
+  :wm-ignore false
+  :focusable false
+  (power_menu_layout)
+  )
+
+(defwidget power_menu_layout []
+  (box
+    :class "power-menu-container"
+    :orientation "v"
+    :space-evenly false
+    (power_menu)
+    )
+  )

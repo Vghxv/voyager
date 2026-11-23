@@ -1,0 +1,32 @@
+(include "audio/audio_ctl.yuck")
+
+(defwindow sound
+  :monitor "[1,0]"
+  :geometry 
+  (
+   geometry 
+   :x "10px" 
+   :y "10px"
+   :width "5%"
+   :anchor "top left"
+   )
+  :stacking "fg"
+  :focusable "none"
+  (box :orientation "h"
+    (
+     audio-control 
+     :device-type "SINK" 
+     :icon "🔊" 
+     :current-value volume 
+     :class "element"
+     )
+    (
+     audio-control 
+     :device-type "SOURCE" 
+     :icon "🎙️"
+     :current-value mic 
+     :class "element"
+     )
+    )
+  )
+
