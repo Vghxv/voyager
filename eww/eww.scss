@@ -1,16 +1,18 @@
 // voyager — eww bar, HUD style
-// Same palette as the Plymouth boot screen, hyprlock, dunst and the awww wallpaper.
 //
-// LOOK: square cells, no rounded corners anywhere. Each cell is a readout: a thin
-// 1px frame and a 2px accent edge along the bottom (indigo, or teal / amber / red
-// for states). Hover lights the edge teal with a faint glow.
+// LOOK: square cells, no rounded corners. Each cell is a readout: a 1px indigo
+// frame and a 2px accent edge along the bottom (teal ok / amber warn / red bad).
+// Hover lights the edge teal.
 //
-// MODES: both palettes live here. Every window's root box carries the class of the
-// `theme` variable (light or dark), and all rules are scoped under it, so
-// `eww update theme=dark` restyles the bar instantly: no file changes, no reload.
-// Icons follow the same variable (assets/<theme>/). Keep text and icons in contrast
-// with the fill in both modes: the bar window is transparent, so cells sit straight
-// on the deep-navy wallpaper.
+// MODES: both palettes live in $modes below, and every rule is scoped under
+// .light or .dark — the class of each window's root box, bound to the `theme`
+// variable. `eww update theme=dark` therefore restyles instantly with no reload;
+// icons follow the same variable (assets/<theme>/).
+//
+// CONTRAST: the bar window is transparent, so cells sit straight on the navy
+// wallpaper (#14141F -> #05050D). Keep each mode's `text` (and the icons) readable
+// on its `fill`; the frame and bottom edge keep neighbouring cells apart.
+// Tooltips are separate GTK windows outside the themed box: one fixed dark style.
 
 // ---------- fixed accents (both modes) ----------
 $indigo: #8B8FF0;

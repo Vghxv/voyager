@@ -1,12 +1,7 @@
 # voyager — dunst notifications, HUD style
-# Same palette as the eww bar, hyprlock, Plymouth and the awww wallpaper.
-#
-# Square panels, no rounded corners: a 1px frame, monospace text, a "▸" marker on
-# the summary. They drop in below the bar, top-right.
-#
-# COLORS live in the mode drop-in, not here: voyager-theme copies themes/light.conf
-# or themes/dark.conf to ~/.config/dunst/dunstrc.d/90-voyager-theme.conf, which
-# dunst reads after this file.
+# Layout and behaviour only. Colors are in themes/light.conf and themes/dark.conf;
+# the active one is copied to dunstrc.d/90-voyager-theme.conf, read after this file.
+# Docs: dunst/dunst.md
 
 [global]
     monitor = 0
@@ -16,7 +11,7 @@
     width = 340
     height = (0, 300)
     origin = top-right
-    offset = (10, 50)          # below the eww bar
+    offset = (10, 50)          # below the eww bar: raise the 50 if your bar is taller
     scale = 0
     notification_limit = 6
     gap_size = 6

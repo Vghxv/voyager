@@ -1,27 +1,24 @@
 #!/usr/bin/env python3
-"""Render the voyager Plymouth theme images (SVG -> PNG via rsvg-convert).
+"""Render the Plymouth theme images from their SVGs in src/.
 
-Each image is rendered from its SVG in src/ at the SVG's own size:
+    src/gen-plymouth.py                 # -> plymouth/voyager/*.png
+    sudo ./plymouth/install.sh --apply  # install and rebuild the initramfs
 
-    logo.png    src/logo.svg     400x400  the probe
-    ring.png    src/ring.svg     512x512  signal ring from the dish
-    star.png    src/star.svg      24x24   starfield star
-    streak.png  src/streak.svg    80x10   warp streak
-    flash.png   src/flash.svg      4x4    wrong-passphrase flash, scaled to the screen
+Each PNG is rendered at its SVG's own size: logo (the probe), ring (signal
+ring), star, streak (warp streak), flash (wrong-passphrase flash, stretched).
 
-    src/gen-plymouth.py                     # -> plymouth/voyager/
-    ./plymouth/install.sh                   # install the theme and rebuild the initramfs
-
-If the probe artwork moves its dish, update dish_x / dish_y in voyager.script.
-Python stdlib only; needs rsvg-convert (librsvg).
+Needs: python3, rsvg-convert (librsvg).
 """
+
 
 import argparse
 import re
-import subprocess
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+sys.dont_write_bytecode = True          # no src/__pycache__
+from voyager_art import ROOT, rsvg  # noqa: E402
+
 ASSETS = ("logo", "ring", "star", "streak", "flash")
 
 
@@ -40,7 +37,7 @@ def main():
             raise SystemExit(f"{svg}: no width/height on <svg>")
         w, h = m.groups()
         png = out / f"{name}.png"
-        subprocess.run(["rsvg-convert", "-w", w, "-h", h, str(svg), "-o", str(png)], check=True)
+        rsvg(svg, w, h, png)
         print(f"wrote {png} ({w}x{h})")
 
 
