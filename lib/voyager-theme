@@ -5,7 +5,7 @@
 #   voyager-theme toggle     flip it (bind this to a key)
 #   voyager-theme light|dark set it
 #
-# Installed to ~/.local/bin/voyager-theme by eww/install.sh and dunst/install.sh.
+# Installed to ~/.config/scripts/voyager-theme by eww/install.sh and dunst/install.sh.
 # The mode is saved in ~/.config/voyager/theme. Components that are not installed
 # are skipped. Set EWW=/path/to/eww to use another eww binary.
 

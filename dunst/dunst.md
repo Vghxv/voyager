@@ -1,6 +1,6 @@
 # voyager — dunst
 
-Notifications styled like the eww bar's HUD cells: square panels (no rounded corners), monospace text, a 1px frame and a `▸` marker on the summary, dropping in top-right just below the bar. They switch between light and dark together with the bar: `voyager-theme toggle` (see [eww.md](../eww/eww.md#light-and-dark)).
+Notifications styled like the eww bar's HUD cells: square panels (no rounded corners), monospace text, a 1px frame and a `▸` marker on the summary, dropping in top-right just below the bar. They switch between light and dark together with the bar: `~/.config/scripts/voyager-theme toggle` (see [eww.md](../eww/eww.md#light-and-dark)).
 
 | Urgency | Light | Dark | Timeout |
 |---|---|---|---|
@@ -18,7 +18,7 @@ notify-send -u critical voyager 'signal lost'
 ```
 
 - The config goes to `~/.config/dunst/dunstrc`. It has no colors: the saved mode's colors go to `~/.config/dunst/dunstrc.d/90-voyager-theme.conf` (from `dunst/themes/light.conf` or `dark.conf`), which dunst reads after it. A running dunst is reloaded (`dunstctl reload`).
-- The installer also installs `~/.local/bin/voyager-theme`, shared with the eww bar.
+- The installer also installs `~/.config/scripts/voyager-theme`, shared with the eww bar.
 - Your current `dunstrc` is backed up to `dunstrc.bak-<date>`. If it already is the voyager config, nothing is backed up.
 - Undo: `./dunst/install.sh --restore` removes the color drop-in and restores the newest backup. With no backup (dunst was using `/etc/dunst/dunstrc`), just delete `~/.config/dunst/dunstrc` and run `dunstctl reload`.
 

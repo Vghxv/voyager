@@ -14,7 +14,7 @@ sudo pacman -S jq socat inotify-tools libpulse wireplumber pavucontrol   # what 
 
 `eww` itself must be on `PATH`. Arch ships it in the AUR (`eww`), or build it from source.
 
-The installer copies the whole bar into `~/.config/eww`: `eww.yuck`, `var.yuck`, `utils.yuck`, `audio/`, `scripts/`, `eww.scss`, and the icons into `assets/light/` and `assets/dark/`. It also installs the mode switcher to `~/.local/bin/voyager-theme`. It reports any missing packages and reloads eww if it is running.
+The installer copies the whole bar into `~/.config/eww`: `eww.yuck`, `var.yuck`, `utils.yuck`, `audio/`, `scripts/`, `eww.scss`, and the icons into `assets/light/` and `assets/dark/`. It also installs the mode switcher to `~/.config/scripts/voyager-theme`. It reports any missing packages and reloads eww if it is running.
 
 Deployment is one way: repo → `~/.config/eww`. Nothing is read back and no backups are made. Files with the same name are overwritten, and other files in `~/.config/eww` are left alone. Edit the files here and run the installer again.
 
@@ -54,10 +54,10 @@ Without it the camera indicator still works and the button does nothing.
 `voyager-theme` switches the bar and the [dunst](../dunst/dunst.md) notifications together:
 
 ```bash
-voyager-theme toggle            # flip light <-> dark
-voyager-theme light|dark        # set it
-voyager-theme                   # print the current mode
-hl.bind("SUPER + T", hl.dsp.exec_cmd("EWW=/path/to/eww " .. os.getenv("HOME") .. "/.local/bin/voyager-theme toggle"))   -- hyprland.lua
+~/.config/scripts/voyager-theme toggle        # flip light <-> dark
+~/.config/scripts/voyager-theme light|dark    # set it
+~/.config/scripts/voyager-theme               # print the current mode
+hl.bind("SUPER + T", hl.dsp.exec_cmd("EWW=/path/to/eww " .. os.getenv("HOME") .. "/.config/scripts/voyager-theme toggle"))   -- hyprland.lua
 ```
 
 The mode is saved in `~/.config/voyager/theme` and survives restarts. Switching is a single variable change, `eww update theme=<mode>`: `eww.scss` holds both palettes, with every rule scoped under `.light` or `.dark`, the class of each window's root box, and the icons load from `assets/<theme>/`. Nothing in `~/.config/eww` is written, so eww does not reload: windows stay open and the bar's scripts keep running. Set `EWW=` if eww is not on `PATH`.

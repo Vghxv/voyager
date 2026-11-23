@@ -14,7 +14,7 @@ A deep-space theme for an Arch + Hyprland desktop: a probe drifting through a st
 
 Plymouth needs a systemd initramfs with `sd-encrypt` — read its [prerequisites](plymouth/plymouth.md#prerequisites) first. The plymouth, hyprlock, awww and dunst installers back up what they replace; hyprlock, awww and dunst undo with `--restore`. eww deploys one way (repo → `~/.config/eww`), with no backup.
 
-The bar and notifications share a light and a dark mode: `voyager-theme toggle` (installed to `~/.local/bin` by the eww and dunst installers) flips both, e.g. from a SUPER+T bind. See [eww.md](eww/eww.md#light-and-dark).
+The bar and notifications share a light and a dark mode: `~/.config/scripts/voyager-theme toggle` (installed by the eww and dunst installers) flips both, e.g. from a SUPER+T bind. See [eww.md](eww/eww.md#light-and-dark).
 
 ```
 plymouth/    boot theme, install.sh, preview.sh

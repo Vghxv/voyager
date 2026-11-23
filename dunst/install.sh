@@ -5,7 +5,7 @@
 #   ./dunst/install.sh --restore  put the most recent backup back, drop the voyager colors
 #
 # Also installs the light/dark color drop-ins and the voyager-theme switcher
-# (~/.local/bin/voyager-theme) that the eww bar shares.
+# (~/.config/scripts/voyager-theme) that the eww bar shares.
 #
 # Run as your normal user — NOT with sudo.
 
@@ -45,10 +45,11 @@ backup_file "$CONF" "$SRC/dunstrc"
 install -D -m 644 "$SRC/dunstrc" "$CONF"
 install -d "$DIR/themes"
 install -m 644 "$SRC"/themes/*.conf "$DIR/themes"/
-install -D -m 755 "$SRC/../lib/voyager-theme.sh" "$HOME/.local/bin/voyager-theme"
-mode="$("$HOME/.local/bin/voyager-theme")"
+install -D -m 755 "$SRC/../lib/voyager-theme" "$HOME/.config/scripts/voyager-theme"
+rm -f "$HOME/.local/bin/voyager-theme"   # from an earlier version
+mode="$("$HOME/.config/scripts/voyager-theme")"
 install -D -m 644 "$SRC/themes/$mode.conf" "$DROPIN"
-echo "Installed $CONF ($mode mode; switch with: voyager-theme toggle)"
+echo "Installed $CONF ($mode mode; switch with: ~/.config/scripts/voyager-theme toggle)"
 reload
 
 echo
