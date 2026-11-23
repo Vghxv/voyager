@@ -1,85 +1,78 @@
-# voyager — eww bar
+# eww bar
 
-A complete [eww](https://github.com/elkowar/eww) top bar, on every monitor, in the voyager palette, styled as a HUD: square cells (no rounded corners), monospace text, a thin indigo frame with a 2px accent edge along the bottom, teal for "ok" states (wifi connected, charging, camera on), amber for mid battery, and the hyprlock fail red for low battery or no wifi. It comes in a light mode (mist cells, navy text) and a dark mode (navy glass cells, mist text): see [Light and dark](#light-and-dark).
+A top bar on every monitor, styled as a HUD: square cells, monospace text, a thin indigo frame. Teal means "ok" (wifi connected, charging, camera on), amber means a half-empty battery, red means low battery or no wifi. It has a [light and a dark mode](../README.md#light-and-dark).
 
-Left: power menu, clock, date, Hyprland workspaces (click one to switch to it; each bar highlights the workspace on its own monitor). Right: wifi, volume slider, mixer (pavucontrol), brightness, webcam toggle, battery (tooltip: time left), system tray.
+- **Left:** power menu, clock, date, workspaces. Click a workspace to switch to it; each bar highlights the workspace on its own monitor.
+- **Right:** wifi, volume slider, mixer (opens pavucontrol), brightness, webcam on/off, battery (hover for time left), system tray.
 
 ## Install
 
 ```bash
-sudo pacman -S jq socat inotify-tools libpulse wireplumber pavucontrol   # what the bar's scripts call
-                                                                          # + networkmanager or iw, for wifi
-./eww/install.sh             # as your user, not sudo
+./eww/install.sh
 ```
 
-`eww` itself must be on `PATH`. Arch ships it in the AUR (`eww`), or build it from source.
+`eww` must be on `PATH` (AUR: `eww`, or build it). The installer lists any other packages the bar needs and copies everything to `~/.config/eww`. Running it again overwrites voyager's files there, leaves your other files alone and restarts a running bar. There is no undo: edit the files in this repo, not in `~/.config/eww`, and re-run the installer.
 
-The installer copies the whole bar into `~/.config/eww`: `eww.yuck`, `var.yuck`, `utils.yuck`, `audio/`, `scripts/`, `eww.scss`, and the icons into `assets/light/` and `assets/dark/`. It also installs the mode switcher to `~/.config/scripts/voyager-theme`. It reports any missing packages and reloads eww if it is running.
-
-Deployment is one way: repo → `~/.config/eww`. Nothing is read back and no backups are made. Files with the same name are overwritten, and other files in `~/.config/eww` are left alone. Edit the files here and run the installer again.
-
-Start the bar, and start it at login. `scripts/bars.sh` opens one `bar` window per monitor (id `bar-<monitor>`), starting the eww daemon if needed; `eww open bar` alone no longer works, because the window needs to know its monitor.
+## Start
 
 ```bash
-~/.config/eww/scripts/bars.sh                                  # now
-~/.config/eww/scripts/bars.sh toggle                           # hide/show every bar (for a keybind)
-exec-once = ~/.config/eww/scripts/bars.sh watch                # hyprland.conf: open, then follow monitor hotplug
+~/.config/eww/scripts/bars.sh           # open a bar on every monitor now
+~/.config/eww/scripts/bars.sh toggle    # hide / show all bars (for a keybind)
+```
+
+To start it at login and follow monitors being plugged in or out, add `bars.sh watch`:
+
+```ini
+exec-once = ~/.config/eww/scripts/bars.sh watch        # hyprland.conf
+```
+
+```lua
 hl.exec_cmd(os.getenv("HOME") .. "/.config/eww/scripts/bars.sh watch")   -- hyprland.lua, in hyprland.start
 ```
 
-If `eww` is not on `PATH`, pass it: `EWW=/path/to/eww bars.sh`.
+Use `bars.sh` rather than `eww open bar`: each bar needs to be told its monitor. If eww is not on `PATH`, prefix the command with `EWW=/path/to/eww`.
 
-## Machine-specific settings
+## Detected automatically
 
-Nothing needs editing: the bar detects the machine it runs on.
+Nothing needs editing per machine.
 
-- **Battery**: `scripts/battery_name.sh` picks the first power supply of type Battery, skipping mouse and keyboard batteries. Without one, the battery cell hides.
-- **Webcam**: `scripts/webcam.sh` picks the first USB device with a video interface or "cam" in its product name. To pick a port yourself, set `CAM_USB=<port>` in eww's environment (`grep -il cam /sys/bus/usb/devices/*/product`).
-- **Wifi**: `scripts/wifi.sh` reads the active connection from NetworkManager, or the SSID from `iw` without it, whatever the interface is called.
-- **Backlight**: `scripts/brightness.sh` uses the first device in `/sys/class/backlight` and its maximum. Without one, the cell stays empty.
-- **Monitors**: `scripts/bars.sh` opens a bar on every monitor Hyprland reports, and with `watch` adds or removes bars as monitors are plugged in or out. The power menu opens on the monitor whose bar you clicked; opened from a keybind (`eww open power_menu`), it and `sound` fall back to `:monitor "[1,0]"`, the second monitor if there is one, else the first.
-- **Workspace switching**: `scripts/workspace.sh` dispatches the Lua form (`hl.dsp.focus({ workspace = N })`) for a `hyprland.lua` config and falls back to `dispatch workspace N` for `hyprland.conf`.
-- **Paths**: everything goes through eww's `EWW_CONFIG_DIR` and `EWW_CMD`, so the bar works from any home folder and any eww binary.
+- **Battery:** the laptop's own battery, not a mouse or keyboard battery. No battery, no battery cell.
+- **Backlight:** the first one found. None, and the brightness cell stays empty.
+- **Wifi:** NetworkManager, or `iw` without it. Any interface name.
+- **Monitors:** a bar on every monitor. The power menu opens on the monitor whose bar you clicked.
+- **Hyprland config:** workspace switching works with both `hyprland.lua` and `hyprland.conf`.
+- **Webcam:** the first USB camera. To choose one, set `CAM_USB=<port>` in eww's environment (find it with `grep -il cam /sys/bus/usb/devices/*/product`).
 
-The webcam button turns the camera off by unbinding its USB device, which needs root. It uses `sudo -n`, so add a sudoers rule for exactly those two commands (`sudo visudo -f /etc/sudoers.d/webcam`):
+## Webcam
+
+The webcam button turns the camera off by disconnecting its USB device, which needs root. Allow exactly that without a password (`sudo visudo -f /etc/sudoers.d/webcam`):
 
 ```
 <you> ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usb/unbind, /usr/bin/tee /sys/bus/usb/drivers/usb/bind
 ```
 
-Without it the camera indicator still works and the button does nothing.
+Without this rule the camera indicator still works, but the button does nothing.
 
-## Light and dark
+## Change the look
 
-`voyager-theme` switches the bar and the [dunst](../dunst/dunst.md) notifications together:
+- **Colors:** each mode is one map in `$modes` at the top of `eww.scss`. That file's header explains how the modes and contrast work.
+- **Icons:** `icons/light/` holds the dark-ink icons used in light mode. Make the light-ink set for dark mode from them:
 
-```bash
-~/.config/scripts/voyager-theme toggle        # flip light <-> dark
-~/.config/scripts/voyager-theme light|dark    # set it
-~/.config/scripts/voyager-theme               # print the current mode
-hl.bind("SUPER + T", hl.dsp.exec_cmd("EWW=/path/to/eww " .. os.getenv("HOME") .. "/.config/scripts/voyager-theme toggle"))   -- hyprland.lua
-```
+  ```bash
+  for f in eww/icons/light/*.png; do magick "$f" -fill '#D9D9F2' -colorize 100 "eww/icons/dark/${f##*/}"; done
+  ```
 
-The mode is saved in `~/.config/voyager/theme` and survives restarts. Switching is a single variable change, `eww update theme=<mode>`: `eww.scss` holds both palettes, with every rule scoped under `.light` or `.dark`, the class of each window's root box, and the icons load from `assets/<theme>/`. Nothing in `~/.config/eww` is written, so eww does not reload: windows stay open and the bar's scripts keep running. Set `EWW=` if eww is not on `PATH`.
+Then run `./eww/install.sh`.
 
-Tooltips are separate GTK windows outside the themed box, so they keep one fixed dark style in both modes.
+## If it breaks
 
-## Contrast
+Start with `./doctor.sh eww`. Every bar script writes the reason it cannot work to `eww logs`.
 
-The bar window is transparent, so every cell sits directly on the dark navy wallpaper (`#14141F` → `#05050D`). Each mode keeps its cells apart from it:
-
-- **light**: light mist fill (`rgba(217,217,242,.92)`) with navy `#14141F` text and icons;
-- **dark**: navy glass fill (`rgba(10,10,20,.82)`) with mist `#D9D9F2` text and icons, so the frame and bottom edge do the separating;
-- every cell has a 1px indigo frame and a 2px bottom edge, so cells sitting next to each other stay separate.
-
-Each mode's colors are one map in the `$modes` block at the top of `eww/eww.scss`. Keep `text` and the icons in contrast with `fill`.
-
-## Icons
-
-`eww/icons/light/` holds the navy `#14141F` icons for light mode (battery, brightness, menu-burger, sound-wave, wifi). `eww/icons/dark/` holds the same icons in mist `#D9D9F2`, made with:
-
-```bash
-for f in eww/icons/light/*.png; do magick "$f" -fill '#D9D9F2' -colorize 100 "eww/icons/dark/${f##*/}"; done
-```
-
-The installer copies them to `~/.config/eww/assets/<mode>/`, where `bimage` in `utils.yuck` loads them from, using the `theme` variable.
+| Symptom | Do this |
+|---|---|
+| No bar at all | `~/.config/eww/scripts/bars.sh`, then read its error, or `eww logs` |
+| Bar on one monitor only | `bars.sh` again; for hotplug, start it with `bars.sh watch` |
+| A cell is empty (workspaces, volume, brightness) | `eww logs`: it names the missing package or device |
+| Bar looks wrong after a `git pull` | `./eww/install.sh` |
+| Webcam button does nothing | add the sudoers rule above |
+| Light/dark switch does not change the bar | `~/.config/scripts/voyager-theme apply` shows the error |

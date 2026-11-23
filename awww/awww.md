@@ -1,35 +1,27 @@
-# voyager — wallpaper (awww)
+# Wallpaper (awww)
 
-The desktop wallpaper, animated: the Plymouth background gradient, twinkling stars, a faint indigo/teal nebula, and the probe in the lower-right sending a signal pulse through its rings toward a pale blue dot. The center is kept calm, because windows cover it and the lock screen puts its probe there.
+The desktop wallpaper: the boot screen's gradient, twinkling stars, a faint nebula, and the probe in the lower right sending a signal pulse toward a pale blue dot. The center stays calm, because windows cover it and the lock screen puts its probe there.
 
 ![wallpaper](wallpaper.webp)
 
-It runs on [awww](https://codeberg.org/LGFae/awww) (the renamed swww).
+It is shown by [awww](https://codeberg.org/LGFae/awww), the renamed swww, running as a systemd user service.
 
 ## Install
 
-Needs a systemd-managed graphical session: Hyprland started through [uwsm](https://github.com/Vladimir-csp/uwsm) (`uwsm start hyprland.desktop`). `awww.service` starts with `graphical-session.target`, which plain `Hyprland` from a TTY never activates. The installer checks this and stops if it is missing.
+You need Hyprland started through [uwsm](https://github.com/Vladimir-csp/uwsm) (`uwsm start hyprland.desktop`). The service starts with your graphical session, and plain `Hyprland` from a TTY never starts one. The installer checks this.
 
 ```bash
 sudo pacman -S awww
-./awww/install.sh               # as your user, not sudo — animated (48 frames, 12 fps, 4 s loop)
-./awww/install.sh --static      # still image instead, no animation cost
+./awww/install.sh               # animated
+./awww/install.sh --static      # still image, no ongoing CPU cost
 ./awww/install.sh --restore     # stop and disable awww
 ```
 
-What the installer does:
-
-- Copies `wallpaper.webp` and `wallpaper.png` to `~/.config/hypr/voyager/`.
-- Installs `awww.service` (the package ships none) to `~/.config/systemd/user/`, pointing `ExecStart` at wherever `awww-daemon` is on `PATH`, and enables it. An existing unit with the same name is backed up first.
-- `awww img … --transition-type fade` shows the wallpaper. awww caches it and shows it again at next login.
-
-`--restore` stops and disables `awww.service`. awww is the only wallpaper daemon voyager uses: hyprpaper is not needed and the installer never touches it.
-
-Check what is shown: `awww query`.
+awww is the only wallpaper daemon voyager uses. You do not need hyprpaper, and the installer leaves it alone.
 
 ## Cost
 
-Measured on Intel Iris Xe with two 1920×1080 monitors: about **3–4 % of one CPU core** and **~37 MB of memory** while animating. `--static` costs nothing after the fade. To pause the animation while the screens are off, add `awww pause` / `awww unpause` to the DPMS listener in `hypridle.conf`:
+On Intel Iris Xe with two 1920×1080 monitors the animation uses about **3–4 % of one CPU core** and **~37 MB of memory**. `--static` uses nothing once shown. To pause the animation while the screens are off, add `awww pause` / `awww unpause` to the screen-off listener in `hypridle.conf`:
 
 ```ini
 listener {
@@ -39,17 +31,22 @@ listener {
 }
 ```
 
-## Re-generate
+## Re-render
 
-`src/gen-wallpaper.py` builds both files from SVG (Python stdlib, `rsvg-convert`, ImageMagick). The probe comes from `src/logo.svg`. It takes about a minute.
+To make it sharper on a bigger screen, lighter, or to get a different star layout, re-render it. This takes about a minute.
 
 ```bash
-src/gen-wallpaper.py                          # 1920x1080 → awww/wallpaper.webp + awww/wallpaper.png
-src/gen-wallpaper.py --fps 8 --frames 32      # lighter animation, same 4 s loop
-src/gen-wallpaper.py --size 3840x2160         # 4K
-src/gen-wallpaper.py --size auto              # your largest monitor (the installer warns when one is bigger than the wallpaper)
-src/gen-wallpaper.py --seed 42                # different star layout
-./awww/install.sh                             # install the new files
+src/gen-wallpaper.py --size auto     # match your largest monitor; other options: --help
+./awww/install.sh
 ```
 
-Colors, nebula placement, twinkle strength and ring pulse are constants at the top of the script.
+## If it breaks
+
+Start with `./doctor.sh awww`.
+
+| Symptom | Do this |
+|---|---|
+| Installer says "No systemd graphical session" | start Hyprland with `uwsm start hyprland.desktop` |
+| No wallpaper after login | `systemctl --user restart awww`; why: `journalctl --user -u awww -n 20` |
+| Old image after re-rendering | `./awww/install.sh` (it clears awww's cache) |
+| Looks soft or blurry | re-render with `--size auto` (see above) |

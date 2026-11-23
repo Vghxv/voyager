@@ -1,35 +1,48 @@
-# voyager — hyprlock
+# hyprlock lock screen
 
-A static companion for the lock screen: same starfield, probe and palette as the boot screen.
+The lock screen version of the boot screen: the same starfield, probe and colors.
 
 ![hyprlock](../docs/hyprlock.png)
 
-| Plymouth | hyprlock |
+hyprlock cannot run animations the way Plymouth does, so the effects are adapted:
+
+| Plymouth (boot) | hyprlock (lock screen) |
 |---|---|
-| Stars twinkle smoothly | Starfield **crossfades between 6 frames, one per second** (`reload_cmd` + `fadeIn` animation) |
-| Warp + signal rings on typing | Not possible — hyprlock has no scripting. Typed characters appear as **✦ stars that fade in** |
-| Red flash + shake on wrong passphrase | Field outline turns red · *"signal lost — N"* |
-| Hint text | Placeholder *"password, then enter to launch"* |
+| Stars twinkle smoothly | The starfield crossfades to a new frame every second |
+| Stars warp and rings pulse as you type | Each typed character appears as a ✦ star that fades in |
+| Red flash and shake on a wrong passphrase | The field outline turns red: *"signal lost — N"* |
 
 ## Install
 
 ```bash
-./hyprlock/install.sh          # as your user, not sudo
-hyprlock                       # test: unlock with your user password
+./hyprlock/install.sh
+hyprlock                 # try it: unlock with your user password
 ```
 
-- Assets go to `~/.config/hypr/voyager/`, the config to `~/.config/hypr/hyprlock.conf`.
-- Your current `hyprlock.conf` is backed up to `hyprlock.conf.bak-<date>`. If it already is the voyager config, nothing is backed up, so re-running never hides your original.
-- Undo: `./hyprlock/install.sh --restore` restores the newest backup. The assets in `~/.config/hypr/voyager/` stay.
+Your current `~/.config/hypr/hyprlock.conf` is backed up first. `./hyprlock/install.sh --restore` brings it back. The images in `~/.config/hypr/voyager/` stay; they are shared with the wallpaper.
 
-## Notes
+## Adjust
 
-- Every monitor shows the full lock screen (starfield, probe, title, clock, password field). To limit the widgets to one screen, set `monitor = <name>` in each widget block of `hyprlock/hyprlock.conf` (`hyprctl monitors | grep ^Monitor`).
-- The frames are rendered at 1920×1080. The installer warns when a monitor is bigger; `src/gen-hyprlock.py --size auto` re-renders them for your largest monitor.
-- Re-render the frames and probe with `src/gen-hyprlock.py` (`--size`, `--seed`), then run `./hyprlock/install.sh`. It reuses the wallpaper's gradient and stars, so both use the same palette. It writes 6 frames, matching `next-frame.sh`.
-- If `✦` renders as a box, your font lacks the glyph: set `dots_text_format = *` or install `noto-fonts`.
+- **One monitor only:** every monitor shows the full lock screen. To show the widgets on one screen, set `monitor = <name>` in each widget block of `hyprlock.conf` (names: `hyprctl monitors | grep ^Monitor`).
+- **Bigger screen:** the frames are 1920×1080, and the installer warns if your monitor is bigger. Re-render them for it:
 
-> On Arch, hyprlock uses `pam_faillock`: **3 wrong passwords lock you out for 10 minutes** (`/etc/security/faillock.conf`).
->
-> If hyprlock ever crashes into a red screen, switch to a TTY and run:
-> `hyprctl --instance 0 'keyword misc:allow_session_lock_restore 1'` then `hyprctl --instance 0 dispatch exec hyprlock`.
+  ```bash
+  src/gen-hyprlock.py --size auto      # other options: --help
+  ./hyprlock/install.sh
+  ```
+
+## If it breaks
+
+Start with `./doctor.sh hyprlock`.
+
+| Symptom | Do this |
+|---|---|
+| Password dots show as boxes | your font lacks `✦`: install `noto-fonts`, or set `dots_text_format = *` |
+| Background is black or frozen | `./hyprlock/install.sh` |
+| Locked out after wrong passwords | wait 10 minutes: Arch locks you out after 3 failed attempts (`/etc/security/faillock.conf`) |
+| hyprlock crashed into a red screen | switch to a TTY (Ctrl+Alt+F3), log in, then run the two commands below |
+
+```bash
+hyprctl --instance 0 'keyword misc:allow_session_lock_restore 1'
+hyprctl --instance 0 dispatch exec hyprlock
+```
