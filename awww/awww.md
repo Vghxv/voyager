@@ -8,6 +8,8 @@ It runs on [awww](https://codeberg.org/LGFae/awww) (the renamed swww).
 
 ## Install
 
+Needs a systemd-managed graphical session: Hyprland started through [uwsm](https://github.com/Vladimir-csp/uwsm) (`uwsm start hyprland.desktop`). `awww.service` starts with `graphical-session.target`, which plain `Hyprland` from a TTY never activates. The installer checks this and stops if it is missing.
+
 ```bash
 sudo pacman -S awww
 ./awww/install.sh               # as your user, not sudo — animated (48 frames, 12 fps, 4 s loop)

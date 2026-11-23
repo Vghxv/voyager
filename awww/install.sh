@@ -32,6 +32,16 @@ esac
 
 command -v awww-daemon >/dev/null || { red "awww is not installed (sudo pacman -S awww)."; exit 1; }
 
+# awww.service starts with graphical-session.target and needs WAYLAND_DISPLAY in
+# the systemd user environment. A session manager (e.g. uwsm) provides both;
+# plain `Hyprland` from a TTY does not, and the unit would silently never start.
+if ! systemctl --user is-active -q graphical-session.target \
+   || ! systemctl --user show-environment | grep -q '^WAYLAND_DISPLAY='; then
+  red "No systemd graphical session (graphical-session.target inactive or WAYLAND_DISPLAY not exported)."
+  echo "Start Hyprland through uwsm (uwsm start hyprland.desktop), then re-run this script."
+  exit 1
+fi
+
 mkdir -p "$DEST"
 install -m 644 "$SRC/wallpaper.webp" "$SRC/wallpaper.png" "$DEST/"
 echo "Copied wallpaper to $DEST"
