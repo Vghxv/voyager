@@ -11,6 +11,7 @@
 #      type again, press Enter                            -> warp, then quit
 #
 # Stuck? Ctrl+C, then:  sudo plymouth quit || sudo pkill plymouthd
+# The previous default theme is restored when the script exits, even if plymouthd fails to start.
 
 set -euo pipefail
 
@@ -20,12 +21,16 @@ case "$TTY_DEV" in
   *) echo "Run this from a text console (Ctrl+Alt+F3), not from $TTY_DEV."; exit 1 ;;
 esac
 
-[[ -d /usr/share/plymouth/themes/voyager ]] || { echo "Theme not installed — run: sudo ./install.sh"; exit 1; }
+[[ -d /usr/share/plymouth/themes/voyager ]] || { echo "Theme not installed — run: sudo ./plymouth/install.sh"; exit 1; }
 
 PREV_THEME="$(plymouth-set-default-theme)"
 if [[ "$PREV_THEME" != voyager ]]; then
   echo "Temporarily switching default theme ($PREV_THEME -> voyager, no initramfs rebuild)…"
   sudo plymouth-set-default-theme voyager
+  restore() {
+    sudo plymouth-set-default-theme "$PREV_THEME" && echo "Restored default theme: $PREV_THEME"
+  }
+  trap restore EXIT
 fi
 
 # --tty is required: plymouthd reads the keyboard from tty1 by default
@@ -34,8 +39,4 @@ sudo sh -c "plymouthd --debug --debug-file=/tmp/plymouth.log --tty=$TTY_DEV \
   && plymouth ask-for-password --prompt=one; sleep 3; \
   plymouth ask-for-password --prompt=two; sleep 4; plymouth quit"
 
-if [[ "$PREV_THEME" != voyager ]]; then
-  sudo plymouth-set-default-theme "$PREV_THEME"
-  echo "Restored default theme: $PREV_THEME"
-fi
 echo "Debug log: /tmp/plymouth.log"

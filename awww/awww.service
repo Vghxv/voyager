@@ -1,0 +1,18 @@
+# voyager — awww wallpaper daemon (the awww package ships no unit)
+[Unit]
+Description=awww wallpaper daemon
+Documentation=man:awww-daemon(1)
+PartOf=graphical-session.target
+Requires=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+# re-shows the last image from awww's cache on start
+ExecStart=/usr/bin/awww-daemon --quiet
+Restart=on-failure
+Slice=session.slice
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # voyager Plymouth theme installer
 #
-#   sudo ./install.sh            copy theme files only
-#   sudo ./install.sh --apply    copy + set as default + rebuild initramfs
-#   sudo ./install.sh --remove   delete the theme (switch default theme first!)
+#   sudo ./plymouth/install.sh            copy theme files only
+#   sudo ./plymouth/install.sh --apply    copy + set as default + rebuild initramfs
+#   sudo ./plymouth/install.sh --remove   delete the theme (switch default theme first!)
 #
 # This script never edits /etc/mkinitcpio.conf or your bootloader config.
 # It only checks them and tells you what is missing.
@@ -11,14 +11,13 @@
 set -euo pipefail
 
 THEME=voyager
-SRC="$(cd "$(dirname "$0")" && pwd)/theme/$THEME"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+source "$HERE/../lib/common.sh"
+SRC="$HERE/$THEME"
 DEST="/usr/share/plymouth/themes/$THEME"
+IMG=/boot/initramfs-linux.img
 
-red()   { printf '\033[31m%s\033[0m\n' "$*"; }
-green() { printf '\033[32m%s\033[0m\n' "$*"; }
-yellow(){ printf '\033[33m%s\033[0m\n' "$*"; }
-
-[[ $EUID -eq 0 ]] || { red "Run with sudo."; exit 1; }
+require_root
 command -v plymouth-set-default-theme >/dev/null || { red "plymouth is not installed (pacman -S plymouth)."; exit 1; }
 
 check_prereqs() {
@@ -37,7 +36,21 @@ check_prereqs() {
   fi
   grep -qw splash /proc/cmdline || { yellow "  ! 'splash' is not on the running kernel cmdline"; ok=0; }
 
-  if [[ $ok -eq 1 ]]; then green "  prerequisites look good"; else yellow "  see README → Prerequisites"; fi
+  if [[ $ok -eq 1 ]]; then green "  prerequisites look good"; else yellow "  see plymouth/plymouth.md → Prerequisites"; fi
+}
+
+# Keep a copy of the current initramfs before rebuilding, if /boot has room.
+backup_initramfs() {
+  [[ -f "$IMG" ]] || return 0
+  local need free
+  need=$(( $(stat -c %s "$IMG") / 1024 + 51200 ))   # image + 50 MB margin, in KB
+  free=$(df --output=avail -k /boot | tail -1)
+  if (( free > need )); then
+    cp -p "$IMG" "$IMG.pre-voyager"
+    green "  backed up $IMG -> $IMG.pre-voyager"
+  else
+    yellow "  ! not enough space in /boot to back up $IMG — continuing without a backup"
+  fi
 }
 
 case "${1:-}" in
@@ -48,6 +61,7 @@ case "${1:-}" in
     fi
     rm -rf "$DEST"
     green "Removed $DEST"
+    [[ -f "$IMG.pre-voyager" ]] && echo "Old initramfs backup still at $IMG.pre-voyager — delete it once you boot fine."
     exit 0
     ;;
   ""|--apply) ;;
@@ -63,16 +77,19 @@ install -m 644 "$SRC"/* "$DEST"/
 green "  $(ls "$DEST" | wc -l) files installed"
 
 if [[ "${1:-}" == "--apply" ]]; then
+  prev="$(plymouth-set-default-theme)"
+  echo "Previous default theme: $prev   (revert: sudo plymouth-set-default-theme -R $prev)"
+  backup_initramfs
   echo "Setting default theme and rebuilding initramfs…"
   plymouth-set-default-theme -R "$THEME"
-  if lsinitcpio /boot/initramfs-linux.img 2>/dev/null | grep -q "themes/$THEME/voyager.script"; then
+  if lsinitcpio "$IMG" 2>/dev/null | grep -q "themes/$THEME/voyager.script"; then
     green "Done — voyager is inside the initramfs. Reboot to see it."
   else
-    yellow "Rebuild finished, but voyager was not found in /boot/initramfs-linux.img — check the mkinitcpio output above."
+    yellow "Rebuild finished, but voyager was not found in $IMG — check the mkinitcpio output above."
   fi
 else
   echo
   echo "Next steps:"
-  echo "  preview:  ./preview.sh   (run from a TTY, e.g. Ctrl+Alt+F3)"
-  echo "  apply:    sudo ./install.sh --apply"
+  echo "  preview:  ./plymouth/preview.sh   (run from a TTY, e.g. Ctrl+Alt+F3)"
+  echo "  apply:    sudo ./plymouth/install.sh --apply"
 fi
