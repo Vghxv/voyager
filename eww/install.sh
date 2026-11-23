@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Deploy the voyager eww theme: repo -> ~/.config/eww, one way.
+# Deploy the voyager eww bar: repo -> ~/.config/eww, one way.
 #
 #   ./eww/install.sh
 #
-# Copies eww/eww.scss and eww/icons/*.png over ~/.config/eww/eww.scss and
-# ~/.config/eww/assets/. Nothing is read back from ~/.config/eww and no backups
-# are made — this repo is the source of truth. Your .yuck files are not touched.
+# Installs the whole bar (yuck, scripts, eww.scss, icons). Nothing is read back
+# from ~/.config/eww and no backups are made — this repo is the source of truth.
+# Files of the same name are overwritten; other files there are left alone.
 # Run as your normal user — NOT with sudo.
 
 set -euo pipefail
@@ -18,17 +18,31 @@ DEST="$HOME/.config/eww"
 require_user
 
 [[ $# -eq 0 ]] || { red "Unknown option: $1"; exit 1; }
-[[ -f "$DEST/eww.yuck" ]] || { red "No eww bar found ($DEST/eww.yuck) — set up eww first; voyager only restyles it."; exit 1; }
 
-install -m 644 "$SRC/eww.scss" "$DEST/eww.scss"
-echo "Installed $DEST/eww.scss"
+command -v eww >/dev/null || { red "eww is not installed (it must be on PATH as 'eww')."; exit 1; }
 
-install -d "$DEST/assets"
-install -m 644 "$SRC"/icons/*.png "$DEST/assets/"
-echo "Copied icons to $DEST/assets"
+# command -> Arch package, for everything the bar's scripts and buttons call
+missing=()
+for dep in hyprctl:hyprland jq:jq socat:socat inotifywait:inotify-tools pactl:libpulse \
+           wpctl:wireplumber nmcli:networkmanager pavucontrol:pavucontrol; do
+  command -v "${dep%%:*}" >/dev/null || missing+=("${dep#*:}")
+done
+if (( ${#missing[@]} )); then
+  yellow "Missing packages — parts of the bar will stay empty until installed:"
+  echo "  sudo pacman -S ${missing[*]}"
+fi
 
-if command -v eww >/dev/null && eww ping >/dev/null 2>&1; then
+install -d "$DEST/audio" "$DEST/scripts" "$DEST/assets"
+install -m 644 "$SRC"/eww.yuck "$SRC"/var.yuck "$SRC"/utils.yuck "$SRC"/eww.scss "$DEST"/
+install -m 644 "$SRC"/audio/*.yuck "$DEST/audio"/
+install -m 755 "$SRC"/scripts/*.sh "$DEST/scripts"/
+install -m 644 "$SRC"/icons/*.png "$DEST/assets"/
+echo "Installed the bar to $DEST"
+
+if eww ping >/dev/null 2>&1; then
   eww reload && green "Reloaded eww"
 else
-  echo "eww is not running — the theme applies on next start"
+  echo
+  echo "eww is not running. Start it now:   eww daemon && eww open bar"
+  echo "Start it at login (hyprland.conf):  exec-once = eww daemon && eww open bar"
 fi
