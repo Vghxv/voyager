@@ -8,8 +8,8 @@
 # (class 0e) or "cam" in its product name. The name check finds it while it is
 # unbound too, since unbinding removes the interfaces but not the device.
 # Set CAM_USB (e.g. CAM_USB=1-3) to pick a port yourself.
-# toggle needs passwordless sudo for exactly these two commands (sudoers):
-#   <you> ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usb/unbind, /usr/bin/tee /sys/bus/usb/drivers/usb/bind
+#
+# Needs: a sudoers rule for toggle — see eww/eww.md#webcam
 
 DRIVER=/sys/bus/usb/drivers/usb
 
@@ -32,7 +32,8 @@ case "${1:-status}" in
   toggle)
     [[ -n "$DEVICE_ID" ]] || { echo "webcam.sh: no webcam found (set CAM_USB)" >&2; exit 1; }
     if [[ -e "$DRIVER/$DEVICE_ID" ]]; then op=unbind; else op=bind; fi
-    echo "$DEVICE_ID" | sudo -n /usr/bin/tee "$DRIVER/$op" >/dev/null ;;
+    echo "$DEVICE_ID" | sudo -n /usr/bin/tee "$DRIVER/$op" >/dev/null ||
+      { echo "webcam.sh: sudo refused — add the sudoers rule from eww/eww.md#webcam" >&2; exit 1; } ;;
   *)
     echo "usage: $0 status|toggle" >&2; exit 1 ;;
 esac

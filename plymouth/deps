@@ -1,0 +1,3 @@
+# command[|alternative]  package  [required]   — read by install.sh and check.sh
+plymouth-set-default-theme  plymouth    required
+lsinitcpio                  mkinitcpio  required

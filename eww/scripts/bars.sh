@@ -5,9 +5,15 @@
 #   bars.sh toggle   close every bar if any is open, else open them
 #   bars.sh watch    open them, then follow monitor hotplug (for exec-once)
 #
-# Uses `eww` from PATH; set EWW=/path/to/eww to use another binary.
+# Needs: eww, hyprctl, jq, socat (watch). EWW=/path/to/eww for another binary.
+# Docs:  eww/eww.md#start
 
 EWW=${EWW:-eww}
+SOCKET="$XDG_RUNTIME_DIR/hypr/${HYPRLAND_INSTANCE_SIGNATURE:-}/.socket2.sock"
+
+die() { echo "bars.sh: $*" >&2; exit 1; }
+command -v "$EWW" >/dev/null || die "eww not found — install it or set EWW=/path/to/eww"
+hyprctl monitors -j >/dev/null 2>&1 || die "no Hyprland session here — run it from inside Hyprland"
 
 monitors() { hyprctl monitors -j | jq -r '.[].name'; }
 open_bars() { $EWW active-windows | sed -n 's/^\(bar-[^:]*\):.*/\1/p'; }
@@ -26,14 +32,19 @@ sync_bars() {
   done
 }
 
-$EWW ping >/dev/null 2>&1 || { $EWW daemon >/dev/null 2>&1 && sleep 0.5; }
+if ! $EWW ping >/dev/null 2>&1; then
+  $EWW daemon >/dev/null 2>&1
+  for _ in 1 2 3 4 5 6 7 8 9 10; do $EWW ping >/dev/null 2>&1 && break; sleep 0.2; done
+  $EWW ping >/dev/null 2>&1 || die "the eww daemon did not start — see: $EWW logs"
+fi
 
 case "${1:-}" in
   "")     sync_bars ;;
   toggle) ids=$(open_bars); [[ -n "$ids" ]] && $EWW close $ids || sync_bars ;;
   watch)
     sync_bars
-    socat -u UNIX-CONNECT:"$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock" - |
+    [[ -S "$SOCKET" ]] || die "Hyprland event socket not found ($SOCKET) — hotplug will not be followed"
+    socat -u UNIX-CONNECT:"$SOCKET" - |
       while read -r line; do
         case "$line" in monitoradded*|monitorremoved*) sleep 0.5; sync_bars ;; esac
       done ;;

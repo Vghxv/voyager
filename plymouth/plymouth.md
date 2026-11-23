@@ -1,26 +1,24 @@
-# voyager — Plymouth
+# Plymouth boot screen
 
-An animated LUKS unlock screen: a deep-space probe drifting in a twinkling starfield that reacts to your typing.
+An animated screen for unlocking an encrypted disk at boot: a probe drifting in a twinkling starfield that reacts as you type.
 
 ![preview](../docs/preview.gif)
 
-| Event | Effect |
+| When | What happens |
 |---|---|
-| Waiting | ~110 stars twinkle, each with its own speed and brightness · faint hint *"type your passphrase, press enter to launch"* |
-| Each character | **Warp burst** — stars streak outward · **signal ring** pulses from the probe's dish |
-| Backspace | Stars pulled back inward · ring collapses into the dish |
-| Enter | Warp accelerates to full speed while the disk unlocks |
-| Wrong passphrase | Red flash · probe shakes · hint returns |
+| Waiting | ~110 stars twinkle, and a faint hint says *"type your passphrase, press enter to launch"* |
+| You type a character | Stars streak outward in a warp burst, and a signal ring pulses from the probe's dish |
+| Backspace | Stars pull back in, and the ring collapses into the dish |
+| Enter | The warp speeds up while the disk unlocks |
+| Wrong passphrase | Red flash, the probe shakes, the hint comes back |
 
-No bullets are drawn, so the screen never reveals the passphrase length. Press **Esc** at boot to fall back to the plain text prompt.
+It never draws bullets, so the screen does not reveal how long your passphrase is. Press **Esc** at boot to get the plain text prompt instead.
 
-Tested on Arch Linux · GRUB · LUKS2 · `sd-encrypt` · Intel Iris Xe (i915).
-
----
+Tested on Arch Linux with GRUB, LUKS2, `sd-encrypt` and Intel Iris Xe (i915).
 
 ## Prerequisites
 
-The theme uses Plymouth's password prompt, which works with the **systemd-based initramfs**.
+This theme needs the **systemd-based initramfs**. The installer checks all of this and tells you what is missing, but never changes it for you.
 
 ### 1. systemd initramfs with `sd-encrypt`
 
@@ -28,7 +26,7 @@ The theme uses Plymouth's password prompt, which works with the **systemd-based 
 grep '^HOOKS' /etc/mkinitcpio.conf
 ```
 
-Required order: `systemd` before `plymouth`, `plymouth` before `sd-encrypt`. Example:
+The order must be `systemd` before `plymouth`, and `plymouth` before `sd-encrypt`. For example:
 
 ```bash
 sudo cp /etc/mkinitcpio.conf /etc/mkinitcpio.conf.bak
@@ -36,101 +34,88 @@ sudo sed -i 's|^HOOKS=.*|HOOKS=(base systemd autodetect microcode modconf kms pl
 grep '^HOOKS' /etc/mkinitcpio.conf
 ```
 
-> Coming from the busybox `encrypt` hook? Also switch the kernel parameter
-> `cryptdevice=UUID=<luks-uuid>:cryptroot` → `rd.luks.name=<luks-uuid>=cryptroot`
-> **before** rebooting, or the disk will not unlock. Use LVM? Keep `lvm2` after `sd-encrypt`.
-> Do not use the removed `sd-plymouth` / `plymouth-encrypt` hooks.
+> **Coming from the busybox `encrypt` hook?** Before you reboot, also change the kernel parameter
+> `cryptdevice=UUID=<luks-uuid>:cryptroot` to `rd.luks.name=<luks-uuid>=cryptroot`, or the disk will not unlock.
+> Using LVM? Keep `lvm2` after `sd-encrypt`. Do not use the old `sd-plymouth` / `plymouth-encrypt` hooks.
 
-### 2. Plymouth + `splash`
+### 2. Plymouth and `splash`
 
 ```bash
 sudo pacman -S plymouth
 sudo cp /etc/default/grub /etc/default/grub.bak
-# add "splash" to GRUB_CMDLINE_LINUX_DEFAULT, e.g. "loglevel=3 quiet splash rd.luks.name=…"
-sudoedit /etc/default/grub
-grep CMDLINE_LINUX_DEFAULT /etc/default/grub
-sudo mkinitcpio -P                                   # stop on ==> ERROR
+sudoedit /etc/default/grub     # add "splash" to GRUB_CMDLINE_LINUX_DEFAULT, e.g. "loglevel=3 quiet splash rd.luks.name=…"
+sudo mkinitcpio -P             # stop if you see ==> ERROR
 sudo grub-mkconfig -o /boot/grub/grub.cfg
-grep -m1 splash /boot/grub/grub.cfg                  # must show your linux line
+grep -m1 splash /boot/grub/grub.cfg     # must show your linux line
 ```
-
-Late or flickering splash on Intel: set `MODULES=(i915)` in `/etc/mkinitcpio.conf` and rebuild.
-
----
 
 ## Install
 
-```bash
-sudo ./plymouth/install.sh          # copies the theme, checks prerequisites
-```
-
-### Preview without rebooting
-
-Switch to a TTY (**Ctrl+Alt+F3**), log in, then:
+Three steps: copy the theme, try it, then make it the boot theme.
 
 ```bash
-./plymouth/preview.sh
+sudo ./plymouth/install.sh           # 1. copy the theme and check the prerequisites
+./plymouth/preview.sh                # 2. try it (from a text console, see below)
+sudo ./plymouth/install.sh --apply   # 3. make it the default and rebuild the initramfs
 ```
 
-1. Idle starfield for ~3 s
-2. Prompt **one** — type, try Backspace, press Enter → warp
-3. Prompt **two** — the theme treats this as a wrong passphrase → red flash + shake; type again, Enter → warp, quit
+The theme is built into the initramfs, so re-run `--apply` after **any** change to it.
 
-The previous default theme is restored when the preview ends.
-Back to your desktop: **Ctrl+Alt+F1** or **F2**. Add **Fn** if your F-keys are media keys. Switching consoles does not stop the desktop session.
+### Preview
 
-### Apply
+Switch to a text console (**Ctrl+Alt+F3**, add **Fn** if your F-keys are media keys), log in, and run `./plymouth/preview.sh`:
 
-```bash
-sudo ./plymouth/install.sh --apply
-lsinitcpio /boot/initramfs-linux.img | grep themes/voyager     # expect 7 files (use your kernel's image)
-```
+1. The starfield idles for ~3 s.
+2. Prompt **one**: type, try Backspace, press Enter, and watch the warp.
+3. Prompt **two** acts as if the passphrase was wrong: red flash and shake. Type again and press Enter to finish.
 
-`--apply` prints your previous theme and the command to switch back. Before rebuilding, it copies each kernel's current image (`/boot/initramfs-<kernel>.img`, fallbacks skipped) to `…img.pre-voyager` if `/boot` has room, and afterwards checks that voyager is inside each one. Delete those copies once you have booted fine.
+Your previous theme comes back when the preview ends. Return to your desktop with **Ctrl+Alt+F1** or **F2**; your session keeps running meanwhile.
 
-The theme lives inside the initramfs — re-run `sudo ./plymouth/install.sh --apply` after **any** edit.
+### What the scripts change
+
+| Command | Changes | Safety net |
+|---|---|---|
+| `install.sh` | copies files to `/usr/share/plymouth/themes/voyager/` | only reads `mkinitcpio.conf` and the kernel cmdline |
+| `install.sh --apply` | sets `Theme=` in `/etc/plymouth/plymouthd.conf`, rebuilds every kernel's initramfs | copies each `initramfs-<kernel>.img` to `….pre-voyager` first (if `/boot` has room), prints the command to switch back, checks voyager made it in |
+| `install.sh --remove` | deletes the theme folder | refuses while voyager is the default |
+| `preview.sh` | the default theme, for the preview only, without rebuilding | switches back on exit |
+
+Delete the `.pre-voyager` copies once you have booted fine.
 
 ### Remove
 
 ```bash
-sudo plymouth-set-default-theme -R bgrt
+sudo plymouth-set-default-theme -R bgrt     # or your previous theme
 sudo ./plymouth/install.sh --remove
 ```
 
-### What the scripts change
-
-| Script | Touches | Safety |
-|---|---|---|
-| `install.sh` | `/usr/share/plymouth/themes/voyager/` | only checks `mkinitcpio.conf` / cmdline, never edits them |
-| `install.sh --apply` | `Theme=` in `/etc/plymouth/plymouthd.conf`, rebuilds all initramfs images | backs up each `initramfs-<kernel>.img` → `.pre-voyager` · prints revert command |
-| `install.sh --remove` | deletes the theme dir | refuses while voyager is the default |
-| `preview.sh` | default theme, temporarily (no rebuild) | restored on exit |
-
-### Manual install
-
-```bash
-sudo mkdir -p /usr/share/plymouth/themes/voyager
-sudo cp plymouth/voyager/* /usr/share/plymouth/themes/voyager/
-sudo plymouth-set-default-theme -R voyager
-```
-
----
-
 ## Customize
 
-Tunables at the top of `plymouth/voyager/voyager.script`:
+Tunables at the top of `voyager/voyager.script`:
 
 | Variable | Default | Effect |
 |---|---|---|
 | `NUM_STARS` | `110` | number of stars |
 | `KEY_BOOST` | `1.4` | warp burst per typed character |
-| `BACK_PULL` | `1.0` | reverse pull per backspace |
+| `BACK_PULL` | `1.0` | pull back per Backspace |
 | `WARP_MAX` | `6` | warp speed after Enter |
 | `STREAK_AT` | `1.2` | speed at which stars become streaks |
 | `ROT_SIGN` | `1` | set to `-1` if streaks point sideways instead of outward |
 
-Other edits:
+- **Text:** search the script for `Image.Text("voyager"` and `Image.Text("type your passphrase`.
+- **Background:** `Window.SetBackgroundTopColor` / `BottomColor` in the script (RGB, 0–1).
+- **Images:** every PNG in `voyager/` is rendered from an SVG in `src/`. Edit the SVG, run `src/gen-plymouth.py`, then `--apply`. If you move the probe's dish, update `dish_x` / `dish_y` in the script.
 
-- **Images** — every PNG in `plymouth/voyager/` is rendered from `src/` (`logo`, `ring`, `star`, `streak`, `flash` `.svg`). Edit the SVG, run `src/gen-plymouth.py`, then `sudo ./plymouth/install.sh --apply`. If you change the probe artwork, update the dish position in the script (`dish_x` / `dish_y`, coordinates in the 400×400 logo) so the rings start at the right spot.
-- **Title / hint text** — `Image.Text("voyager", …)` and `Image.Text("type your passphrase…", …)`.
-- **Colors** — `Window.SetBackgroundTopColor` / `BottomColor` (RGB 0–1); ring, star, streak and flash colors live in `src/*.svg` (re-render with `src/gen-plymouth.py`).
+## If it breaks
+
+Start with `./doctor.sh plymouth` (no sudo needed).
+
+| Symptom | Do this |
+|---|---|
+| Plain text prompt instead of the theme | check [prerequisites](#prerequisites): `splash` on the cmdline, hook order |
+| Old theme still shows | `sudo ./plymouth/install.sh --apply` |
+| Splash appears late or flickers (Intel) | set `MODULES=(i915)` in `/etc/mkinitcpio.conf`, then `sudo mkinitcpio -P` |
+| Theme is broken and you want the old one back | `sudo plymouth-set-default-theme -R <previous theme>` (`--apply` printed it) |
+| Disk does not unlock after switching hooks | at the GRUB menu press `e` and fix `rd.luks.name=…` on the linux line |
+| Boot fails after `--apply` | at the GRUB menu press `e` and point the `initrd` line at the `….pre-voyager` image |
+| Preview hangs | Ctrl+C, then `sudo plymouth quit \|\| sudo pkill plymouthd` |

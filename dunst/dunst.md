@@ -1,31 +1,40 @@
-# voyager — dunst
+# dunst notifications
 
-Notifications styled like the eww bar's HUD cells: square panels (no rounded corners), monospace text, a 1px frame and a `▸` marker on the summary, dropping in top-right just below the bar. They switch between light and dark together with the bar: `~/.config/scripts/voyager-theme toggle` (see [eww.md](../eww/eww.md#light-and-dark)).
+Notifications that match the eww bar: square panels with a thin frame, monospace text and a `▸` before the title. They appear top-right, just below the bar, and switch between [light and dark](../README.md#light-and-dark) together with it.
 
-| Urgency | Light | Dark | Timeout |
-|---|---|---|---|
-| low | mist panel, dim text, faint indigo frame | navy glass, dim text, faint indigo frame | 5 s |
-| normal | mist panel, navy text, indigo frame | navy glass, mist text, indigo frame | 8 s |
-| critical | pink tint, red `#FF3355` frame | dark red tint, pink text, red frame | stays until clicked |
+| Urgency | Frame | Disappears after |
+|---|---|---|
+| low | faint indigo, dimmed text | 5 s |
+| normal | indigo | 8 s |
+| critical | red | stays until clicked |
 
-The progress bar is teal (red on critical).
+Progress bars (`notify-send -h int:value:60 …`) are teal, or red on critical.
 
 ## Install
 
 ```bash
-./dunst/install.sh             # as your user, not sudo
-notify-send -u critical voyager 'signal lost'
+./dunst/install.sh
+notify-send -u critical voyager 'signal lost'      # try it
 ```
 
-- The config goes to `~/.config/dunst/dunstrc`. It has no colors: the saved mode's colors go to `~/.config/dunst/dunstrc.d/90-voyager-theme.conf` (from `dunst/themes/light.conf` or `dark.conf`), which dunst reads after it. A running dunst is reloaded (`dunstctl reload`).
-- The installer also installs `~/.config/scripts/voyager-theme`, shared with the eww bar.
-- Your current `dunstrc` is backed up to `dunstrc.bak-<date>`. If it already is the voyager config, nothing is backed up.
-- Undo: `./dunst/install.sh --restore` removes the color drop-in and restores the newest backup. With no backup (dunst was using `/etc/dunst/dunstrc`), just delete `~/.config/dunst/dunstrc` and run `dunstctl reload`.
+Your current `~/.config/dunst/dunstrc` is backed up first. `./dunst/install.sh --restore` brings it back and removes voyager's colors. If you had no `dunstrc` of your own, there is nothing to restore: delete `~/.config/dunst/dunstrc` and run `dunstctl reload`.
 
-## Notes
+## Using it
 
-- Clicks: left runs the default action and closes, middle closes, right closes all.
-- Progress bars: `notify-send -h int:value:60 …`.
-- Notifications follow the monitor with the mouse. `offset = (10, 50)` clears the bar; adjust it if your bar is taller.
-- The font is Geist Mono Nerd Font, falling back to JetBrains Mono, then any monospace font.
-- Icons come from the Adwaita theme; apps that send their own icon keep it.
+- **Clicks:** left runs the notification's action and closes it, middle closes it, right closes all.
+- **Position:** notifications follow the monitor your mouse is on. If your bar is taller, raise the `50` in `offset = (10, 50)` in `dunstrc`.
+- **Font:** Geist Mono Nerd Font, else JetBrains Mono, else any monospace font.
+- **Icons:** from the Adwaita theme. Apps that send their own icon keep it.
+
+To change colors, edit `themes/light.conf` or `themes/dark.conf` and re-run the installer. Layout and behaviour are in `dunstrc`.
+
+## If it breaks
+
+Start with `./doctor.sh dunst`.
+
+| Symptom | Do this |
+|---|---|
+| Notifications look like plain dunst | `./dunst/install.sh` |
+| Wrong colors for the current mode | `~/.config/scripts/voyager-theme apply` |
+| No notifications at all | `pkill -x dunst`, then `notify-send test`: dunst restarts on its own |
+| Notifications hide behind or overlap the bar | raise the `50` in `offset` in `dunstrc` |

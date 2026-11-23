@@ -79,8 +79,10 @@ logo_y = cy - logo_img.GetHeight() - 40;
 logo_sprite = Sprite(logo_img);
 logo_sprite.SetPosition(logo_x, logo_y, 10);
 
-dish_x = logo_x + 190 * logo_s;      # dish centre inside the 400x400 probe logo
-dish_y = logo_y + 147 * logo_s;
+# dish centre inside the 400x400 probe logo. src/voyager_art.py has its own
+# copy (DISH, used by the wallpaper): update both if the probe artwork changes.
+dish_x = logo_x + 190 * logo_s;
+dish_y = logo_y + 150 * logo_s;
 
 # ---------------- title + hint ----------------
 title_img = Image.Text("voyager", 0.85, 0.85, 0.95);

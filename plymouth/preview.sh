@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
-# Preview the voyager theme without rebooting.
+# Preview the Plymouth theme without rebooting. Run it from a text console
+# (Ctrl+Alt+F3): the compositor owns the display while it is in front.
 #
-# Run from a text console (Ctrl+Alt+F3), NOT inside your desktop session:
-# the compositor owns the display while it is in front.
+#   ./plymouth/preview.sh
 #
-# What happens:
-#   1. ~3 s of idle starfield
-#   2. prompt "one": type, try Backspace, press Enter  -> warp
-#   3. prompt "two": looks like a wrong passphrase       -> red flash + shake
-#      type again, press Enter                            -> warp, then quit
-#
+# Switches the default theme for the preview only (no initramfs rebuild) and
+# switches back on exit, even on failure.
 # Stuck? Ctrl+C, then:  sudo plymouth quit || sudo pkill plymouthd
-# The previous default theme is restored when the script exits, even if plymouthd fails to start.
+# Docs: plymouth/plymouth.md#preview
 
 set -euo pipefail
 

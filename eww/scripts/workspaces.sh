@@ -1,10 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Emit the workspace state as JSON on every change:
 #   {"workspaces":[1,2,3],"active":2,"monitors":{"eDP-1":1,"HDMI-A-1":2}}
 # "active" is the focused workspace, "monitors" the workspace each monitor shows
 # (each bar highlights the one on its own monitor).
 
-SOCKET="$XDG_RUNTIME_DIR/hypr/$HYPRLAND_INSTANCE_SIGNATURE/.socket2.sock"
+#
+# Needs: hyprctl, jq, socat. Errors go to `eww logs`.
+
+SOCKET="$XDG_RUNTIME_DIR/hypr/${HYPRLAND_INSTANCE_SIGNATURE:-}/.socket2.sock"
+for c in hyprctl jq socat; do
+  command -v $c >/dev/null || { echo "workspaces.sh: $c missing — run ./eww/install.sh to see what to install" >&2; exec sleep infinity; }
+done
+[[ -S "$SOCKET" ]] || { echo "workspaces.sh: no Hyprland event socket ($SOCKET) — is eww running inside Hyprland?" >&2; exec sleep infinity; }
 
 get_state() {
     workspaces=$(hyprctl workspaces -j | jq -c 'map(select(.id > 0) | .id) | sort')

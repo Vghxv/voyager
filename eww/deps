@@ -1,0 +1,9 @@
+# command[|alternative]  package  [required]   — read by install.sh and check.sh
+hyprctl       hyprland
+jq            jq
+socat         socat
+inotifywait   inotify-tools
+pactl         libpulse
+wpctl         wireplumber
+pavucontrol   pavucontrol
+nmcli|iw      iw

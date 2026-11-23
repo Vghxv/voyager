@@ -1,52 +1,43 @@
 #!/usr/bin/env python3
-"""Render the voyager hyprlock assets (SVG -> PNG via rsvg-convert).
+"""Render the hyprlock starfield frames and probe image.
 
-Writes the starfield frames hyprlock crossfades between (stars-0.png ...
-stars-<N-1>.png, picked by hyprlock/next-frame.sh) and the probe image
-(probe.png, src/logo.svg at 400x400). The background gradient and stars come
-from src/gen-wallpaper.py, without the nebula and the probe, because hyprlock
-draws the probe and the password field on top.
+    src/gen-hyprlock.py                    # 1920x1080, 6 frames -> hyprlock/
+    src/gen-hyprlock.py --size auto        # match your largest monitor
+    src/gen-hyprlock.py --seed 42          # different star layout
+    src/gen-hyprlock.py --frames 10        # longer twinkle loop
+    ./hyprlock/install.sh                  # install the result
 
-    src/gen-hyprlock.py                       # 1920x1080, 6 frames -> hyprlock/
-    src/gen-hyprlock.py --size 2560x1440      # other monitor size
-    src/gen-hyprlock.py --size auto           # your largest monitor
-    src/gen-hyprlock.py --seed 42             # different star layout
-    ./hyprlock/install.sh                     # install the new files
+Writes stars-0.png ... stars-<N-1>.png (hyprlock crossfades between them, one
+per second) and probe.png. Same gradient and stars as the wallpaper, without
+the nebula and probe: hyprlock draws those on top.
 
-The frame count must match next-frame.sh (`% 6`). Python stdlib only; needs
-rsvg-convert (librsvg).
+Needs: python3, rsvg-convert (librsvg).
 """
 
 import argparse
-import importlib.util
 import random
-import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-FRAMES = 6
+sys.dont_write_bytecode = True          # no src/__pycache__
+import voyager_art as art  # noqa: E402
 
-# reuse the wallpaper's palette, star layout and renderer
-sys.dont_write_bytecode = True          # no src/__pycache__ from this import
-_spec = importlib.util.spec_from_file_location("gen_wallpaper", ROOT / "src" / "gen-wallpaper.py")
-wp = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(wp)
+ROOT = art.ROOT
 
 
-def build_svg(w, h, seed, frame):
-    layout = wp.make_stars(random.Random(seed), w, h)
+def build_svg(w, h, seed, frame, frames):
+    layout = art.make_stars(random.Random(seed), w, h)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">
 <defs>
   <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="{wp.BG_TOP}"/><stop offset="1" stop-color="{wp.BG_BOTTOM}"/>
+    <stop offset="0" stop-color="{art.BG_TOP}"/><stop offset="1" stop-color="{art.BG_BOTTOM}"/>
   </linearGradient>
   <radialGradient id="star"><stop offset="0" stop-color="#FFFFFF"/>
     <stop offset="0.25" stop-color="#E8E8FF" stop-opacity="0.9"/>
     <stop offset="1" stop-color="#C7CBFF" stop-opacity="0"/></radialGradient>
 </defs>
 <rect width="{w}" height="{h}" fill="url(#bg)"/>
-{wp.stars(layout, frame, FRAMES)}
+{art.stars(layout, frame, frames)}
 </svg>
 """
 
@@ -56,22 +47,29 @@ def main():
     ap.add_argument("--size", default="1920x1080",
                     help="WxH, or 'auto' for the largest connected monitor (default 1920x1080)")
     ap.add_argument("--seed", type=int, default=1977, help="star layout seed (default 1977)")
+    ap.add_argument("--frames", type=int, default=6, help="starfield frames, one per second (default 6)")
     ap.add_argument("--out-dir", default=str(ROOT / "hyprlock"), help="output folder (default hyprlock/)")
     a = ap.parse_args()
+    if a.frames < 1:
+        raise SystemExit("--frames must be at least 1")
 
-    w, h = wp.parse_size(a.size)
+    w, h = art.parse_size(a.size)
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    for i in range(FRAMES):
+    # next-frame.sh cycles through every stars-*.png it finds: drop leftovers
+    # from an earlier run with more frames
+    for old in out.glob("stars-*.png"):
+        old.unlink()
+    for i in range(a.frames):
         png = out / f"stars-{i}.png"
-        wp.render(build_svg(w, h, a.seed, i), w, h, str(png))
+        art.render(build_svg(w, h, a.seed, i, a.frames), w, h, png)
         print(f"wrote {png}")
 
     probe = out / "probe.png"
-    subprocess.run(["rsvg-convert", "-w", "400", "-h", "400", str(wp.LOGO), "-o", str(probe)], check=True)
+    art.rsvg(art.LOGO, 400, 400, probe)
     print(f"wrote {probe}")
-    print(f"{w}x{h}, seed {a.seed}, {FRAMES} frames")
+    print(f"{w}x{h}, seed {a.seed}, {a.frames} frames")
 
 
 if __name__ == "__main__":

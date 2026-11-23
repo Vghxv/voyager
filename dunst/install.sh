@@ -1,28 +1,25 @@
 #!/usr/bin/env bash
-# Install the voyager dunst theme for the current user.
+# Install the dunst notification theme.
 #
 #   ./dunst/install.sh            install (backs up your current dunstrc)
-#   ./dunst/install.sh --restore  put the most recent backup back, drop the voyager colors
+#   ./dunst/install.sh --restore  put that backup back, remove voyager's colors
 #
-# Also installs the light/dark color drop-ins and the voyager-theme switcher
-# (~/.config/scripts/voyager-theme) that the eww bar shares.
-#
-# Run as your normal user — NOT with sudo.
+# Docs: dunst/dunst.md
 
 set -euo pipefail
 
 SRC="$(dirname "$(readlink -f "$0")")"
 source "$SRC/../lib/common.sh"
-
 DIR="$HOME/.config/dunst"
 CONF="$DIR/dunstrc"
 DROPIN="$DIR/dunstrc.d/90-voyager-theme.conf"
+HOOK="$VOYAGER_CONF/theme.d/dunst"
 
 require_user
 
 reload() {
   # dunst is D-Bus activated: if it is not running, the next notification starts it
-  # with the new config. Otherwise reload in place, or restart if that fails.
+  # with the new config. Otherwise reload in place, or stop it if that fails.
   pgrep -x dunst >/dev/null || return 0
   if dunstctl reload >/dev/null 2>&1; then
     green "Reloaded dunst"
@@ -33,29 +30,21 @@ reload() {
 }
 
 case "${1:-}" in
-  --restore) rm -f "$DROPIN"; restore_latest "$CONF" || true; reload; exit ;;
+  --restore) rm -f "$DROPIN" "$HOOK"; restore_latest "$CONF" || true; reload; exit ;;
   "") ;;
-  *) red "Unknown option: $1"; exit 1 ;;
+  *) red "Unknown option: $1 (use --restore or nothing)"; exit 1 ;;
 esac
 
-command -v dunst >/dev/null || { red "dunst is not installed (sudo pacman -S dunst)."; exit 1; }
-command -v notify-send >/dev/null || yellow "notify-send is missing (sudo pacman -S libnotify) — needed for the test below."
+check_deps "$SRC/deps"
 
 backup_file "$CONF" "$SRC/dunstrc"
 install -D -m 644 "$SRC/dunstrc" "$CONF"
 install -d "$DIR/themes"
 install -m 644 "$SRC"/themes/*.conf "$DIR/themes"/
-install -D -m 755 "$SRC/../lib/voyager-theme" "$HOME/.config/scripts/voyager-theme"
-rm -f "$HOME/.local/bin/voyager-theme"   # from an earlier version
-mode="$("$HOME/.config/scripts/voyager-theme")"
-install -D -m 644 "$SRC/themes/$mode.conf" "$DROPIN"
-echo "Installed $CONF ($mode mode; switch with: ~/.config/scripts/voyager-theme toggle)"
+install_theme_hook dunst "$SRC/theme-hook.sh"
+echo "Installed $CONF ($("$THEME_CMD") mode)"
 reload
 
 echo
-echo "Test it now:"
-echo "  notify-send -u low      voyager 'low: telemetry nominal'"
-echo "  notify-send -u normal   voyager 'normal: signal acquired'"
-echo "  notify-send -u critical voyager 'critical: signal lost'"
-echo "  notify-send -h int:value:60 voyager 'downlink 60%'"
-echo "Undo:  ./dunst/install.sh --restore"
+echo "Try it:  notify-send -u critical voyager 'signal lost'"
+echo "Undo:    ./dunst/install.sh --restore"
