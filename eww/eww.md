@@ -1,22 +1,46 @@
 # voyager — eww bar
 
-Restyles an existing [eww](https://github.com/elkowar/eww) bar with the voyager palette: light mist cells with navy text and icons, indigo edges, teal for "ok" states (wifi connected, charging, camera on), amber for mid battery, and the hyprlock fail red for low battery or no wifi.
+A complete [eww](https://github.com/elkowar/eww) top bar in the voyager palette: light mist cells with navy text and icons, indigo edges, teal for "ok" states (wifi connected, charging, camera on), amber for mid battery, and the hyprlock fail red for low battery or no wifi.
 
-Only `eww.scss` and the icons change. The class names match the original bar, so your `.yuck` files keep working as they are.
+Left: power menu, clock, date, Hyprland workspaces. Right: wifi, volume slider, mixer (pavucontrol), brightness, webcam toggle, battery (tooltip: time left), system tray.
 
 ## Install
 
 ```bash
+sudo pacman -S jq socat inotify-tools libpulse wireplumber networkmanager pavucontrol   # what the bar's scripts call
 ./eww/install.sh             # as your user, not sudo
 ```
 
-Deployment is one way: repo → `~/.config/eww`. The installer:
+`eww` itself must be on `PATH`. Arch ships it in the AUR (`eww`), or build it from source.
 
-- copies `eww/eww.scss` over `~/.config/eww/eww.scss`;
-- copies `eww/icons/*.png` into `~/.config/eww/assets/`;
-- runs `eww reload` if the daemon is running.
+The installer copies the whole bar into `~/.config/eww`: `eww.yuck`, `var.yuck`, `utils.yuck`, `audio/`, `scripts/`, `eww.scss`, and the icons into `assets/`. It reports any missing packages and reloads eww if it is running.
 
-It never reads anything from `~/.config/eww` and makes no backups. This repo is the source of truth: edit the files here and run the installer again. Your `.yuck` files are not touched.
+Deployment is one way: repo → `~/.config/eww`. Nothing is read back and no backups are made. Files with the same name are overwritten, and other files in `~/.config/eww` are left alone. Edit the files here and run the installer again.
+
+Start the bar, and start it at login:
+
+```bash
+eww daemon && eww open bar                        # now
+exec-once = eww daemon && eww open bar            # in hyprland.conf
+```
+
+## Machine-specific settings
+
+Everything else is detected: the wifi connection (any interface name), the backlight and its maximum, the battery for the time-left tooltip. Paths use eww's `EWW_CONFIG_DIR` and `EWW_CMD`, so the bar works from any home folder and any eww binary.
+
+| Setting | Where | Default |
+|---|---|---|
+| Battery shown in the bar | `BAT_NAME` in `var.yuck` (`ls /sys/class/power_supply`) | `BAT0` |
+| Webcam USB port | `DEVICE_ID` in `scripts/webcam.sh` (`grep -il camera /sys/bus/usb/devices/*/product`) | `1-3` |
+| Monitor | `:monitor "[1,0]"` in `eww.yuck`: the second monitor if there is one, else the first | |
+
+The webcam button turns the camera off by unbinding its USB device, which needs root. It uses `sudo -n`, so add a sudoers rule for exactly those two commands (`sudo visudo -f /etc/sudoers.d/webcam`):
+
+```
+<you> ALL=(ALL) NOPASSWD: /usr/bin/tee /sys/bus/usb/drivers/usb/unbind, /usr/bin/tee /sys/bus/usb/drivers/usb/bind
+```
+
+Without it the camera indicator still works and the button does nothing.
 
 ## Contrast
 
@@ -30,12 +54,4 @@ If you change the palette, keep the cell fill light. If you switch to dark cells
 
 ## Icons
 
-`eww/icons/` holds the icons the bar uses (battery, brightness, menu-burger, sound-wave, wifi), colored navy `#14141F` so they read on the light cells. The installer copies them into `~/.config/eww/assets/`.
-
-Your yuck must load icons from that folder. The bar finds them through `ASSET_PATH` in `var.yuck`:
-
-```lisp
-(defvar ASSET_PATH "/home/<you>/.config/eww/assets")
-```
-
-If yours points somewhere else, the cells show no icons.
+`eww/icons/` holds the icons the bar uses (battery, brightness, menu-burger, sound-wave, wifi), colored navy `#14141F` so they read on the light cells. The installer copies them into `~/.config/eww/assets/`, where `bimage` in `utils.yuck` loads them from.
