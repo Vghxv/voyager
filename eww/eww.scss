@@ -1,0 +1,162 @@
+// voyager — eww bar
+// Same palette as the Plymouth boot screen, hyprlock and the awww wallpaper.
+// Selectors match the original eww.scss, so eww.yuck needs no changes.
+//
+// CONTRAST: the bar window is transparent, so every cell sits directly on the
+// deep-navy wallpaper (#14141F -> #05050D). Cells are light mist "panels" with
+// dark navy text and icons (eww/icons/), so they stand out clearly from the
+// night sky. Each cell also has a 1px indigo edge so neighbouring cells stay
+// separate. If you change colors, keep the cell fill light, or the cells sink
+// into the wallpaper.
+
+// ---------- palette ----------
+$ink:        #14141F;                    // text + icons on cells (= wallpaper top)
+$cell:       rgba(217, 217, 242, 0.92);  // mist
+$cell-hover: rgba(236, 236, 252, 0.97);
+$border:     rgba(139, 143, 240, 0.70);  // indigo edge
+$indigo:     #8B8FF0;
+$teal:       #5EEAD4;
+$dim:        #5A5A78;                    // inactive workspace number
+$red:        #FF3355;                    // hyprlock fail color
+$amber:      #F0C674;
+
+$global-padding: 0px 10px 0px 10px;
+
+* {
+  font-family: "DejaVu Sans";
+}
+
+.bar {
+  margin: 5px;
+  background-color: transparent;
+}
+
+.power_menu {
+  background-color: transparent;
+}
+
+// ---------- the cell ----------
+%element-base {
+  border-radius: 8px;
+  border: 1px solid $border;
+  background-color: $cell;
+  background-image: none;                // drop the GTK theme's button gradient
+  box-shadow: none;
+  text-shadow: none;
+  color: $ink;
+}
+
+// state tints: still light, so the dark icon/text keeps reading
+%ok   { background-color: rgba(178, 242, 231, 0.95); border-color: darken($teal, 15%); }
+%warn { background-color: rgba(248, 226, 180, 0.95); border-color: darken($amber, 15%); }
+%bad  { background-color: rgba(255, 179, 192, 0.95); border-color: $red; }
+
+.element {
+  @extend %element-base;
+  &:hover { background-color: $cell-hover; border-color: $teal; }
+}
+
+// ---------- workspaces ----------
+.btn-ws {
+  .active {
+    @extend %element-base;
+    background-color: $indigo;
+    border-color: darken($indigo, 15%);
+    font-weight: bold;
+    &:hover { background-color: lighten($indigo, 5%); }
+  }
+  .inactive {
+    @extend %element-base;
+    color: $dim;
+    &:hover { background-color: $cell-hover; border-color: $teal; color: $ink; }
+  }
+}
+
+// ---------- right side ----------
+.systray {
+  @extend %element-base;
+  padding: $global-padding;
+}
+
+.sound {
+  @extend %element-base;
+  padding: $global-padding;
+}
+
+.camera_on {
+  @extend %element-base;
+  @extend %ok;
+  padding: $global-padding;
+}
+
+.bat-low      { @extend %element-base; @extend %bad; }
+.bat-mid      { @extend %element-base; @extend %warn; }
+.bat-charging { @extend %element-base; @extend %ok; }
+
+.wifi-connected {
+  @extend %element-base;
+  @extend %ok;
+  padding: $global-padding;
+}
+
+.wifi-disconnected {
+  @extend %element-base;
+  @extend %bad;
+  padding: $global-padding;
+}
+
+// volume slider inside .sound
+scale {
+  trough {
+    min-height: 6px;
+    min-width: 60px;
+    border-radius: 3px;
+    background-color: rgba(20, 20, 31, 0.25);
+    border: none;
+  }
+  highlight {
+    border-radius: 3px;
+    background-image: linear-gradient(to right, $indigo, darken($teal, 10%));
+  }
+  slider {
+    min-width: 12px;
+    min-height: 12px;
+    border-radius: 6px;
+    background-color: $ink;
+  }
+}
+
+progress, progressbar trough {
+  border-radius: 3px;
+}
+progressbar progress {
+  background-image: linear-gradient(to top, $indigo, $teal);
+}
+
+tooltip {
+  border-radius: 8px;
+  border: 1px solid $border;
+  background-color: $cell;
+  color: $ink;
+  padding: 4px 8px;
+}
+
+// ---------- power menu ----------
+.menu-item {
+  @extend %element-base;
+  padding: 10px 20px;
+
+  &:hover          { background-color: $cell-hover; }
+  &.suspend:hover  { @extend %ok; }
+  &.reboot:hover   { background-color: lighten($indigo, 12%); border-color: $indigo; }
+  &.shutdown:hover { @extend %bad; }
+}
+
+.menu-button {
+  @extend %element-base;
+  padding: 0px;
+  min-width: 40px;
+  min-height: 40px;
+
+  &:hover { background-color: $cell-hover; border-color: $teal; }
+}
