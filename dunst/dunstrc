@@ -1,0 +1,100 @@
+# voyager — dunst notifications
+# Same palette as the eww bar, hyprlock, Plymouth and the awww wallpaper.
+#
+# Notifications look like the bar's cells: light mist panels, dark navy text,
+# 1px indigo edge, 8px corners. They drop in below the bar, top-right.
+#   low       dim text, faint edge, 5 s
+#   normal    indigo edge, teal progress bar, 8 s
+#   critical  pink tint + red edge (hyprlock's fail color), stays until clicked
+#
+# Palette (see eww/eww.scss):
+#   ink #14141F · mist #D9D9F2 · indigo #8B8FF0 · teal #5EEAD4 · dim #5A5A78 · red #FF3355
+
+[global]
+    monitor = 0
+    follow = mouse
+
+    # ---------- geometry ----------
+    width = 340
+    height = (0, 300)
+    origin = top-right
+    offset = (10, 50)          # below the eww bar
+    scale = 0
+    notification_limit = 6
+    gap_size = 6
+    padding = 10
+    horizontal_padding = 12
+    text_icon_padding = 12
+    frame_width = 1
+    corner_radius = 8
+    separator_height = 0
+    transparency = 0
+
+    # ---------- progress bar (notify-send -h int:value:NN) ----------
+    progress_bar = true
+    progress_bar_height = 6
+    progress_bar_frame_width = 0
+    progress_bar_min_width = 150
+    progress_bar_max_width = 316
+    progress_bar_corner_radius = 3
+
+    # ---------- text ----------
+    font = DejaVu Sans 10
+    line_height = 0
+    markup = full
+    format = "<b>%s</b>\n%b"
+    alignment = left
+    vertical_alignment = center
+    show_age_threshold = 60
+    ellipsize = end
+    ignore_newline = no
+    stack_duplicates = true
+    hide_duplicate_count = false
+    show_indicators = yes
+    indicate_hidden = yes
+    sort = yes
+
+    # ---------- icons ----------
+    enable_recursive_icon_lookup = true
+    icon_theme = Adwaita
+    icon_position = left
+    min_icon_size = 32
+    max_icon_size = 48
+    icon_corner_radius = 6
+
+    # ---------- behaviour ----------
+    sticky_history = yes
+    history_length = 20
+    dmenu = /usr/bin/dmenu -p dunst:
+    browser = /usr/bin/xdg-open
+    always_run_script = true
+    title = Dunst
+    class = Dunst
+    ignore_dbusclose = false
+    mouse_left_click = do_action, close_current
+    mouse_middle_click = close_current
+    mouse_right_click = close_all
+
+[urgency_low]
+    background = "#D9D9F2EB"
+    foreground = "#5A5A78"
+    frame_color = "#8B8FF080"
+    highlight = "#5EEAD4"
+    timeout = 5
+    default_icon = dialog-information
+
+[urgency_normal]
+    background = "#D9D9F2EB"
+    foreground = "#14141F"
+    frame_color = "#8B8FF0"
+    highlight = "#5EEAD4"
+    timeout = 8
+    default_icon = dialog-information
+
+[urgency_critical]
+    background = "#FFB3C0F2"
+    foreground = "#14141F"
+    frame_color = "#FF3355"
+    highlight = "#FF3355"
+    timeout = 0
+    default_icon = dialog-warning
