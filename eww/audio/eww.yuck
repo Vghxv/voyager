@@ -12,21 +12,20 @@
    )
   :stacking "fg"
   :focusable "none"
-  (box :orientation "h" :class theme
-    (
-     audio-control 
-     :device-type "SINK" 
-     :icon "🔊" 
-     :current-value volume 
-     :class "element"
-     )
-    (
-     audio-control 
-     :device-type "SOURCE" 
-     :icon "🎙️"
-     :current-value mic 
-     :class "element"
-     )
-    )
+  (box (literal :content "(sound_body :mode \"${theme}\")"))
   )
 
+(defwidget sound_body [mode]
+  (box :orientation "h" :class mode
+    (audio-control
+      :device-type "SINK"
+      :icon "🔊"
+      :current-value volume
+      :class "element")
+    (audio-control
+      :device-type "SOURCE"
+      :icon "🎙️"
+      :current-value mic
+      :class "element")
+    )
+  )

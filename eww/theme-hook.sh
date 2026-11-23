@@ -5,7 +5,7 @@
 #
 # Installed to ~/.config/voyager/theme.d/eww. Only sets the `theme` variable;
 # eww.scss holds both palettes, so nothing reloads. A daemon that is not
-# running reads the saved mode when it starts.
+# running gets the saved mode from bars.sh when it starts.
 
 EWW=${EWW:-eww}
 "$EWW" ping >/dev/null 2>&1 || exit 0

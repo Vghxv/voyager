@@ -52,3 +52,8 @@
   )
 
 
+; LIGHT / DARK: every window's content is a `literal` whose text contains the
+; mode, e.g. "(bar_body :mode \"dark\" ...)". A mode change gives new text, so eww
+; builds a fresh widget tree with the right class from the start. Swapping the
+; class on a live widget instead does not reliably restyle the cells inside it:
+; some bars kept the old colors.

@@ -21,6 +21,7 @@
 ; {"workspaces":[...],"active":N,"monitors":{name: N}}
 (deflisten workspace_state :initial '{"workspaces":[],"active":0}' "scripts/workspaces.sh")
 
-; light | dark: read from voyager's saved mode at start; voyager-theme updates it
-; live through its eww hook. See eww.scss for how it restyles.
-(defpoll theme :interval "1h" :initial "light" "cat ~/.config/voyager/theme 2>/dev/null || echo light")
+; light | dark. bars.sh sets it to the saved mode before opening the bars, and
+; voyager-theme's eww hook updates it live. Each window rebuilds its content on
+; every change (see LIGHT / DARK in utils.yuck).
+(defvar theme "light")

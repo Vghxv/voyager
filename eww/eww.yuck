@@ -163,8 +163,13 @@
   :stacking "fg"
   :exclusive true
   :focusable "none"
-  ; class = light|dark: eww.scss scopes every rule under it (see var.yuck)
-  (box :class theme
+  ; rebuilt on every light/dark switch, see utils.yuck
+  (box (literal :content "(bar_body :mode \"${theme}\" :monitor \"${monitor}\")"))
+  )
+
+; class = light|dark: eww.scss scopes every rule under it
+(defwidget bar_body [mode monitor]
+  (box :class mode
     (centerbox
       (cBoxStart :monitor monitor)
       (cBoxMiddle)
@@ -187,12 +192,12 @@
   :windowtype "dialog"
   :wm-ignore false
   :focusable false
-  (power_menu_layout)
+  (box (literal :content "(power_menu_layout :mode \"${theme}\")"))
   )
 
-(defwidget power_menu_layout []
+(defwidget power_menu_layout [mode]
   (box
-    :class "power-menu-container ${theme}"
+    :class "power-menu-container ${mode}"
     :orientation "v"
     :space-evenly false
     (power_menu)

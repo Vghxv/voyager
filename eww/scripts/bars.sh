@@ -38,10 +38,18 @@ if ! $EWW ping >/dev/null 2>&1; then
   $EWW ping >/dev/null 2>&1 || die "the eww daemon did not start — see: $EWW logs"
 fi
 
+# Set the light/dark mode before any bar opens (see `theme` in var.yuck).
+mode=$(cat "$HOME/.config/voyager/theme" 2>/dev/null)
+[[ "$mode" == dark ]] || mode=light
+[[ "$($EWW get theme 2>/dev/null)" == "$mode" ]] || $EWW update theme="$mode"
+
 case "${1:-}" in
   "")     sync_bars ;;
   toggle) ids=$(open_bars); [[ -n "$ids" ]] && $EWW close $ids || sync_bars ;;
   watch)
+    # one watcher per session: two would race each other on every hotplug
+    exec 9>"$XDG_RUNTIME_DIR/voyager-bars-watch.lock"
+    flock -n 9 || die "another 'bars.sh watch' is already running"
     sync_bars
     [[ -S "$SOCKET" ]] || die "Hyprland event socket not found ($SOCKET) — hotplug will not be followed"
     socat -u UNIX-CONNECT:"$SOCKET" - |
