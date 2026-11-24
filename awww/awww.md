@@ -2,7 +2,7 @@
 
 The desktop wallpaper: the boot screen's gradient, twinkling stars, a faint nebula, and the probe in the lower right sending a signal pulse toward a pale blue dot. The center stays calm, because windows cover it and the lock screen puts its probe there.
 
-![wallpaper](../docs/wallpaper.gif)
+![wallpaper](wallpaper.webp)
 
 It is shown by [awww](https://codeberg.org/LGFae/awww), the renamed swww, running as a systemd user service.
 
