@@ -15,6 +15,7 @@
       (scale
         :min 0
         :max 101
+        :scroll-step 10   ; patched eww, see eww.md
         :marks "true"
         :orientation "v"
         :flipped true

@@ -72,6 +72,7 @@
       (scale
         :min 0
         :max 101
+        :scroll-step 10   ; patched eww, see eww.md
         :onchange "wpctl set-volume @DEFAULT_AUDIO_SINK@ {}%"
         :value {volume == "Muted" || volume == "" ? 0 : volume}
         )
