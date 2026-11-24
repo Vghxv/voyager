@@ -55,10 +55,12 @@
   )
 )
 
-(defwidget w_volctl [class]
+; left click: volume/mic popup (audio/eww.yuck) on this monitor; right click: pavucontrol
+(defwidget w_volctl [class monitor]
   (button 
     :class class 
-    :onclick "sh -c 'pavucontrol &'"
+    :onclick "${EWW_CMD} open --toggle sound --screen '${monitor}'"
+    :onrightclick "sh -c 'pavucontrol &'"
     (bimage 
       :filename "sound-wave.png")
     )
@@ -112,7 +114,7 @@
     )
   )
 
-(defwidget cBoxEnd []
+(defwidget cBoxEnd [monitor]
   (box 
     :spacing 10 
     :space-evenly false 
@@ -127,7 +129,7 @@
       )
     (box
       :width 40
-      (w_volctl :class "element")
+      (w_volctl :class "element" :monitor monitor)
       )
     (box
       :width 80
@@ -173,7 +175,7 @@
     (centerbox
       (cBoxStart :monitor monitor)
       (cBoxMiddle)
-      (cBoxEnd)
+      (cBoxEnd :monitor monitor)
       )
     )
   )
