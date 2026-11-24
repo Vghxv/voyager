@@ -12,6 +12,9 @@
 (deflisten volume :initial "" "scripts/audio.sh sink")
 (deflisten mic :initial "" "scripts/audio.sh source")
 
+; volume change per scroll notch on the volume sliders (needs a patched eww, see eww.md#volume)
+(defvar volume_scroll_amount 5)
+
 ; webcam On/Off (device is detected, see scripts/webcam.sh)
 (defpoll camera :interval "0.5s" "scripts/webcam.sh status")
 

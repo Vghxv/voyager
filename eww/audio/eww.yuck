@@ -5,10 +5,10 @@
   :geometry 
   (
    geometry 
-   :x "10px" 
+   :x "282px"
    :y "10px"
    :width "5%"
-   :anchor "top left"
+   :anchor "top right"
    )
   :stacking "fg"
   :focusable "none"
@@ -19,12 +19,12 @@
   (box :orientation "h" :class mode
     (audio-control
       :device-type "SINK"
-      :icon "🔊"
+      :icon "speaker"
       :current-value volume
       :class "element")
     (audio-control
       :device-type "SOURCE"
-      :icon "🎙️"
+      :icon "mic"
       :current-value mic
       :class "element")
     )

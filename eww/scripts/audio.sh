@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Print the default speaker or mic volume (0-100, or "Muted"), then again on every change.
+# Print the default speaker or mic volume (0-100, or "Muted"), then again on every
+# change, including a switch of the default device.
 #
 #   audio.sh sink     speaker
 #   audio.sh source   microphone
@@ -19,7 +20,11 @@ get_volume() {
   fi
 }
 
-get_volume
+# "on server" = the default device changed (e.g. headphones connected): follow it.
+# Print only when the value changes, server events also come for unrelated reasons.
+last=$(get_volume); echo "$last"
 pactl subscribe | while read -r line; do
-  [[ "$line" == *" $kind "* ]] && get_volume
+  [[ "$line" == *" $kind "* || "$line" == *" on server "* ]] || continue
+  now=$(get_volume)
+  [[ "$now" == "$last" ]] || { last=$now; echo "$now"; }
 done

@@ -3,7 +3,7 @@
 A top bar on every monitor, styled as a HUD: square cells, monospace text, a thin indigo frame. Teal means "ok" (wifi connected, charging, camera on), amber means a half-empty battery, red means low battery or no wifi. It has a [light and a dark mode](../README.md#light-and-dark).
 
 - **Left:** power menu, clock, date, workspaces. Click a workspace to switch to it; each bar highlights the workspace on its own monitor.
-- **Right:** wifi, volume slider, mixer (opens pavucontrol), brightness, webcam on/off, battery (hover for time left), system tray.
+- **Right:** wifi, volume slider, [volume button](#volume), brightness, webcam on/off, battery (hover for time left), system tray.
 
 ## Install
 
@@ -52,6 +52,12 @@ The webcam button turns the camera off by disconnecting its USB device, which ne
 ```
 
 Without this rule the camera indicator still works, but the button does nothing.
+
+## Volume
+
+The speaker-wave button: left click opens a speaker + mic popup under it, right click opens pavucontrol. The bar and popup control whichever device is the default, and follow it when it switches (e.g. headphones connecting).
+
+Each scroll notch moves the sliders by `volume_scroll_amount` (in `var.yuck`, in percent) through `:scroll-amount`, which stock eww 0.6 does not have: it needs an eww built with that addition to its `scale` widget. With stock eww the sliders move 1 point per notch and `eww logs` warns that `scroll-amount` is an unknown attribute; everything else works.
 
 ## Change the look
 
