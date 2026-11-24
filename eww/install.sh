@@ -17,9 +17,9 @@ require_user
 command -v "${EWW:-eww}" >/dev/null || { red "eww is not on PATH. Install it (AUR: eww) or set EWW=/path/to/eww."; exit 1; }
 check_deps "$SRC/deps"
 
-install -d "$DEST/audio" "$DEST/scripts" "$DEST/assets/light" "$DEST/assets/dark"
-install -m 644 "$SRC"/eww.yuck "$SRC"/var.yuck "$SRC"/utils.yuck "$SRC"/eww.scss "$DEST"/
-install -m 644 "$SRC"/audio/*.yuck "$DEST/audio"/
+install -d "$DEST/scripts" "$DEST/assets/light" "$DEST/assets/dark"
+install -m 644 "$SRC"/*.yuck "$SRC"/eww.scss "$DEST"/
+rm -rf "$DEST/audio"   # from an earlier version: now sound.yuck
 rm -f "$DEST/scripts/vol.sh" "$DEST/scripts/mic.sh"   # from an earlier version: now audio.sh
 install -m 755 "$SRC"/scripts/*.sh "$DEST/scripts"/
 install -m 644 "$SRC"/icons/light/*.png "$DEST/assets/light"/

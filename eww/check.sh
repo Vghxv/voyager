@@ -14,7 +14,7 @@ command -v "$EWW" >/dev/null && pass "eww is on PATH" || fail "eww not found" "i
 check_deps_report "$SRC/deps" "bar scripts"
 
 cd "$SRC" || exit 1
-files=(eww.yuck var.yuck utils.yuck eww.scss audio/*.yuck scripts/*.sh)
+files=(*.yuck eww.scss scripts/*.sh)
 check_files "config and scripts" "$FIX" "$SRC" "$DEST" "${files[@]}"
 cd "$SRC/icons" || exit 1
 check_files "icons" "$FIX" "$SRC/icons" "$DEST/assets" light/*.png dark/*.png
