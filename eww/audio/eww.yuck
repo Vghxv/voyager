@@ -19,12 +19,12 @@
   (box :orientation "h" :class mode
     (audio-control
       :device-type "SINK"
-      :icon "🔊"
+      :icon "speaker"
       :current-value volume
       :class "element")
     (audio-control
       :device-type "SOURCE"
-      :icon "🎙️"
+      :icon "mic"
       :current-value mic
       :class "element")
     )
