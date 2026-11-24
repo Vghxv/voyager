@@ -72,7 +72,7 @@
       (scale
         :min 0
         :max 101
-        :scroll-amount volume_scroll_step
+        :scroll-amount volume_scroll_amount
         :onchange "wpctl set-volume @DEFAULT_AUDIO_SINK@ {}%"
         :value {volume == "Muted" || volume == "" ? 0 : volume}
         )
