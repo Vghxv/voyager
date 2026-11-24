@@ -1,11 +1,9 @@
 """Shared building blocks for the voyager image generators.
 
-Imported by gen-wallpaper.py and gen-hyprlock.py, so the wallpaper and the lock
-screen use the same palette and probe. The random starfield (make_stars, stars)
-is the lock screen's; the wallpaper draws its own constellations. Not a script.
+Imported by the generators and by voyager_sky.py: paths, the palette, the probe's
+dish position, rendering and --size parsing. Not a script.
 """
 
-import math
 import subprocess
 import tempfile
 from pathlib import Path
@@ -18,37 +16,6 @@ INDIGO, TEAL, MIST = "#8B8FF0", "#5EEAD4", "#D9D9F2"
 # Dish centre in the 400x400 logo. plymouth/voyager/voyager.script has its own
 # copy (dish_x / dish_y): update both if the probe artwork changes.
 DISH = (190, 150)
-
-
-def make_stars(rng, w, h):
-    """Star layout, fixed for all frames: (x, y, r, opacity, twinkle, phase, glow)."""
-    n = int(360 * (w * h) / (1920 * 1080))
-    out = []
-    for _ in range(n):
-        x, y = rng.uniform(0, w), rng.uniform(0, h)
-        k = rng.random() ** 3                   # most stars small and faint
-        r = (1.2 + k * 6.5) * w / 1920
-        a = 0.25 + 0.75 * rng.random() ** 1.5
-        # twinkle speed: 1 or 2 cycles per loop, so the animation loops seamlessly
-        twinkle = rng.choice((1, 2)) if rng.random() < 0.4 else 0
-        out.append((x, y, r, a, twinkle, rng.uniform(0, 2 * math.pi), True))
-    # a few crisp pin-points
-    for _ in range(n // 4):
-        x, y = rng.uniform(0, w), rng.uniform(0, h)
-        out.append((x, y, 0.6 * w / 1920, rng.uniform(0.3, 0.8), 0, 0, False))
-    return out
-
-
-def stars(layout, frame, frames):
-    """SVG circles for one frame of the layout (expects a `star` gradient in <defs>)."""
-    out = []
-    t = 2 * math.pi * frame / frames
-    for x, y, r, a, twinkle, phase, glow in layout:
-        if twinkle and frames > 1:
-            a *= 0.6 + 0.4 * math.cos(twinkle * t + phase)
-        fill = "url(#star)" if glow else MIST
-        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.2f}" fill="{fill}" opacity="{a:.2f}"/>')
-    return "\n".join(out)
 
 
 def render(svg, w, h, out):

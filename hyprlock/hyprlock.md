@@ -1,12 +1,12 @@
 # hyprlock lock screen
 
-The lock screen version of the boot screen: the same starfield, probe and colors.
+The lock screen: the wallpaper's sky (Ursa Major and Minor, the faint Integrated Flux Nebula, the Owl Nebula and a few galaxies; see [the wallpaper](../awww/awww.md)) with the boot screen's probe and colors on top.
 
 hyprlock cannot run animations the way Plymouth does, so the effects are adapted:
 
 | Plymouth (boot) | hyprlock (lock screen) |
 |---|---|
-| Stars twinkle smoothly | The starfield crossfades to a new frame every second |
+| Stars twinkle smoothly | Polaris and a few faint stars twinkle: hyprlock shows one still image, so `next-frame.sh` hands it the next of six frames every second and it crossfades |
 | Stars warp and rings pulse as you type | Each typed character appears as a ✦ star that fades in |
 | Red flash and shake on a wrong passphrase | The field outline turns red: *"signal lost — N"* |
 
