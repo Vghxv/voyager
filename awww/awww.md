@@ -40,7 +40,7 @@ listener {
 
 ## Re-render
 
-To make it sharper on a bigger screen, lighter, or to get a different texture for the faint stars and dust, re-render it. This takes about two minutes. The constellations always stay the same.
+To make it sharper on a bigger screen, lighter, or to get a different texture for the faint stars and dust, re-render it. This takes about 15 seconds. The constellations always stay the same.
 
 ```bash
 src/gen-wallpaper.py --size auto     # match your largest monitor; other options: --help
