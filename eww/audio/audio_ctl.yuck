@@ -15,7 +15,7 @@
       (scale
         :min 0
         :max 101
-        :scroll-step volume_scroll_step
+        :scroll-amount volume_scroll_step
         :marks "true"
         :orientation "v"
         :flipped true

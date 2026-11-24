@@ -57,7 +57,7 @@ Without this rule the camera indicator still works, but the button does nothing.
 
 The speaker-wave button: left click opens a speaker + mic popup under it, right click opens pavucontrol. The bar and popup control whichever device is the default, and follow it when it switches (e.g. headphones connecting).
 
-The sliders move 10% per scroll notch (`volume_scroll_step` in `var.yuck`) through `:scroll-step`, which stock eww 0.6 does not have: it needs an eww built with that addition to its `scale` widget. With stock eww the sliders move 1 point per notch and `eww logs` warns that `scroll-step` is an unknown attribute; everything else works.
+Each scroll notch moves the sliders by `volume_scroll_step` (in `var.yuck`, in percent) through `:scroll-amount`, which stock eww 0.6 does not have: it needs an eww built with that addition to its `scale` widget. With stock eww the sliders move 1 point per notch and `eww logs` warns that `scroll-amount` is an unknown attribute; everything else works.
 
 ## Change the look
 
