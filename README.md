@@ -55,6 +55,7 @@ eww/         the bar
 dunst/       notifications
 lib/         helpers shared by the scripts, voyager-theme
 src/         SVG artwork and the generators that render every image
+docs/        previews, rendered by src/gen-*-preview.py
 doctor.sh    runs every check.sh
 ```
 
