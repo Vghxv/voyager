@@ -55,7 +55,7 @@ Without this rule the camera indicator still works, but the button does nothing.
 
 ## Volume
 
-The speaker-wave button: left click opens a speaker + mic popup under it, right click opens pavucontrol.
+The speaker-wave button: left click opens a speaker + mic popup under it, right click opens pavucontrol. The bar and popup control whichever device is the default, and follow it when it switches (e.g. headphones connecting).
 
 ## Change the look
 
