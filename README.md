@@ -8,7 +8,7 @@ A deep-space theme for an Arch + Hyprland desktop: a probe drifting through a st
 |---|---|---|---|
 | [Plymouth](plymouth/plymouth.md) | Animated disk-unlock screen: stars warp and signal rings pulse as you type | `sudo ./plymouth/install.sh` | [see docs](plymouth/plymouth.md#remove) |
 | [hyprlock](hyprlock/hyprlock.md) | Lock screen with a crossfading starfield and ✦ password dots | `./hyprlock/install.sh` | `--restore` |
-| [Wallpaper](awww/awww.md) | Twinkling stars and a signal pulse, or a still image | `./awww/install.sh` | `--restore` |
+| [Wallpaper](awww/awww.md) | The Big and Little Dipper around a twinkling Polaris, or a still image | `./awww/install.sh` | `--restore` |
 | [eww](eww/eww.md) | Top bar on every monitor: workspaces, clock, wifi, volume, brightness, webcam, battery, tray | `./eww/install.sh` | — (one-way copy) |
 | [dunst](dunst/dunst.md) | Notifications styled like the bar | `./dunst/install.sh` | `--restore` |
 

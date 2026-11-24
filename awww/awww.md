@@ -1,6 +1,13 @@
 # Wallpaper (awww)
 
-The desktop wallpaper: the boot screen's gradient, twinkling stars, a faint nebula, and the probe in the lower right sending a signal pulse toward a pale blue dot. The center stays calm, because windows cover it and the lock screen puts its probe there.
+The desktop wallpaper: the boot screen's gradient with Ursa Major and Ursa Minor in the middle, arranged as they appear in a wide-field photo of the two. The Big Dipper's pointer stars, Merak and Dubhe, aim at Polaris. Each star is drawn at its true brightness and colour, which is why Dubhe and Kochab are orange. Behind them is what a long exposure of this part of the sky really shows, placed from real sky coordinates:
+
+- **Integrated Flux Nebula**: faint grey-brown dust lit by the combined light of the Milky Way. It thickens toward the galactic plane (the right of the screen), with the **Polaris Flare** beside Polaris and the dust cloud around M81 and M82.
+- **Owl Nebula (M97)**: a tiny teal planetary nebula next to Merak.
+- **Galaxies** at their true size and angle: M81 and M82 (with its faint red plume), the Pinwheel M101, M108, M109 and NGC 6217.
+- Thousands of faint blue, white and yellow stars, also thickening toward the galactic plane.
+
+A tiny probe drifts in the lower right. In the animated version only Polaris and five faint background stars twinkle.
 
 ![wallpaper](wallpaper.webp)
 
@@ -33,7 +40,7 @@ listener {
 
 ## Re-render
 
-To make it sharper on a bigger screen, lighter, or to get a different star layout, re-render it. This takes about a minute.
+To make it sharper on a bigger screen, lighter, or to get a different texture for the faint stars and dust, re-render it. This takes about two minutes. The constellations always stay the same.
 
 ```bash
 src/gen-wallpaper.py --size auto     # match your largest monitor; other options: --help

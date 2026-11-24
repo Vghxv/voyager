@@ -8,8 +8,8 @@
     ./hyprlock/install.sh                  # install the result
 
 Writes stars-0.png ... stars-<N-1>.png (hyprlock crossfades between them, one
-per second) and probe.png. Same gradient and stars as the wallpaper, without
-the nebula and probe: hyprlock draws those on top.
+per second) and probe.png. Same gradient as the wallpaper, with a random
+starfield; the probe is drawn on top by hyprlock.
 
 Needs: python3, rsvg-convert (librsvg).
 """

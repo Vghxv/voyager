@@ -1,7 +1,8 @@
 """Shared building blocks for the voyager image generators.
 
 Imported by gen-wallpaper.py and gen-hyprlock.py, so the wallpaper and the lock
-screen use the same palette and the same starfield. Not a script.
+screen use the same palette and probe. The random starfield (make_stars, stars)
+is the lock screen's; the wallpaper draws its own constellations. Not a script.
 """
 
 import math
