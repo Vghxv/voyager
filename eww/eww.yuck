@@ -2,6 +2,7 @@
 (include "utils.yuck")
 (include "sound.yuck")
 (include "power_menu.yuck")
+(include "popup.yuck")
 
 ; https://docs.rs/chrono/latest/chrono/format/strftime/index.html
 (defwidget w_time [class format]
@@ -60,7 +61,7 @@
 (defwidget w_volctl [class monitor]
   (button 
     :class class 
-    :onclick "${EWW_CMD} open --toggle sound --screen '${monitor}'"
+    :onclick "EWW='${EWW_EXECUTABLE}' ${EWW_CONFIG_DIR}/scripts/popup.sh sound '${monitor}'"
     :onrightclick "sh -c 'pavucontrol &'"
     (bimage 
       :filename "sound-wave.png")
@@ -86,7 +87,7 @@
        :spacing 10
     (button
       :class "element menu-button"
-      :onclick "${EWW_CMD} open --toggle power_menu --screen '${monitor}'"
+      :onclick "EWW='${EWW_EXECUTABLE}' ${EWW_CONFIG_DIR}/scripts/popup.sh power_menu '${monitor}'"
       (bimage :filename "menu-burger.png")
       )
     (box
