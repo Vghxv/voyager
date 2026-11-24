@@ -1,0 +1,52 @@
+; Power menu popup
+
+(defwindow power_menu
+  :monitor "[1,0]"
+  :geometry
+  (geometry
+    :x "0px"
+    :y "0px"
+    :width "150px"
+    :height "100px"
+    :anchor "top left"
+    )
+  :stacking "fg"
+  :windowtype "dialog"
+  :wm-ignore false
+  :focusable false
+  (box (literal :content "(power_menu_layout :mode \"${theme}\")"))
+  )
+
+(defwidget power_menu_layout [mode]
+  (box
+    :class "power-menu-container ${mode}"
+    :orientation "v"
+    :space-evenly false
+    (power_menu)
+    )
+  )
+
+(defwidget power_menu []
+  (box
+    :class "power-menu"
+    :orientation "v"
+    :space-evenly false
+    :spacing 5
+    (button
+      :class "menu-item suspend"
+      :onclick "systemctl suspend"
+      "Suspend"
+      )
+    (button
+      :class "menu-item reboot"
+      :onclick "reboot"
+      "Reboot"
+    )
+    (button
+      :class "menu-item shutdown"
+      :onclick "shutdown now"
+      "Shutdown"
+      )
+    )
+  )
+

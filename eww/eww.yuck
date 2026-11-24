@@ -1,6 +1,7 @@
 (include "var.yuck")
 (include "utils.yuck")
-(include "audio/eww.yuck")
+(include "sound.yuck")
+(include "power_menu.yuck")
 
 ; https://docs.rs/chrono/latest/chrono/format/strftime/index.html
 (defwidget w_time [class format]
@@ -55,7 +56,7 @@
   )
 )
 
-; left click: volume/mic popup (audio/eww.yuck) on this monitor; right click: pavucontrol
+; left click: volume/mic popup (sound.yuck) on this monitor; right click: pavucontrol
 (defwidget w_volctl [class monitor]
   (button 
     :class class 
@@ -178,31 +179,5 @@
       (cBoxMiddle)
       (cBoxEnd :monitor monitor)
       )
-    )
-  )
-
-(defwindow power_menu
-  :monitor "[1,0]"
-  :geometry
-  (geometry
-    :x "0px"
-    :y "0px"
-    :width "150px"
-    :height "100px"
-    :anchor "top left"
-    )
-  :stacking "fg"
-  :windowtype "dialog"
-  :wm-ignore false
-  :focusable false
-  (box (literal :content "(power_menu_layout :mode \"${theme}\")"))
-  )
-
-(defwidget power_menu_layout [mode]
-  (box
-    :class "power-menu-container ${mode}"
-    :orientation "v"
-    :space-evenly false
-    (power_menu)
     )
   )
