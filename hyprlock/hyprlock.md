@@ -2,8 +2,6 @@
 
 The lock screen version of the boot screen: the same starfield, probe and colors.
 
-![hyprlock](../docs/hyprlock.png)
-
 hyprlock cannot run animations the way Plymouth does, so the effects are adapted:
 
 | Plymouth (boot) | hyprlock (lock screen) |
