@@ -5,6 +5,8 @@ A top bar on every monitor, styled as a HUD: square cells, monospace text, a thi
 - **Left:** power menu, clock, date, workspaces. Click a workspace to switch to it; each bar highlights the workspace on its own monitor.
 - **Right:** wifi, volume slider, [volume button](#volume), brightness, webcam on/off, battery (hover for time left), system tray.
 
+A click outside the power menu or volume popup closes it.
+
 ## Install
 
 ```bash
