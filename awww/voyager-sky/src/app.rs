@@ -3,9 +3,16 @@
 //! One layer surface per output, on the "bottom" layer: below windows, above awww's
 //! wallpaper, so dragging works on empty desktop and windows keep their clicks. The
 //! outputs form one canvas (their logical layout); the view centre sits in the middle
-//! of the monitor the cursor was on at start, so that monitor shows exactly the
-//! current wallpaper and the others show the sky beside it. scene.rs holds what is
-//! shown; this file only turns Wayland events into calls on it.
+//! of the monitor drag mode started on, so that monitor shows exactly the current
+//! wallpaper and the others show the sky beside it. scene.rs holds what is shown;
+//! this file only turns Wayland events into calls on it.
+//!
+//! Two ways in:
+//!   run     drag mode right away, on the monitor under the cursor; the process ends with it
+//!   listen  stays running with an invisible surface on the same layer of every monitor.
+//!           It only gets clicks where no window covers the desktop, so holding the left
+//!           button there (LONG_PRESS, without moving) opens drag mode, and that same
+//!           press already holds the sky. Esc saves the view and goes back to listening.
 //!
 //! Frames are paced by Wayland frame callbacks and drawn only while something
 //! changes: a drag, a fade, or the slow flicker of the constellation lines.
@@ -17,8 +24,9 @@ use std::time::{Duration, Instant};
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle};
 use smithay_client_toolkit::{
-    compositor::{CompositorHandler, CompositorState, FrameCallbackData},
+    compositor::{CompositorHandler, CompositorState, FrameCallbackData, Region},
     delegate_dispatch2, delegate_registry,
+    dispatch2::Dispatch2,
     output::{OutputHandler, OutputState},
     reexports::{calloop::EventLoop, calloop_wayland_source::WaylandSource},
     registry::{ProvidesRegistryState, RegistryState},
@@ -35,19 +43,28 @@ use smithay_client_toolkit::{
         },
         WaylandSurface,
     },
+    shm::{
+        slot::{Buffer, SlotPool},
+        Shm, ShmHandler,
+    },
 };
 use wayland_client::{
-    globals::registry_queue_init,
-    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_surface},
+    globals::{registry_queue_init, GlobalList},
+    protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_shm, wl_surface},
     Connection, Proxy, QueueHandle,
 };
+use wayland_protocols::wp::viewporter::client::{wp_viewport::WpViewport, wp_viewporter::WpViewporter};
 
 use crate::data::SkyData;
 use crate::render::{Gpu, Renderer, Target};
 use crate::scene::{Geom, Scene};
-use crate::view::View;
 
 const BTN_LEFT: u32 = 0x110;
+
+/// How long the left button must be held on empty desktop before drag mode opens.
+const LONG_PRESS: Duration = Duration::from_millis(400);
+/// Moving further than this while holding cancels it: that was a drag, not a long-press.
+const PRESS_SLOP_PX: f64 = 6.0;
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
@@ -55,24 +72,97 @@ extern "C" fn on_signal(_: libc::c_int) {
     STOP.store(true, Ordering::SeqCst);
 }
 
-fn pidfile() -> PathBuf {
+// --- one instance at a time -------------------------------------------------------------
+
+/// `run` and `listen` each keep a pidfile, so neither starts twice.
+const RUN_PIDFILE: &str = "voyager-sky.pid";
+const LISTEN_PIDFILE: &str = "voyager-sky-listen.pid";
+
+fn pidfile(name: &str) -> PathBuf {
     let dir = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    dir.join("voyager-sky.pid")
+    dir.join(name)
 }
 
-/// The pid of a running drag mode, if any.
-fn running() -> Option<i32> {
-    let pid: i32 = std::fs::read_to_string(pidfile()).ok()?.trim().parse().ok()?;
+/// The pid in `name`, if that process is a live voyager-sky other than this one.
+fn running(name: &str) -> Option<i32> {
+    let pid: i32 = std::fs::read_to_string(pidfile(name)).ok()?.trim().parse().ok()?;
     let comm = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()?;
     (comm.trim() == "voyager-sky" && pid != std::process::id() as i32).then_some(pid)
 }
 
+/// Writes our pid to `name`; the file is removed again when this is dropped.
+struct PidFile(PathBuf);
+
+impl PidFile {
+    fn claim(name: &str) -> Result<Self, String> {
+        let path = pidfile(name);
+        std::fs::write(&path, std::process::id().to_string()).map_err(|e| format!("{}: {e}", path.display()))?;
+        Ok(PidFile(path))
+    }
+}
+
+impl Drop for PidFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+fn catch_stop_signals() {
+    unsafe {
+        libc::signal(libc::SIGTERM, on_signal as usize);
+        libc::signal(libc::SIGINT, on_signal as usize);
+    }
+}
+
+// --- entry points ------------------------------------------------------------------------
+
 pub fn toggle(data: &Path) -> Result<(), String> {
-    if let Some(pid) = running() {
+    if let Some(pid) = running(RUN_PIDFILE) {
         unsafe { libc::kill(pid, libc::SIGTERM) };
         return Ok(());
     }
     run(data)
+}
+
+/// Drag mode now, on the monitor under the cursor; returns when it ends.
+pub fn run(data: &Path) -> Result<(), String> {
+    if let Some(pid) = running(RUN_PIDFILE) {
+        return Err(format!("drag mode is already on (pid {pid}); end it with: voyager-sky toggle"));
+    }
+    let _pid = PidFile::claim(RUN_PIDFILE)?;
+    catch_stop_signals();
+
+    let (mut app, mut event_loop) = App::connect(data, false)?;
+    let home = cursor_pos().and_then(|p| app.output_at(p));
+    app.open_drag(home, None)?;
+    while app.drag.as_ref().is_some_and(|d| !d.scene.exit) && !STOP.load(Ordering::SeqCst) {
+        app.step(&mut event_loop)?;
+    }
+    app.close_drag()
+}
+
+/// Wait for a long-press on empty desktop, open drag mode, repeat; until SIGTERM/SIGINT.
+pub fn listen(data: &Path) -> Result<(), String> {
+    if let Some(pid) = running(LISTEN_PIDFILE) {
+        return Err(format!("already listening (pid {pid})"));
+    }
+    let _pid = PidFile::claim(LISTEN_PIDFILE)?;
+    catch_stop_signals();
+
+    let (mut app, mut event_loop) = App::connect(data, true)?;
+    if app.viewporter.is_none() {
+        return Err("the compositor has no wp_viewporter, which listen needs".into());
+    }
+    for output in app.outputs.outputs().collect::<Vec<_>>() {
+        app.add_listener(output);
+    }
+    while !STOP.load(Ordering::SeqCst) {
+        app.step(&mut event_loop)?;
+    }
+    if app.drag.is_some() {
+        app.close_drag()?;
+    }
+    Ok(())
 }
 
 // --- Hyprland queries ------------------------------------------------------------------
@@ -101,40 +191,72 @@ pub fn largest_output() -> Option<(u32, u32)> {
 
 // --- state -----------------------------------------------------------------------------
 
+/// One monitor's live sky while drag mode is on.
 struct Screen {
     // the wgpu surface must go before the Wayland surface it draws to
     surface: wgpu::Surface<'static>,
     target: Target,
     layer: LayerSurface,
+    output: wl_output::WlOutput,
     geom: Geom,
     configured: bool,
     frame_pending: bool,
     dirty: bool,
 }
 
+/// Everything drag mode needs; dropped when it ends, so listening holds no GPU memory.
+struct Drag {
+    // field order is drop order: the screens' wgpu surfaces, then the renderer, then the GPU
+    screens: Vec<Screen>,
+    scene: Scene,
+    format: wgpu::TextureFormat,
+    present_mode: wgpu::PresentMode,
+    gpu: Gpu,
+}
+
+/// One monitor's invisible click-catcher while listening: a 1x1 transparent buffer
+/// stretched over the monitor.
+struct Listener {
+    layer: LayerSurface,
+    output: wl_output::WlOutput,
+    viewport: WpViewport,
+    buffer: Option<Buffer>,
+    geom: Geom,
+}
+
+/// A left button held on a listener, not yet long enough to count.
+struct Press {
+    since: Instant,
+    at: (f64, f64),
+    output: wl_output::WlOutput,
+}
+
 struct App {
     qh: QueueHandle<App>,
+    conn: Connection,
     registry: RegistryState,
     seats: SeatState,
     outputs: OutputState,
+    compositor: CompositorState,
+    layer_shell: LayerShell,
+    shm: Shm,
+    pool: Option<SlotPool>,
+    viewporter: Option<WpViewporter>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     pointer: Option<wl_pointer::WlPointer>,
-    scene: Scene,
-    screens: Vec<Screen>,
-    format: wgpu::TextureFormat,
-    present_mode: wgpu::PresentMode,
-    exit: bool,
+    data: PathBuf,
+    /// listen mode: keep the listeners and return to them after each drag
+    listening: bool,
+    listeners: Vec<Listener>,
+    press: Option<Press>,
+    drag: Option<Drag>,
 }
 
-impl App {
+impl Drag {
     fn mark_dirty(&mut self) {
         for s in &mut self.screens {
             s.dirty = true;
         }
-    }
-
-    fn screen_at(&self, p: (f64, f64)) -> Option<usize> {
-        self.screens.iter().position(|s| s.geom.contains(p))
     }
 
     fn configure_surface(&self, s: &Screen) {
@@ -154,7 +276,7 @@ impl App {
         );
     }
 
-    fn draw(&mut self, i: usize) {
+    fn draw(&mut self, i: usize, qh: &QueueHandle<App>) {
         let tex = match self.screens[i].surface.get_current_texture() {
             Ok(t) => t,
             Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
@@ -170,17 +292,14 @@ impl App {
         let s = &mut self.screens[i];
         self.scene.draw(&s.geom, &view, &mut s.target);
         let ws = s.layer.wl_surface();
-        ws.frame(&self.qh, FrameCallbackData(ws.clone()));
+        ws.frame(qh, FrameCallbackData(ws.clone()));
         tex.present();
         s.frame_pending = true;
         s.dirty = false;
     }
 
-    /// Draw every screen that needs it and is ready; returns how many were drawn.
-    fn tick(&mut self) -> usize {
-        if self.scene.exit {
-            self.exit = true;
-        }
+    /// Draw every screen that needs it and is ready.
+    fn tick(&mut self, qh: &QueueHandle<App>) {
         if self.scene.animating() {
             self.mark_dirty();
         }
@@ -188,153 +307,294 @@ impl App {
             .filter(|&i| self.screens[i].dirty && self.screens[i].configured && !self.screens[i].frame_pending)
             .collect();
         if ready.is_empty() {
-            return 0;
+            return;
         }
         self.scene.update(None);
         for &i in &ready {
-            self.draw(i);
+            self.draw(i, qh);
         }
         self.scene.trim();
-        ready.len()
-    }
-
-    /// The wallpaper: what the monitor drag mode started on shows. The view centre
-    /// sits in its middle, so that is the view itself, wherever the cursor ends up.
-    fn exit_view(&self) -> View {
-        self.scene.view
     }
 }
 
-// --- run -------------------------------------------------------------------------------
+impl App {
+    fn connect(data: &Path, listening: bool) -> Result<(App, EventLoop<'static, App>), String> {
+        let conn = Connection::connect_to_env().map_err(|e| format!("no Wayland session: {e}"))?;
+        let (globals, mut queue) = registry_queue_init::<App>(&conn).map_err(|e| e.to_string())?;
+        let qh = queue.handle();
+        let mut app = App {
+            qh: qh.clone(),
+            conn: conn.clone(),
+            registry: RegistryState::new(&globals),
+            seats: SeatState::new(&globals, &qh),
+            outputs: OutputState::new(&globals, &qh),
+            compositor: CompositorState::bind(&globals, &qh).map_err(|e| format!("wl_compositor: {e}"))?,
+            layer_shell: LayerShell::bind(&globals, &qh).map_err(|e| format!("layer shell: {e}"))?,
+            shm: Shm::bind(&globals, &qh).map_err(|e| format!("wl_shm: {e}"))?,
+            pool: None,
+            viewporter: bind_viewporter(&globals, &qh),
+            keyboard: None,
+            pointer: None,
+            data: data.to_path_buf(),
+            listening,
+            listeners: Vec::new(),
+            press: None,
+            drag: None,
+        };
+        // learn the outputs and their layout (xdg-output) before making any surfaces
+        queue.roundtrip(&mut app).map_err(|e| e.to_string())?;
+        queue.roundtrip(&mut app).map_err(|e| e.to_string())?;
 
-pub fn run(data: &Path) -> Result<(), String> {
-    if let Some(pid) = running() {
-        return Err(format!("drag mode is already on (pid {pid}); end it with: voyager-sky toggle"));
+        let event_loop: EventLoop<App> = EventLoop::try_new().map_err(|e| e.to_string())?;
+        WaylandSource::new(conn, queue).insert(event_loop.handle()).map_err(|e| e.to_string())?;
+        Ok((app, event_loop))
     }
-    let pf = pidfile();
-    std::fs::write(&pf, std::process::id().to_string()).map_err(|e| format!("{}: {e}", pf.display()))?;
-    struct Unlink(PathBuf);
-    impl Drop for Unlink {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_file(&self.0);
+
+    /// Wait for events (no longer than the next thing due), then act on them.
+    fn step(&mut self, event_loop: &mut EventLoop<'static, App>) -> Result<(), String> {
+        let wait = match (&self.drag, &self.press) {
+            (Some(d), _) if d.scene.animating() => Duration::from_millis(8),
+            (Some(_), _) => Duration::from_millis(250),
+            (None, Some(p)) => LONG_PRESS.saturating_sub(p.since.elapsed()),
+            (None, None) => Duration::from_secs(1),
+        };
+        if let Err(e) = event_loop.dispatch(Some(wait), self) {
+            // a stop signal can interrupt the wait; that is not an error
+            if !STOP.load(Ordering::SeqCst) {
+                return Err(e.to_string());
+            }
         }
+
+        if self.press.as_ref().is_some_and(|p| p.since.elapsed() >= LONG_PRESS) {
+            let p = self.press.take().unwrap();
+            if let Err(e) = self.open_drag(Some(p.output), Some(p.at)) {
+                eprintln!("voyager-sky: could not start drag mode: {e}");
+            }
+        }
+        let Some(d) = &mut self.drag else { return Ok(()) };
+        d.tick(&self.qh);
+        if d.scene.exit && self.listening {
+            if let Err(e) = self.close_drag() {
+                eprintln!("voyager-sky: {e}");
+            }
+        }
+        Ok(())
     }
-    let _guard = Unlink(pf);
-    unsafe {
-        libc::signal(libc::SIGTERM, on_signal as usize);
-        libc::signal(libc::SIGINT, on_signal as usize);
+
+    /// The output whose area holds global point `p`.
+    fn output_at(&self, p: (f64, f64)) -> Option<wl_output::WlOutput> {
+        self.outputs.outputs().find(|o| output_geom(&self.outputs, o, None).is_some_and(|g| g.contains(p)))
     }
 
-    let sky = SkyData::load(data)?;
-    let conn = Connection::connect_to_env().map_err(|e| format!("no Wayland session: {e}"))?;
-    let (globals, mut queue) = registry_queue_init::<App>(&conn).map_err(|e| e.to_string())?;
-    let qh = queue.handle();
-    let compositor = CompositorState::bind(&globals, &qh).map_err(|e| format!("wl_compositor: {e}"))?;
-    let layer_shell = LayerShell::bind(&globals, &qh).map_err(|e| format!("layer shell: {e}"))?;
-    let gpu = Gpu::new()?;
-    // Vulkan on Wayland offers B8G8R8A8_UNORM; checked against each surface below
-    let format = wgpu::TextureFormat::Bgra8Unorm;
-    let view = crate::load_view(&sky);
-    let scene = Scene::new(Renderer::new(&gpu, format, &sky), sky, view);
+    /// The monitor a surface of ours sits on, for turning its local coordinates global.
+    fn geom_of(&self, surface: &wl_surface::WlSurface) -> Option<Geom> {
+        let screens = self.drag.iter().flat_map(|d| &d.screens);
+        screens
+            .map(|s| (&s.layer, s.geom))
+            .chain(self.listeners.iter().map(|l| (&l.layer, l.geom)))
+            .find(|(layer, _)| layer.wl_surface() == surface)
+            .map(|(_, g)| g)
+    }
 
-    let mut app = App {
-        qh: qh.clone(),
-        registry: RegistryState::new(&globals),
-        seats: SeatState::new(&globals, &qh),
-        outputs: OutputState::new(&globals, &qh),
-        keyboard: None,
-        pointer: None,
-        scene,
-        screens: Vec::new(),
-        format,
-        present_mode: wgpu::PresentMode::Fifo,
-        exit: false,
-    };
+    // --- listening ----------------------------------------------------------------------
 
-    // learn the outputs and their layout (xdg-output) before making the surfaces
-    queue.roundtrip(&mut app).map_err(|e| e.to_string())?;
-    queue.roundtrip(&mut app).map_err(|e| e.to_string())?;
-
-    let display = RawDisplayHandle::Wayland(WaylandDisplayHandle::new(
-        NonNull::new(conn.backend().display_ptr() as *mut _).ok_or("no Wayland display")?,
-    ));
-    for output in app.outputs.outputs().collect::<Vec<_>>() {
-        let Some(info) = app.outputs.info(&output) else { continue };
-        let (lx, ly) = info.logical_position.unwrap_or(info.location);
-        let (lw, lh) = info.logical_size.unwrap_or((1920, 1080));
-        let scale = info.scale_factor.max(1);
-        let surface = compositor.create_surface(&qh);
-        surface.set_buffer_scale(scale);
-        let layer = layer_shell.create_layer_surface(&qh, surface, Layer::Bottom, Some("voyager-sky"), Some(&output));
+    fn add_listener(&mut self, output: wl_output::WlOutput) {
+        let Some(viewporter) = &self.viewporter else { return };
+        let Some(geom) = output_geom(&self.outputs, &output, None) else { return };
+        let surface = self.compositor.create_surface(&self.qh);
+        let viewport = viewporter.get_viewport(&surface, &self.qh, Noop);
+        let layer =
+            self.layer_shell.create_layer_surface(&self.qh, surface, Layer::Bottom, Some("voyager-sky-listen"), Some(&output));
         layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
         layer.set_exclusive_zone(-1);
-        layer.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+        layer.set_keyboard_interactivity(KeyboardInteractivity::None);
         layer.set_size(0, 0);
         layer.commit();
-        let window = RawWindowHandle::Wayland(WaylandWindowHandle::new(
-            NonNull::new(layer.wl_surface().id().as_ptr() as *mut _).ok_or("no surface")?,
+        self.listeners.push(Listener { layer, output, viewport, buffer: None, geom });
+    }
+
+    fn configure_listener(&mut self, i: usize, size: (u32, u32)) {
+        let l = &mut self.listeners[i];
+        if size.0 > 0 && size.1 > 0 {
+            l.geom.size = size;
+        }
+        if let Some(g) = output_geom(&self.outputs, &l.output, Some(l.geom.size)) {
+            l.geom = g;
+        }
+        let surface = l.layer.wl_surface();
+        l.viewport.set_destination(l.geom.size.0 as i32, l.geom.size.1 as i32);
+        if l.buffer.is_none() {
+            let pool = match &mut self.pool {
+                Some(p) => p,
+                None => match SlotPool::new(64, &self.shm) {
+                    Ok(p) => self.pool.insert(p),
+                    Err(e) => return eprintln!("voyager-sky: shm pool: {e}"),
+                },
+            };
+            match pool.create_buffer(1, 1, 4, wl_shm::Format::Argb8888) {
+                Ok((buffer, canvas)) => {
+                    canvas.fill(0); // fully transparent
+                    if buffer.attach_to(surface).is_ok() {
+                        l.buffer = Some(buffer);
+                    }
+                }
+                Err(e) => return eprintln!("voyager-sky: shm buffer: {e}"),
+            }
+        }
+        surface.commit();
+    }
+
+    /// While drag mode is on the listeners stop taking input, so it goes to the sky.
+    fn set_listeners_accept_input(&self, accept: bool) {
+        let empty = if accept { None } else { Region::new(&self.compositor).ok() };
+        for l in &self.listeners {
+            let surface = l.layer.wl_surface();
+            surface.set_input_region(empty.as_ref().map(|r| r.wl_region()));
+            surface.commit();
+        }
+    }
+
+    fn listener_pointer(&mut self, kind: &PointerEventKind, p: (f64, f64), surface: &wl_surface::WlSurface) {
+        match kind {
+            PointerEventKind::Press { button, .. } if *button == BTN_LEFT => {
+                let output = self.listeners.iter().find(|l| l.layer.wl_surface() == surface).map(|l| l.output.clone());
+                self.press = output.map(|output| Press { since: Instant::now(), at: p, output });
+            }
+            PointerEventKind::Motion { .. } => {
+                if let Some(pr) = &self.press {
+                    if (p.0 - pr.at.0).hypot(p.1 - pr.at.1) > PRESS_SLOP_PX {
+                        self.press = None;
+                    }
+                }
+            }
+            // let go too soon, left the desktop, another button, a scroll: not a long-press
+            PointerEventKind::Release { .. }
+            | PointerEventKind::Leave { .. }
+            | PointerEventKind::Press { .. }
+            | PointerEventKind::Axis { .. } => self.press = None,
+            _ => {}
+        }
+    }
+
+    // --- drag mode ----------------------------------------------------------------------
+
+    /// Put the live sky on every monitor, centred on `home`. With `held_at`, the left
+    /// button is already down there (a long-press), so the sky is grabbed at once.
+    fn open_drag(&mut self, home: Option<wl_output::WlOutput>, held_at: Option<(f64, f64)>) -> Result<(), String> {
+        let sky = SkyData::load(&self.data)?;
+        let gpu = Gpu::new()?;
+        // Vulkan on Wayland offers B8G8R8A8_UNORM; checked against each surface below
+        let format = wgpu::TextureFormat::Bgra8Unorm;
+        let view = crate::load_view(&sky);
+        let scene = Scene::new(Renderer::new(&gpu, format, &sky), sky, view);
+        let mut d = Drag { screens: Vec::new(), scene, format, present_mode: wgpu::PresentMode::Fifo, gpu };
+
+        let display = RawDisplayHandle::Wayland(WaylandDisplayHandle::new(
+            NonNull::new(self.conn.backend().display_ptr() as *mut _).ok_or("no Wayland display")?,
         ));
-        let surface = unsafe {
-            gpu.instance
-                .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
-                    raw_display_handle: display,
-                    raw_window_handle: window,
-                })
-                .map_err(|e| format!("GPU surface: {e}"))?
-        };
-        let caps = surface.get_capabilities(&gpu.adapter);
-        if !caps.formats.contains(&format) {
-            return Err(format!("the GPU cannot draw {format:?} to this display (it offers {:?})", caps.formats));
+        for output in self.outputs.outputs().collect::<Vec<_>>() {
+            let Some(info) = self.outputs.info(&output) else { continue };
+            let Some(geom) = output_geom(&self.outputs, &output, None) else { continue };
+            let surface = self.compositor.create_surface(&self.qh);
+            surface.set_buffer_scale(info.scale_factor.max(1));
+            let layer =
+                self.layer_shell.create_layer_surface(&self.qh, surface, Layer::Bottom, Some("voyager-sky"), Some(&output));
+            layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
+            layer.set_exclusive_zone(-1);
+            // a long-press never clicks these surfaces, so ask for the keyboard outright:
+            // Esc, C and L must work straight away
+            layer.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
+            layer.set_size(0, 0);
+            layer.commit();
+            let window = RawWindowHandle::Wayland(WaylandWindowHandle::new(
+                NonNull::new(layer.wl_surface().id().as_ptr() as *mut _).ok_or("no surface")?,
+            ));
+            let surface = unsafe {
+                d.gpu
+                    .instance
+                    .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::RawHandle {
+                        raw_display_handle: display,
+                        raw_window_handle: window,
+                    })
+                    .map_err(|e| format!("GPU surface: {e}"))?
+            };
+            let caps = surface.get_capabilities(&d.gpu.adapter);
+            if !caps.formats.contains(&format) {
+                return Err(format!("the GPU cannot draw {format:?} to this display (it offers {:?})", caps.formats));
+            }
+            if caps.present_modes.contains(&wgpu::PresentMode::Mailbox) {
+                d.present_mode = wgpu::PresentMode::Mailbox;
+            }
+            let target = d.scene.renderer.target(Some(&mut d.scene.text));
+            d.screens.push(Screen {
+                surface,
+                target,
+                layer,
+                output,
+                geom,
+                configured: false,
+                frame_pending: false,
+                dirty: true,
+            });
         }
-        if caps.present_modes.contains(&wgpu::PresentMode::Mailbox) {
-            app.present_mode = wgpu::PresentMode::Mailbox;
+        if d.screens.is_empty() {
+            return Err("no monitors found".into());
         }
-        let target = app.scene.renderer.target(Some(&mut app.scene.text));
-        app.screens.push(Screen {
-            surface,
-            target,
-            layer,
-            geom: Geom { origin: (lx as f64, ly as f64), size: (lw.max(1) as u32, lh.max(1) as u32), scale },
-            configured: false,
-            frame_pending: false,
-            dirty: true,
-        });
-    }
-    if app.screens.is_empty() {
-        return Err("no monitors found".into());
+
+        // the view centre goes in the middle of the home monitor
+        let home = home.and_then(|o| d.screens.iter().position(|s| s.output == o)).unwrap_or(0);
+        let home_geom = d.screens[home].geom;
+        d.scene.center = home_geom.middle();
+        if let Some(p) = held_at {
+            d.scene.pointer_moved(p);
+            d.scene.press(p, &home_geom);
+        }
+
+        self.set_listeners_accept_input(false);
+        self.drag = Some(d);
+        Ok(())
     }
 
-    // the view centre goes in the middle of the monitor under the cursor
-    let home = cursor_pos().and_then(|p| app.screen_at(p)).unwrap_or(0);
-    app.scene.center = app.screens[home].geom.middle();
-
-    let mut event_loop: EventLoop<App> = EventLoop::try_new().map_err(|e| e.to_string())?;
-    WaylandSource::new(conn.clone(), queue).insert(event_loop.handle()).map_err(|e| e.to_string())?;
-    let debug = std::env::var_os("VOYAGER_SKY_DEBUG").is_some();
-    let (mut frames, mut since) = (0usize, Instant::now());
-    while !app.exit && !STOP.load(Ordering::SeqCst) {
-        let wait = if app.scene.animating() { Duration::from_millis(8) } else { Duration::from_millis(250) };
-        event_loop.dispatch(Some(wait), &mut app).map_err(|e| e.to_string())?;
-        frames += app.tick();
-        if debug && since.elapsed() > Duration::from_secs(2) {
-            eprintln!("voyager-sky: {:.1} frames/s (all screens together)", frames as f32 / since.elapsed().as_secs_f32());
-            (frames, since) = (0, Instant::now());
+    /// Make the view on the home monitor the wallpaper, then take the live sky away.
+    fn close_drag(&mut self) -> Result<(), String> {
+        let Some(d) = self.drag.take() else { return Ok(()) };
+        let v = d.scene.view;
+        let size = d.screens.iter().map(|s| s.geom.pixels()).max_by_key(|&(w, h)| w as u64 * h as u64).unwrap_or((1920, 1080));
+        let result = crate::write_wallpapers(&d.scene.renderer, &v, size, true);
+        std::thread::sleep(Duration::from_millis(250)); // let awww put it up underneath
+        drop(d);
+        if self.listening {
+            self.set_listeners_accept_input(true);
         }
+        let _ = self.conn.flush();
+        result
     }
+}
 
-    // make the view on the monitor we started on the wallpaper, then take the live sky away
-    let v = app.exit_view();
-    let size = app
-        .screens
-        .iter()
-        .map(|s| s.geom.pixels())
-        .max_by_key(|&(w, h)| w as u64 * h as u64)
-        .unwrap_or((1920, 1080));
-    let result = crate::write_wallpapers(&app.scene.renderer, &v, size, true);
-    std::thread::sleep(Duration::from_millis(250)); // let awww put it up underneath
-    app.screens.clear();
-    let _ = conn.flush();
-    result
+/// An output's place on the canvas (logical px), with `size` overriding its own.
+fn output_geom(outputs: &OutputState, output: &wl_output::WlOutput, size: Option<(u32, u32)>) -> Option<Geom> {
+    let info = outputs.info(output)?;
+    let (x, y) = info.logical_position.unwrap_or(info.location);
+    let (w, h) = size.unwrap_or_else(|| {
+        let (w, h) = info.logical_size.unwrap_or((1920, 1080));
+        (w.max(1) as u32, h.max(1) as u32)
+    });
+    Some(Geom { origin: (x as f64, y as f64), size: (w, h), scale: info.scale_factor.max(1) })
+}
+
+fn bind_viewporter(globals: &GlobalList, qh: &QueueHandle<App>) -> Option<WpViewporter> {
+    globals.bind::<WpViewporter, _, _>(qh, 1..=1, Noop).ok()
+}
+
+/// User data for protocol objects with no events we care about (the viewporter's).
+struct Noop;
+
+impl Dispatch2<WpViewporter, App> for Noop {
+    fn event(&self, _: &mut App, _: &WpViewporter, _: <WpViewporter as Proxy>::Event, _: &Connection, _: &QueueHandle<App>) {}
+}
+
+impl Dispatch2<WpViewport, App> for Noop {
+    fn event(&self, _: &mut App, _: &WpViewport, _: <WpViewport as Proxy>::Event, _: &Connection, _: &QueueHandle<App>) {}
 }
 
 // --- Wayland handlers ------------------------------------------------------------------
@@ -343,7 +603,8 @@ impl CompositorHandler for App {
     fn scale_factor_changed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_surface::WlSurface, _: i32) {}
     fn transform_changed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_surface::WlSurface, _: wl_output::Transform) {}
     fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, surface: &wl_surface::WlSurface, _: u32) {
-        if let Some(s) = self.screens.iter_mut().find(|s| s.layer.wl_surface() == surface) {
+        let Some(d) = &mut self.drag else { return };
+        if let Some(s) = d.screens.iter_mut().find(|s| s.layer.wl_surface() == surface) {
             s.frame_pending = false;
         }
     }
@@ -355,30 +616,57 @@ impl OutputHandler for App {
     fn output_state(&mut self) -> &mut OutputState {
         &mut self.outputs
     }
-    fn new_output(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_output::WlOutput) {}
-    fn update_output(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_output::WlOutput) {}
-    fn output_destroyed(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_output::WlOutput) {}
+    fn new_output(&mut self, _: &Connection, _: &QueueHandle<Self>, output: wl_output::WlOutput) {
+        // a monitor plugged in while listening gets its own listener
+        if self.listening && !self.listeners.is_empty() {
+            self.add_listener(output);
+        }
+    }
+    fn update_output(&mut self, _: &Connection, _: &QueueHandle<Self>, output: wl_output::WlOutput) {
+        // moved or rescaled: keep the listener's idea of where it is current
+        if let Some(l) = self.listeners.iter_mut().find(|l| l.output == output) {
+            if let Some(g) = output_geom(&self.outputs, &output, Some(l.geom.size)) {
+                l.geom = g;
+            }
+        }
+    }
+    fn output_destroyed(&mut self, _: &Connection, _: &QueueHandle<Self>, output: wl_output::WlOutput) {
+        self.listeners.retain(|l| l.output != output);
+    }
 }
 
 impl LayerShellHandler for App {
     fn closed(&mut self, _: &Connection, _: &QueueHandle<Self>, layer: &LayerSurface) {
-        // its monitor went away: drop that screen, keep going on the others
-        self.screens.retain(|s| &s.layer != layer);
-        if self.screens.is_empty() {
-            self.exit = true;
+        self.listeners.retain(|l| &l.layer != layer);
+        // a monitor went away during drag mode: drop that screen, keep going on the others
+        if let Some(d) = &mut self.drag {
+            d.screens.retain(|s| &s.layer != layer);
+            if d.screens.is_empty() {
+                d.scene.exit = true;
+            }
         }
     }
 
     fn configure(&mut self, _: &Connection, _: &QueueHandle<Self>, layer: &LayerSurface, cfg: LayerSurfaceConfigure, _: u32) {
-        let Some(i) = self.screens.iter().position(|s| &s.layer == layer) else { return };
-        if cfg.new_size.0 > 0 && cfg.new_size.1 > 0 {
-            self.screens[i].geom.size = cfg.new_size;
+        if let Some(i) = self.listeners.iter().position(|l| &l.layer == layer) {
+            return self.configure_listener(i, cfg.new_size);
         }
-        self.configure_surface(&self.screens[i]);
-        let s = &mut self.screens[i];
+        let Some(d) = &mut self.drag else { return };
+        let Some(i) = d.screens.iter().position(|s| &s.layer == layer) else { return };
+        if cfg.new_size.0 > 0 && cfg.new_size.1 > 0 {
+            d.screens[i].geom.size = cfg.new_size;
+        }
+        d.configure_surface(&d.screens[i]);
+        let s = &mut d.screens[i];
         s.configured = true;
         s.frame_pending = false;
         s.dirty = true;
+    }
+}
+
+impl ShmHandler for App {
+    fn shm_state(&mut self) -> &mut Shm {
+        &mut self.shm
     }
 }
 
@@ -413,23 +701,30 @@ impl SeatHandler for App {
 impl PointerHandler for App {
     fn pointer_frame(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_pointer::WlPointer, events: &[PointerEvent]) {
         for ev in events {
-            let Some(s) = self.screens.iter().find(|s| s.layer.wl_surface() == &ev.surface) else { continue };
-            let g = s.geom;
+            let Some(g) = self.geom_of(&ev.surface) else { continue };
             let p = (g.origin.0 + ev.position.0, g.origin.1 + ev.position.1);
+            if self.drag.is_none() {
+                self.listener_pointer(&ev.kind, p, &ev.surface);
+                continue;
+            }
+            let d = self.drag.as_mut().unwrap();
+            // in drag mode, events may still come from the listener the long-press
+            // started on (the compositor keeps a held button on its surface); they are
+            // in global coordinates all the same
             match ev.kind {
-                PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. } => self.scene.pointer_moved(p),
-                PointerEventKind::Leave { .. } => self.scene.pointer_left(),
-                PointerEventKind::Press { button, .. } if button == BTN_LEFT => self.scene.press(p, &g),
-                PointerEventKind::Release { button, .. } if button == BTN_LEFT => self.scene.release(),
+                PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. } => d.scene.pointer_moved(p),
+                PointerEventKind::Leave { .. } => d.scene.pointer_left(),
+                PointerEventKind::Press { button, .. } if button == BTN_LEFT => d.scene.press(p, &g),
+                PointerEventKind::Release { button, .. } if button == BTN_LEFT => d.scene.release(),
                 PointerEventKind::Axis { vertical, .. } => {
                     let steps = if vertical.absolute != 0.0 { vertical.absolute / 15.0 } else { vertical.discrete as f64 };
                     if steps != 0.0 {
-                        self.scene.zoom(p, steps);
+                        d.scene.zoom(p, steps);
                     }
                 }
                 _ => continue,
             }
-            self.mark_dirty();
+            d.mark_dirty();
         }
     }
 }
@@ -438,13 +733,14 @@ impl KeyboardHandler for App {
     fn enter(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: &wl_surface::WlSurface, _: u32, _: &[u32], _: &[Keysym]) {}
     fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: &wl_surface::WlSurface, _: u32) {}
     fn press_key(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: u32, ev: KeyEvent) {
+        let Some(d) = &mut self.drag else { return };
         match ev.keysym {
-            Keysym::c | Keysym::C => self.scene.press_chip(0),
-            Keysym::l | Keysym::L => self.scene.press_chip(1),
-            Keysym::Escape => self.exit = true,
+            Keysym::c | Keysym::C => d.scene.press_chip(0),
+            Keysym::l | Keysym::L => d.scene.press_chip(1),
+            Keysym::Escape => d.scene.exit = true,
             _ => return,
         }
-        self.mark_dirty();
+        d.mark_dirty();
     }
     fn repeat_key(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: u32, _: KeyEvent) {}
     fn release_key(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: u32, _: KeyEvent) {}

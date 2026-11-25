@@ -1,9 +1,14 @@
 //! voyager-sky: the voyager wallpaper as a real celestial sphere.
 //!
+//!   voyager-sky listen      stay running; hold the left button on empty desktop to start drag mode
 //!   voyager-sky toggle      start drag mode, or end it (and make the view the wallpaper)
 //!   voyager-sky run         start drag mode in the foreground
 //!   voyager-sky export [--view RA,DEC,FOV] [--size WxH] [--out FILE] [--no-probe]
 //!   voyager-sky apply       render wallpaper.png + lock.png from the saved view, show them
+//!
+//! listen keeps an invisible surface under your windows on every monitor. Holding the
+//! left button on bare desktop (about 0.4 s, without moving) opens drag mode with the
+//! sky already in hand; Esc saves the view and goes back to listening.
 //!
 //! Drag mode puts the live sky on the desktop layer of every monitor, behind your
 //! windows, as one canvas across them: drag to turn the sky, scroll to zoom. C toggles
@@ -174,9 +179,10 @@ fn args() -> Result<Args, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: voyager-sky toggle | run | apply | export [--view RA,DEC[,FOV]] [--size WxH] [--out FILE] [--no-probe]\n\
+    "usage: voyager-sky listen | toggle | run | apply | export [--view RA,DEC[,FOV]] [--size WxH] [--out FILE] [--no-probe]\n\
      \x20      export --overlay [--cursor X,Y] [--english]   preview drag mode: lines and names on\n\
      \x20      [--data DIR]   sky data folder (default: sky/ next to the binary)\n\
+     listen: hold the left button on empty desktop to start drag mode\n\
      drag mode: drag to turn the sky, scroll to zoom, C lines + names, L 中/EN, Esc to end"
 }
 
@@ -191,6 +197,7 @@ fn run() -> Result<(), String> {
             println!("voyager-sky {}", env!("CARGO_PKG_VERSION"));
             Ok(())
         }
+        "listen" => app::listen(&data_dir(a.data.as_deref())),
         "toggle" => app::toggle(&data_dir(a.data.as_deref())),
         "run" => app::run(&data_dir(a.data.as_deref())),
         "export" | "apply" => {

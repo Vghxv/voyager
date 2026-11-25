@@ -1211,6 +1211,7 @@ dependencies = [
  "smithay-client-toolkit",
  "wayland-backend",
  "wayland-client",
+ "wayland-protocols",
  "wgpu",
 ]
 
