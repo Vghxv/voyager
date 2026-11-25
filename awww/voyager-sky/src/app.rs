@@ -428,7 +428,7 @@ impl App {
             layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
             layer.set_exclusive_zone(-1);
             // a long-press never clicks these surfaces, so ask for the keyboard outright:
-            // Esc, T, R, C and L must work straight away
+            // Esc, T, R, C, E and L must work straight away
             layer.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
             layer.set_size(0, 0);
             layer.commit();
@@ -665,6 +665,7 @@ impl KeyboardHandler for App {
             Keysym::t | Keysym::T => d.scene.press_chip(Chip::Nav),
             Keysym::r | Keysym::R => d.scene.level(),
             Keysym::c | Keysym::C => d.scene.press_chip(Chip::Lines),
+            Keysym::e | Keysym::E => d.scene.press_chip(Chip::Ecliptic),
             Keysym::l | Keysym::L => d.scene.press_chip(Chip::Lang),
             Keysym::Escape => d.scene.exit = true,
             _ => return,

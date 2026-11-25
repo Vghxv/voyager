@@ -8,7 +8,7 @@ use glyphon::{Cache, FontSystem, SwashCache, TextArea, TextAtlas, TextRenderer, 
 use wgpu::util::DeviceExt;
 
 use crate::data::{Palette, SkyData};
-use crate::view::Proj;
+use crate::view::{ecliptic_point, Proj};
 
 /// The Milky Way over the gradient: brightness, tone curve on the sqrt-encoded map,
 /// share of its colour kept. VOYAGER_SKY_MW=a,b,c overrides it, for tuning.
@@ -23,6 +23,10 @@ fn milky_way() -> [f32; 3] {
         })
         .unwrap_or(MILKY_WAY)
 }
+/// The ecliptic is drawn (drag mode, E) as this many 2° segments after the
+/// constellation lines; the gaps the line shader leaves at each end make it dashed.
+pub const ECLIPTIC_SEGS: usize = 180;
+
 /// The probe's width at 1080p, in pixels.
 pub const PROBE_PX: f32 = 48.0;
 
@@ -310,7 +314,7 @@ impl Renderer {
             .iter()
             .map(|s| PointInst { pos: v3(s.pos), size_or_mag: s.mag, col: [s.rgb[0], s.rgb[1], s.rgb[2], 255] })
             .collect();
-        let line_inst: Vec<LineInst> = sky
+        let mut line_inst: Vec<LineInst> = sky
             .constellations
             .iter()
             .flat_map(|c| c.lines.iter())
@@ -325,6 +329,10 @@ impl Renderer {
         };
         let field_buf = vbuf("field", bytemuck::cast_slice(&field_inst));
         let star_buf = vbuf("stars", bytemuck::cast_slice(&star_inst));
+        line_inst.extend((0..ECLIPTIC_SEGS).map(|i| {
+            let step = 360.0 / ECLIPTIC_SEGS as f64;
+            LineInst { a: v3(ecliptic_point(i as f64 * step)), b: v3(ecliptic_point((i + 1) as f64 * step)) }
+        }));
         let line_buf = vbuf("lines", bytemuck::cast_slice(&line_inst));
         let line_alpha = vbuf("line alpha", bytemuck::cast_slice(&vec![0f32; line_inst.len()]));
         let shape_buf = vbuf("shapes", bytemuck::cast_slice(&[Shape::zeroed(); MAX_SHAPES]));
@@ -399,7 +407,7 @@ impl Renderer {
         Target { uniform, bind, text }
     }
 
-    /// One alpha per line segment, in constellation order (drag mode).
+    /// One alpha per line segment, in constellation order, then the ecliptic's (drag mode).
     pub fn set_line_alpha(&self, alpha: &[f32]) {
         debug_assert_eq!(alpha.len(), self.n_lines as usize);
         self.queue.write_buffer(&self.line_alpha, 0, bytemuck::cast_slice(alpha));

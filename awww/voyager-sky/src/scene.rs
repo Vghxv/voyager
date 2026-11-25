@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use glyphon::{Attrs, Buffer, Color, Family, Metrics, Shaping, TextArea, TextBounds};
 
 use crate::data::SkyData;
-use crate::render::{Frame, Renderer, Shape, Target, TextCtx, PROBE_PX};
+use crate::render::{Frame, Renderer, Shape, Target, TextCtx, ECLIPTIC_SEGS, PROBE_PX};
 use crate::view::{
     self as view, angle, cross, dot, ease_basis, ecliptic_lon, ecliptic_point, neg, normalize, pin, pin_free, radec,
     rotate_basis, turn_basis_to, Basis, Proj, View, V3,
@@ -109,6 +109,8 @@ pub enum Chip {
     Nav,
     /// C: constellation lines and names on/off
     Lines,
+    /// E: the ecliptic on/off
+    Ecliptic,
     /// L: names in Chinese or English
     Lang,
     /// Esc: end drag mode, making the view the wallpaper
@@ -116,7 +118,7 @@ pub enum Chip {
 }
 
 impl Chip {
-    const ALL: [Chip; 4] = [Chip::Nav, Chip::Lines, Chip::Lang, Chip::Done];
+    const ALL: [Chip; 5] = [Chip::Nav, Chip::Lines, Chip::Ecliptic, Chip::Lang, Chip::Done];
 }
 
 struct ChipText {
@@ -203,11 +205,14 @@ pub struct Scene {
     motion: Option<Motion>,
     last_input: Instant,
     pub lines_on: bool,
+    pub ecliptic_on: bool,
     pub zh: bool,
     pub exit: bool,
     hovered: Option<usize>,
 
     texts: Texts,
+    /// how visible the ecliptic is (0 hidden)
+    ecliptic: f32,
     /// per constellation: how lit its lines and name are (0 hidden, 0.5 shown, 1 hovered)
     glow: Vec<f32>,
     probe: f32,
@@ -270,13 +275,15 @@ impl Scene {
             motion: None,
             last_input: Instant::now(),
             lines_on: false,
+            ecliptic_on: false,
+            ecliptic: 0.0,
             zh: true,
             exit: false,
             hovered: None,
             texts: Texts { labels, chips: Vec::new(), probe, axes },
             glow: vec![0.0; n],
             probe: 0.0,
-            line_alpha: vec![0.0; seg_con.len()],
+            line_alpha: vec![0.0; seg_con.len() + ECLIPTIC_SEGS],
             seg_con,
             phase: (0..n).map(|i| (i as f32 * 0.618_034).fract()).collect(),
             sky,
@@ -406,6 +413,7 @@ impl Scene {
                 self.level();
             }
             Chip::Lines => self.lines_on = !self.lines_on,
+            Chip::Ecliptic => self.ecliptic_on = !self.ecliptic_on,
             Chip::Lang => self.zh = !self.zh,
             Chip::Done => self.exit = true,
         }
@@ -473,6 +481,7 @@ impl Scene {
         match chip {
             Chip::Nav => self.nav == Nav::Trackball,
             Chip::Lines => self.lines_on,
+            Chip::Ecliptic => self.ecliptic_on,
             Chip::Lang => true,
             Chip::Done => false,
         }
@@ -487,6 +496,8 @@ impl Scene {
                     Chip::Nav => "T  turntable",
                     Chip::Lines if self.lines_on => "C  ✦ lines",
                     Chip::Lines => "C  ✧ lines",
+                    Chip::Ecliptic if self.ecliptic_on => "E  ✦ ecliptic",
+                    Chip::Ecliptic => "E  ✧ ecliptic",
                     Chip::Lang if self.zh => "L  中文",
                     Chip::Lang => "L  English",
                     Chip::Done => "Esc  set as wallpaper",
@@ -517,6 +528,10 @@ impl Scene {
         }
     }
 
+    fn ecliptic_target(&self) -> f32 {
+        if self.ecliptic_on { 0.6 } else { 0.0 }
+    }
+
     /// Trackball, left alone for IDLE, nothing else moving: time for the zodiac tour.
     fn tour_due(&self) -> bool {
         self.nav == Nav::Trackball
@@ -532,6 +547,7 @@ impl Scene {
             || self.grab.is_some()
             || self.motion.is_some()
             || self.tour_due()
+            || self.ecliptic != self.ecliptic_target()
             || (0..self.glow.len()).any(|i| self.glow[i] != self.glow_target(i))
             || self.probe != self.probe_target()
     }
@@ -589,6 +605,8 @@ impl Scene {
         }
         let pt = self.probe_target();
         ease(&mut self.probe, pt, 5.0);
+        let et = self.ecliptic_target();
+        ease(&mut self.ecliptic, et, 7.0);
 
         // the slow blue flicker: each constellation breathes on its own 6-10 s cycle
         for (j, &c) in self.seg_con.iter().enumerate() {
@@ -597,6 +615,8 @@ impl Scene {
             let flicker = 0.75 + 0.25 * (t * std::f32::consts::TAU / period + ph * 40.0).sin();
             self.line_alpha[j] = if Some(c) == self.hovered { g * 0.95 } else { g * 0.7 * flicker };
         }
+        let n = self.seg_con.len();
+        self.line_alpha[n..].fill(self.ecliptic);
         self.renderer.set_line_alpha(&self.line_alpha);
     }
 
@@ -866,7 +886,7 @@ mod tests {
         // moving the mouse, keys and chips leave it running
         s.pointer_moved((100.0, 300.0));
         s.pointer_moved((140.0, 320.0));
-        for chip in [Chip::Lines, Chip::Lang] {
+        for chip in [Chip::Lines, Chip::Ecliptic, Chip::Lang] {
             s.key_input();
             s.press_chip(chip);
         }
