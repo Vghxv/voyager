@@ -1,6 +1,6 @@
 # Wallpaper (awww + voyager-sky)
 
-The desktop wallpaper is the real sky, centered on where **Voyager 1** actually is: in Ophiuchus, near the border with Hercules, 173 AU from the Sun. Its position comes from [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/), queried for Taipei. The sky is a full celestial sphere, and you can turn it to any part of the sky in **drag mode**. When you leave drag mode, the view becomes your wallpaper and your lock screen.
+The desktop wallpaper is the real sky, centered on where **Voyager 1** actually is: in Ophiuchus, near the border with Hercules, 173 AU from the Sun. Its position comes from [JPL Horizons](https://ssd.jpl.nasa.gov/horizons/), queried for Taipei. The sky is a full celestial sphere, and you can turn it to any part of the sky in **drag mode**. When you leave drag mode, the view becomes your wallpaper.
 
 ![wallpaper](wallpaper.png)
 
@@ -8,11 +8,11 @@ What the sky shows:
 
 - **Constellation stars only.** Only the ~700 stars that make up the 88 constellation figures are drawn, each at its catalogue brightness (V magnitude) and true colour (B-V index → temperature → blackbody colour). That's why Antares, Arcturus and Betelgeuse look orange and Rigel and Vega blue-white.
 - **The Milky Way**, from NASA's all-sky star map with the stars filtered out, in its true place: the bright band with its dark rifts, about 27° to Voyager's left. The Magellanic Clouds show up in the southern sky.
-- **Tiny faint stars**, scattered as before and thickest toward the Milky Way.
+- **Tiny faint stars**, thickest toward the Milky Way.
 - **The probe** (the voyager logo), drawn on Voyager 1's position whenever that part of the sky is in view.
 - No galaxies or nebulae: they're too dim to see.
 
-The view is drawn north up, with east to the left, as you see the sky from inside the sphere. If you tilt the sky in drag mode (Trackball), the wallpaper keeps the tilt.
+The view is drawn north up, with east to the left, as you see the sky from inside the sphere.
 
 ## Install
 
@@ -73,7 +73,7 @@ Drag mode takes the keyboard only while the cursor is on the sky (empty desktop)
 
 **More than one monitor.** In drag mode the monitors form one wide sky, laid out like your monitors: drag across the seam and the sky keeps going. The monitor you start drag mode on (where you held the button, or where the cursor is for `toggle`) keeps showing exactly your wallpaper, and the others extend it. When you leave, the view on **that starting monitor** becomes the wallpaper, wherever the cursor is by then, and every monitor shows it.
 
-**What drag mode leaves on the wallpaper.** The lines, names and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes the probe if Voyager 1 is in view. The lock screen's copy (`lock.png`) has no probe, because hyprlock draws its own big probe.
+**What drag mode leaves on the wallpaper.** The lines, names and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes the probe if Voyager 1 is in view. `lock.png`, written next to it, is the same view without the probe.
 
 **Cost.** Drag mode draws frames only while something moves: a drag, a fade, a snap, the zodiac tour, or the flickering lines while they're on. It sets up the GPU when it opens and frees it when you leave the mode, so `listen` holds no GPU memory while it waits. The wallpaper itself is a still image, so it uses nothing once shown.
 
@@ -124,11 +124,11 @@ Start with `./doctor.sh awww`.
 |---|---|
 | Installer says "No systemd graphical session" | start Hyprland with `uwsm start hyprland.desktop` |
 | No wallpaper after login | `systemctl --user restart awww`; why: `journalctl --user -u awww -n 20` |
-| Wallpaper looks soft on a new, bigger monitor | `voyager-sky apply` (renders at the largest monitor's size) |
+| Wallpaper looks soft on a new, bigger monitor | `voyager-sky apply` |
 | Holding the button on the desktop does nothing | is it running? `pgrep -a voyager-sky` (re-running the installer stops it until your next login); if not, run `~/.config/scripts/voyager-sky listen` in a terminal to see the error |
 | "already listening" | one is already running; restart it with `pkill -x voyager-sky`, then start `listen` again |
 | The keybind does nothing | run `~/.config/scripts/voyager-sky toggle` in a terminal to see the error |
 | "drag mode is already on" | end it with `voyager-sky toggle`; a stuck one: `pkill -x voyager-sky` |
-| Drag mode's keys don't work | move the cursor onto the empty desktop (the keys only work there), or click the sky once |
+| Drag mode's keys don't work | move the cursor onto the empty desktop, or click the sky once |
 | "no Vulkan GPU found" | install your GPU's Vulkan driver: `vulkan-intel`, `vulkan-radeon` or `nvidia-utils` |
 | Chinese names show as boxes | `sudo pacman -S noto-fonts-cjk` |

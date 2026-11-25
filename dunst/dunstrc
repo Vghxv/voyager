@@ -11,7 +11,7 @@
     width = 340
     height = (0, 300)
     origin = top-right
-    offset = (10, 50)          # below the eww bar: raise the 50 if your bar is taller
+    offset = (10, 50)          # below a top bar: raise the 50 if your bar is taller
     scale = 0
     notification_limit = 6
     gap_size = 6

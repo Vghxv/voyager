@@ -12,7 +12,7 @@ A deep-space theme for an Arch + Hyprland desktop: a probe drifting through a st
 | [eww](eww/eww.md) | Top bar on every monitor: workspaces, clock, wifi, volume, brightness, webcam, battery, tray | `./eww/install.sh` | — (one-way copy) |
 | [dunst](dunst/dunst.md) | Notifications styled like the bar | `./dunst/install.sh` | `--restore` |
 
-Each component installs on its own; pick the ones you want. Installers that replace a config file back it up first, and `--restore` puts it back (for the wallpaper: stops awww and puts back your own `awww.service`, if you had one). Plymouth needs some boot setup first: read its [prerequisites](plymouth/plymouth.md#prerequisites).
+Each component installs on its own; pick the ones you want. Installers that replace a config file back it up first. Plymouth needs some boot setup first: read its [prerequisites](plymouth/plymouth.md#prerequisites).
 
 ## When something breaks
 
@@ -30,6 +30,7 @@ The bar and the notifications have a light and a dark mode and switch together:
 ```bash
 ~/.config/scripts/voyager-theme toggle       # flip
 ~/.config/scripts/voyager-theme light|dark   # set
+~/.config/scripts/voyager-theme apply        # re-apply the current mode
 ~/.config/scripts/voyager-theme              # show the current mode
 ```
 
@@ -64,4 +65,4 @@ doctor.sh    runs every check.sh
 A few things are kept in step by hand, because they change rarely:
 
 - **Palette** (navy `#14141F`, mist `#D9D9F2`, indigo `#8B8FF0`, teal `#5EEAD4`, red `#FF3355`, and a few shades): defined in [`lib/palette`](lib/palette), which also lists every file that keeps a copy (eww, dunst, hyprlock, the Plymouth script, the SVGs). `src/voyager_art.py` and `awww/voyager-sky` (compiled in) read it directly; `./doctor.sh` checks the copies still match.
-- **dunst `offset`**: it leaves room for the eww bar's height.
+- **dunst `offset`**: its `50` leaves room for the eww bar's height.
