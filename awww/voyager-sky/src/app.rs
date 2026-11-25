@@ -198,14 +198,10 @@ impl App {
         ready.len()
     }
 
-    /// The wallpaper: what the monitor under the cursor shows, re-centred on it.
+    /// The wallpaper: what the monitor drag mode started on shows. The view centre
+    /// sits in its middle, so that is the view itself, wherever the cursor ends up.
     fn exit_view(&self) -> View {
-        let p = cursor_pos().or(self.scene.cursor).unwrap_or(self.scene.center);
-        let Some(s) = self.screen_at(p).or(if self.screens.is_empty() { None } else { Some(0) }) else {
-            return self.scene.view;
-        };
-        let (ra, dec) = crate::view::radec(self.scene.proj().unproject(self.screens[s].geom.middle()));
-        View { ra, dec, fov: self.scene.view.fov }
+        self.scene.view
     }
 }
 
@@ -326,7 +322,7 @@ pub fn run(data: &Path) -> Result<(), String> {
         }
     }
 
-    // make the view on the cursor's monitor the wallpaper, then take the live sky away
+    // make the view on the monitor we started on the wallpaper, then take the live sky away
     let v = app.exit_view();
     let size = app
         .screens

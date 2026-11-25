@@ -8,7 +8,7 @@
 //! Drag mode puts the live sky on the desktop layer of every monitor, behind your
 //! windows, as one canvas across them: drag to turn the sky, scroll to zoom. C toggles
 //! the constellation lines and names, L switches their language (中/EN), Esc ends it.
-//! On exit, the view on the monitor under the cursor becomes wallpaper.png (with the
+//! On exit, the view on the monitor drag mode started on becomes wallpaper.png (with the
 //! probe if Voyager is in it) and lock.png (without), and awww shows it.
 //!
 //! Docs: awww/awww.md in the voyager repo.

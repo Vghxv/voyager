@@ -54,7 +54,7 @@ While drag mode is on, the live sky sits on the desktop behind your windows, so 
 
 The keys work after you click the sky once, which gives it keyboard focus.
 
-**More than one monitor.** In drag mode the monitors form one wide sky, laid out like your monitors: drag across the seam and the sky keeps going. When you leave drag mode, the view on the **monitor under the cursor** becomes the wallpaper, and every monitor shows it.
+**More than one monitor.** In drag mode the monitors form one wide sky, laid out like your monitors: drag across the seam and the sky keeps going. The monitor the cursor is on when you start drag mode keeps showing exactly your wallpaper, and the others extend it. When you leave, the view on **that starting monitor** becomes the wallpaper, wherever the cursor is by then, and every monitor shows it.
 
 **What drag mode leaves on the wallpaper.** The lines, names and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes the probe if Voyager 1 is in view. The lock screen's copy (`lock.png`) has no probe, because hyprlock draws its own big probe.
 
