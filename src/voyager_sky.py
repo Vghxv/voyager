@@ -1,8 +1,6 @@
 """The boot screen's night sky: Ursa Major and Ursa Minor in a true-to-sky long exposure.
 
-Used by gen-plymouth.py; build-sky-data.py borrows its star colours (bv_rgb) and
-background-star helpers for the wallpaper. (The wallpaper and lock screen are drawn
-by awww/voyager-sky, the draggable celestial sphere.) Not a script.
+Used by gen-plymouth.py. Not a script.
 
 The dipper stars are laid out as in a wide-field photo of the two (the Big Dipper's
 handle up on the left, its pointers aiming right at Polaris) and drawn by magnitude
@@ -17,9 +15,9 @@ same fit places everything else where a long exposure of this field shows it:
 - thousands of faint blue, white and yellow stars, denser toward the galactic plane.
 
 How it is built: the sky and dust are a 16-bit ImageMagick raster dithered to 8
-bits (no banding); every star, galaxy and the probe is one SVG layer rendered once
-(render_base); only Polaris and a few faint stars twinkle, in a small transparent
-layer rendered per frame (render_twinkles) and laid over the base.
+bits (no banding); every star and galaxy is one SVG layer rendered once
+(render_base); Polaris, a few faint stars and the Doppler-shifted stars are
+separate transparent layers (Scene.*_layer).
 
 Needs: rsvg-convert (librsvg), magick (ImageMagick).
 """
@@ -27,14 +25,13 @@ Needs: rsvg-convert (librsvg), magick (ImageMagick).
 import math
 import os
 import random
-import re
-import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 
-from voyager_art import LOGO, BG_TOP, BG_BOTTOM, render
+from voyager_art import (BG_TOP, BG_BOTTOM, NGP, bv_rgb, eq2gal, field_bv, magick,
+                         render, star_density)
 
 # --- catalogue ---------------------------------------------------------------------
 
@@ -87,19 +84,12 @@ IFN_LAYERS = [  # (colour, opacity, noise seed offset): screened onto the sky
     ("#B0706A", 0.09, 2),                     # faint red luminescence
 ]
 
-# Spectral mix of the faint background, as the eye sees a dark sky: (weight, B-V range).
-STAR_CLASSES = [(0.30, (-0.30, 0.00)),        # blue: O, B
-                (0.34, (0.00, 0.35)),         # white: A, early F
-                (0.26, (0.50, 0.95)),         # yellow: G
-                (0.10, (1.00, 1.50))]         # orange: K
-
 # --- look ------------------------------------------------------------------------
 
 REF_BOX = (100.9, 106.4, 700.9, 509.3)  # bounding box of the dipper stars, in photo pixels
 SPAN = 0.42                             # their width, as a fraction of a 16:9 screen width
 UMA_HALO = 0.72                         # the Big Dipper's bright stars get a tighter halo
 FIELD_TWINKLERS = 5                     # background stars that twinkle, besides Polaris
-PROBE = (0.80, 0.76, 0.016)             # top-left x, y and width, as fractions of the screen
 DITHER = 0.35                           # +noise Uniform strength: about one 8-bit step
 # Doppler layers (Plymouth fades them in as the probe speeds up or backs off): every
 # constellation star and this share of the background stars, their B-V moved by
@@ -109,32 +99,6 @@ SHIFT_FRACTION, BLUE_SHIFT, RED_SHIFT, SHIFT_SAT = 0.9, -0.9, 1.1, 1.4
 
 
 # --- colour ------------------------------------------------------------------------
-
-def bv_rgb(bv, sat=1.0):
-    """B-V colour index -> sRGB hex of a blackbody at that star's temperature.
-
-    sat > 1 pushes the tint away from white, so it still reads on a sub-pixel dot."""
-    bv = max(-0.3, min(1.8, bv))
-    t = 4600 * (1 / (0.92 * bv + 1.7) + 1 / (0.92 * bv + 0.62)) / 100   # Ballesteros 2012
-    if t <= 66:
-        r, g = 255, 99.4708025861 * math.log(t) - 161.1195681661
-        b = 0 if t <= 19 else 138.5177312231 * math.log(t - 10) - 305.0447927307
-    else:
-        r = 329.698727446 * (t - 60) ** -0.1332047592
-        g = 288.1221695283 * (t - 60) ** -0.0755148492
-        b = 255
-    return "#" + "".join(f"{max(0, min(255, round(255 - (255 - c) * sat))):02X}" for c in (r, g, b))
-
-
-def field_bv(rng):
-    """A random B-V index for a background star, following STAR_CLASSES."""
-    pick, acc = rng.random(), 0.0
-    for weight, (lo, hi) in STAR_CLASSES:
-        acc += weight
-        if pick <= acc:
-            return rng.uniform(lo, hi)
-    return 1.2
-
 
 def mag_scale(m):
     """Linear size factor for magnitude m: 1 at mag 1.8, smaller for fainter stars."""
@@ -154,8 +118,6 @@ class Sky:
     """Sky <-> screen. Fits the catalogue positions of the dipper stars to where they
     sit in the photo (gnomonic projection + rotation/scale/shift; RMS error < 1 photo
     px), then scales the photo's star box to SPAN of the screen width, centred."""
-
-    NGP = (192.85948, 27.12825, 122.93192)     # galactic north pole RA, Dec; l of the NCP
 
     def __init__(self, w, h):
         self.w, self.h = w, h
@@ -222,19 +184,9 @@ def _unit(ra, dec):
     return math.cos(dec) * math.cos(ra), math.cos(dec) * math.sin(ra), math.sin(dec)
 
 
-def eq2gal(ra, dec):
-    """Equatorial (RA, Dec) -> galactic (l, b), degrees."""
-    an, dn, ln = (math.radians(t) for t in Sky.NGP)
-    a, d = math.radians(ra), math.radians(dec)
-    b = math.asin(math.sin(d) * math.sin(dn) + math.cos(d) * math.cos(dn) * math.cos(a - an))
-    l = ln - math.atan2(math.cos(d) * math.sin(a - an),
-                        math.sin(d) * math.cos(dn) - math.cos(d) * math.sin(dn) * math.cos(a - an))
-    return math.degrees(l) % 360, math.degrees(b)
-
-
 def gal2eq(l, b):
     """Galactic (l, b) -> equatorial (RA, Dec), degrees."""
-    an, dn, ln = (math.radians(t) for t in Sky.NGP)
+    an, dn, ln = (math.radians(t) for t in NGP)
     l, b = math.radians(l), math.radians(b)
     d = math.asin(math.sin(dn) * math.sin(b) + math.cos(dn) * math.cos(b) * math.cos(ln - l))
     a = an + math.atan2(math.cos(b) * math.sin(ln - l),
@@ -255,11 +207,6 @@ def ifn_strength(l, b):
     vl, vb, vs, vk = VOLCANO
     volcano = vk * math.exp(-(dl(vl) ** 2 + (b - vb) ** 2) / vs ** 2)
     return min(1.0, 0.55 * cirrus + flare + volcano)
-
-
-def star_density(l, b):
-    """Relative density of faint background stars: more toward the galactic plane."""
-    return 0.35 + 0.65 * min(1.0, math.exp(-(b - 20) / 20))
 
 
 def field_entry(x, y, r, a, bv, sat, glow):
@@ -378,18 +325,10 @@ def deep_sky(sky, defs, body):
     body.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="{max(1.3, size * k):.2f}" fill="url(#owl)"/>')
 
 
-def probe(w, h, body):
-    """The probe, tiny, in the lower right."""
-    fx, fy, fw = PROBE
-    size = fw * w
-    body.append(re.sub(r"<svg[^>]*>", f'<svg x="{fx * w:.2f}" y="{fy * h:.2f}" width="{size:.2f}" '
-                       f'height="{size:.2f}" viewBox="0 0 400 400">', LOGO.read_text(), count=1))
-
-
 class Scene:
-    """The wallpaper as two transparent SVG layers over the raster sky: a still layer
-    (everything that never changes) and a small twinkling layer (Polaris and a few
-    background stars), re-rendered per frame."""
+    """The boot sky as transparent SVG layers over the raster sky: a still layer
+    (everything that never changes), the twinklers (Polaris and a few background
+    stars, which the boot screen animates), Polaris alone, and the Doppler layers."""
 
     def __init__(self, w, h, seed):
         self.w, self.h = w, h
@@ -406,8 +345,7 @@ class Scene:
         pick = random.Random(f"shift-{seed}")
         self.shifted = sorted(pick.sample(still, round(SHIFT_FRACTION * len(still))))
 
-    def still_layer(self, with_probe=True):
-        """with_probe=False leaves the probe out (hyprlock draws its own, centred)."""
+    def still_layer(self):
         defs, body = [], []
         for j, star in enumerate(self.stars):
             if j not in self.twinklers:
@@ -416,8 +354,6 @@ class Scene:
         for i in range(len(CONSTELLATIONS)):
             if i != POLARIS:
                 dipper_star(self.sky, i, 1.0, defs, body)
-        if with_probe:
-            probe(self.w, self.h, body)
         return svg_doc(self.w, self.h, defs, body)
 
     def twinkle_layer(self, frame=0, frames=1, with_polaris=True):
@@ -464,13 +400,6 @@ class Scene:
 # Drawn with ImageMagick at 16 bits per channel and dithered down to 8, so the dark
 # gradient and the faint clouds have no banding and no blocks. (librsvg's
 # feTurbulence also leaves square holes at large sizes, so no SVG filters here.)
-
-def magick(*args):
-    try:
-        subprocess.run(["magick", *map(str, args)], check=True)
-    except FileNotFoundError:
-        raise SystemExit("magick not found. Install it: sudo pacman -S imagemagick")
-
 
 def fbm(w, h, seed, out, cells=6, octaves=8, lo=44, hi=96, aspect=1.0, angle=0.0):
     """Fractal cloud noise: random grids upscaled smoothly and summed, finest last.
@@ -541,18 +470,10 @@ def flatten(base, layer, out):
     magick(base, layer, "-composite", *PNG_NO_DATES, out)
 
 
-def render_base(scene, seed, out, tmp, pool, with_probe=True):
+def render_base(scene, seed, out, tmp, pool):
     """The raster sky with every still element on it: the image all frames share."""
     sky, layer = f"{tmp}/sky.png", f"{tmp}/still.png"
-    job = pool.submit(render, scene.still_layer(with_probe), scene.w, scene.h, layer)
+    job = pool.submit(render, scene.still_layer(), scene.w, scene.h, layer)
     backdrop(scene.sky, seed, sky, tmp, pool)
     job.result()
     magick(sky, layer, "-composite", out)
-
-
-def render_twinkles(scene, frames, paths, pool):
-    """Transparent twinkle layers: paths[i] is frame i of frames (frames=1: at rest)."""
-    jobs = [pool.submit(render, scene.twinkle_layer(i, frames), scene.w, scene.h, p)
-            for i, p in enumerate(paths)]
-    for job in jobs:
-        job.result()

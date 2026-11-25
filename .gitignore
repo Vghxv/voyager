@@ -7,7 +7,7 @@ venv/
 .ruff_cache/
 .pytest_cache/
 
-# generator scratch output (e.g. gen-wallpaper.py --svg)
+# generator scratch output
 *.svg.tmp
 /out/
 /tmp/

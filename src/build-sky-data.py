@@ -21,7 +21,7 @@ Sources (downloaded once into the cache, never into the repo):
 Writes:
 - constellations.json  {"stars": [[ra, dec, V, r, g, b]...],
                         "constellations": [{abbr, en, zh, lines: [[i, j]...], label: [ra, dec]}...]}
-                        ra/dec in degrees (J2000), r/g/b 0-255 from B-V (voyager_sky.bv_rgb);
+                        ra/dec in degrees (J2000), r/g/b 0-255 from B-V (voyager_art.bv_rgb);
                         only stars that are part of a figure are listed.
 - field.bin            faint background stars, 16 bytes each, little-endian:
                         f32 ra, f32 dec, u8 r, g, b, alpha, f32 size (px at 1080p).
@@ -45,8 +45,7 @@ import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True          # no src/__pycache__
-from voyager_art import ROOT, LOGO, rsvg  # noqa: E402
-from voyager_sky import bv_rgb, eq2gal, field_bv, magick, star_density  # noqa: E402
+from voyager_art import ROOT, LOGO, bv_rgb, eq2gal, field_bv, magick, rsvg, star_density  # noqa: E402
 
 OUT = ROOT / "awww" / "sky"
 STELLARIUM = "https://raw.githubusercontent.com/Stellarium/stellarium/master"

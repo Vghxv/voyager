@@ -139,8 +139,8 @@ logo_y = cy - logo_img.GetHeight() - 40;
 logo_sprite = Sprite(logo_img);
 logo_sprite.SetPosition(logo_x, logo_y, 10);
 
-# dish centre inside the 400x400 probe logo. src/voyager_art.py has its own
-# copy (DISH, used by the wallpaper): update both if the probe artwork changes.
+# dish centre inside the 400x400 probe logo (src/logo.svg): update it if the
+# probe artwork changes.
 dish_x = logo_x + 190 * logo_s;
 dish_y = logo_y + 150 * logo_s;
 
@@ -209,7 +209,7 @@ fun refresh_callback() {
   global.blue_sprite.SetOpacity(clamp01(global.speed / global.BLUE_AT));
   global.red_sprite.SetOpacity(clamp01(-global.speed / global.RED_AT));
 
-  # Polaris breathes, one breath every 4 s (as on the wallpaper)
+  # Polaris breathes, one breath every 4 s
   global.polaris_sprite.SetOpacity(0.775 + 0.225 * Math.Cos(6.2832 * global.t / 4));
   fast = 0;                           # 1 streaks outward, -1 inward, 0 dots
   if (global.speed > global.STREAK_AT) {
