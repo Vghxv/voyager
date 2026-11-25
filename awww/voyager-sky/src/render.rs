@@ -11,8 +11,18 @@ use crate::data::{Palette, SkyData};
 use crate::view::Proj;
 
 /// The Milky Way over the gradient: brightness, tone curve on the sqrt-encoded map,
-/// share of its colour kept.
-const MILKY_WAY: (f32, f32, f32) = (0.62, 1.35, 0.55);
+/// share of its colour kept. VOYAGER_SKY_MW=a,b,c overrides it, for tuning.
+const MILKY_WAY: [f32; 3] = [0.62, 1.35, 0.55];
+
+fn milky_way() -> [f32; 3] {
+    std::env::var("VOYAGER_SKY_MW")
+        .ok()
+        .and_then(|s| {
+            let v: Vec<f32> = s.split(',').filter_map(|t| t.trim().parse().ok()).collect();
+            v.try_into().ok()
+        })
+        .unwrap_or(MILKY_WAY)
+}
 /// The probe's width at 1080p, in pixels.
 pub const PROBE_PX: f32 = 48.0;
 
@@ -146,11 +156,16 @@ pub struct Renderer {
     rect_buf: wgpu::Buffer,
     n_rects: u32,
     palette: Palette,
+    milky_way: [f32; 3],
     voyager: [f32; 3],
 }
 
 fn v3(p: [f64; 3]) -> [f32; 3] {
     [p[0] as f32, p[1] as f32, p[2] as f32]
+}
+
+fn v4(p: [f32; 3], w: f32) -> [f32; 4] {
+    [p[0], p[1], p[2], w]
 }
 
 fn texture(gpu: &wgpu::Device, q: &wgpu::Queue, levels: &[(u32, u32, Vec<u8>)], label: &str) -> wgpu::TextureView {
@@ -340,6 +355,7 @@ impl Renderer {
             rect_buf,
             n_rects: 0,
             palette: Palette::get(),
+            milky_way: milky_way(),
             voyager: v3(sky.voyager),
         }
     }
@@ -387,25 +403,22 @@ impl Renderer {
     fn uniforms(&self, fr: &Frame) -> Uniforms {
         let p = &fr.proj;
         let pal = &self.palette;
-        let c4 = |c: [f32; 3]| [c[0], c[1], c[2], 1.0];
-        let mw: (f32, f32, f32) = std::env::var("VOYAGER_SKY_MW").ok()
-            .and_then(|s| { let v: Vec<f32> = s.split(',').filter_map(|t| t.parse().ok()).collect(); (v.len() == 3).then(|| (v[0], v[1], v[2])) })
-            .unwrap_or(MILKY_WAY);
+        let [mw_strength, mw_curve, mw_colour] = self.milky_way;
         Uniforms {
-            e: [p.e[0] as f32, p.e[1] as f32, p.e[2] as f32, 0.0],
-            n: [p.n[0] as f32, p.n[1] as f32, p.n[2] as f32, 0.0],
-            f: [p.f[0] as f32, p.f[1] as f32, p.f[2] as f32, 0.0],
+            e: v4(v3(p.e), 0.0),
+            n: v4(v3(p.n), 0.0),
+            f: v4(v3(p.f), 0.0),
             center: [p.center.0 as f32, p.center.1 as f32],
             scale: p.scale as f32,
             u: fr.u,
             size: [fr.size.0 as f32, fr.size.1 as f32],
             time: fr.time,
-            mw_strength: mw.0,
-            top: c4(pal.top),
-            bottom: c4(pal.bottom),
-            line_col: c4(pal.indigo),
-            voyager: [self.voyager[0], self.voyager[1], self.voyager[2], fr.probe_alpha],
-            probe: [PROBE_PX * fr.u, mw.1, mw.2, 0.0],
+            mw_strength,
+            top: v4(pal.top, 1.0),
+            bottom: v4(pal.bottom, 1.0),
+            line_col: v4(pal.indigo, 1.0),
+            voyager: v4(self.voyager, fr.probe_alpha),
+            probe: [PROBE_PX * fr.u, mw_curve, mw_colour, 0.0],
         }
     }
 

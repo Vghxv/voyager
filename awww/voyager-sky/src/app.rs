@@ -19,7 +19,6 @@
 
 use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle};
@@ -56,8 +55,9 @@ use wayland_client::{
 use wayland_protocols::wp::viewporter::client::{wp_viewport::WpViewport, wp_viewporter::WpViewporter};
 
 use crate::data::SkyData;
+use crate::{hypr, instance, wallpaper};
 use crate::render::{Gpu, Renderer, Target};
-use crate::scene::{Geom, Scene};
+use crate::scene::{Chip, Geom, Scene};
 
 const BTN_LEFT: u32 = 0x110;
 
@@ -66,59 +66,11 @@ const LONG_PRESS: Duration = Duration::from_millis(400);
 /// Moving further than this while holding cancels it: that was a drag, not a long-press.
 const PRESS_SLOP_PX: f64 = 6.0;
 
-static STOP: AtomicBool = AtomicBool::new(false);
-
-extern "C" fn on_signal(_: libc::c_int) {
-    STOP.store(true, Ordering::SeqCst);
-}
-
-// --- one instance at a time -------------------------------------------------------------
-
-/// `run` and `listen` each keep a pidfile, so neither starts twice.
-const RUN_PIDFILE: &str = "voyager-sky.pid";
-const LISTEN_PIDFILE: &str = "voyager-sky-listen.pid";
-
-fn pidfile(name: &str) -> PathBuf {
-    let dir = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    dir.join(name)
-}
-
-/// The pid in `name`, if that process is a live voyager-sky other than this one.
-fn running(name: &str) -> Option<i32> {
-    let pid: i32 = std::fs::read_to_string(pidfile(name)).ok()?.trim().parse().ok()?;
-    let comm = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()?;
-    (comm.trim() == "voyager-sky" && pid != std::process::id() as i32).then_some(pid)
-}
-
-/// Writes our pid to `name`; the file is removed again when this is dropped.
-struct PidFile(PathBuf);
-
-impl PidFile {
-    fn claim(name: &str) -> Result<Self, String> {
-        let path = pidfile(name);
-        std::fs::write(&path, std::process::id().to_string()).map_err(|e| format!("{}: {e}", path.display()))?;
-        Ok(PidFile(path))
-    }
-}
-
-impl Drop for PidFile {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_file(&self.0);
-    }
-}
-
-fn catch_stop_signals() {
-    unsafe {
-        libc::signal(libc::SIGTERM, on_signal as usize);
-        libc::signal(libc::SIGINT, on_signal as usize);
-    }
-}
-
 // --- entry points ------------------------------------------------------------------------
 
+/// Start drag mode, or end the running one (which makes its view the wallpaper).
 pub fn toggle(data: &Path) -> Result<(), String> {
-    if let Some(pid) = running(RUN_PIDFILE) {
-        unsafe { libc::kill(pid, libc::SIGTERM) };
+    if instance::stop(instance::RUN) {
         return Ok(());
     }
     run(data)
@@ -126,16 +78,16 @@ pub fn toggle(data: &Path) -> Result<(), String> {
 
 /// Drag mode now, on the monitor under the cursor; returns when it ends.
 pub fn run(data: &Path) -> Result<(), String> {
-    if let Some(pid) = running(RUN_PIDFILE) {
+    if let Some(pid) = instance::running(instance::RUN) {
         return Err(format!("drag mode is already on (pid {pid}); end it with: voyager-sky toggle"));
     }
-    let _pid = PidFile::claim(RUN_PIDFILE)?;
-    catch_stop_signals();
+    let _pid = instance::PidFile::claim(instance::RUN)?;
+    instance::catch_stop_signals();
 
     let (mut app, mut event_loop) = App::connect(data, false)?;
-    let home = cursor_pos().and_then(|p| app.output_at(p));
+    let home = hypr::cursor_pos().and_then(|p| app.output_at(p));
     app.open_drag(home, None)?;
-    while app.drag.as_ref().is_some_and(|d| !d.scene.exit) && !STOP.load(Ordering::SeqCst) {
+    while app.drag.as_ref().is_some_and(|d| !d.scene.exit) && !instance::stopping() {
         app.step(&mut event_loop)?;
     }
     app.close_drag()
@@ -143,11 +95,11 @@ pub fn run(data: &Path) -> Result<(), String> {
 
 /// Wait for a long-press on empty desktop, open drag mode, repeat; until SIGTERM/SIGINT.
 pub fn listen(data: &Path) -> Result<(), String> {
-    if let Some(pid) = running(LISTEN_PIDFILE) {
+    if let Some(pid) = instance::running(instance::LISTEN) {
         return Err(format!("already listening (pid {pid})"));
     }
-    let _pid = PidFile::claim(LISTEN_PIDFILE)?;
-    catch_stop_signals();
+    let _pid = instance::PidFile::claim(instance::LISTEN)?;
+    instance::catch_stop_signals();
 
     let (mut app, mut event_loop) = App::connect(data, true)?;
     if app.viewporter.is_none() {
@@ -156,37 +108,10 @@ pub fn listen(data: &Path) -> Result<(), String> {
     for output in app.outputs.outputs().collect::<Vec<_>>() {
         app.add_listener(output);
     }
-    while !STOP.load(Ordering::SeqCst) {
+    while !instance::stopping() {
         app.step(&mut event_loop)?;
     }
-    if app.drag.is_some() {
-        app.close_drag()?;
-    }
-    Ok(())
-}
-
-// --- Hyprland queries ------------------------------------------------------------------
-
-fn hyprctl(args: &[&str]) -> Option<serde_json::Value> {
-    let out = std::process::Command::new("hyprctl").args(args).output().ok()?;
-    serde_json::from_slice(&out.stdout).ok()
-}
-
-fn cursor_pos() -> Option<(f64, f64)> {
-    let v = hyprctl(&["-j", "cursorpos"])?;
-    Some((v["x"].as_f64()?, v["y"].as_f64()?))
-}
-
-/// The biggest connected monitor, in pixels, rotation included.
-pub fn largest_output() -> Option<(u32, u32)> {
-    let mons = hyprctl(&["-j", "monitors"])?;
-    mons.as_array()?
-        .iter()
-        .filter_map(|m| {
-            let (w, h) = (m["width"].as_u64()? as u32, m["height"].as_u64()? as u32);
-            Some(if m["transform"].as_u64().unwrap_or(0) % 2 == 1 { (h, w) } else { (w, h) })
-        })
-        .max_by_key(|&(w, h)| w as u64 * h as u64)
+    app.close_drag()
 }
 
 // --- state -----------------------------------------------------------------------------
@@ -360,7 +285,7 @@ impl App {
         };
         if let Err(e) = event_loop.dispatch(Some(wait), self) {
             // a stop signal can interrupt the wait; that is not an error
-            if !STOP.load(Ordering::SeqCst) {
+            if !instance::stopping() {
                 return Err(e.to_string());
             }
         }
@@ -485,7 +410,7 @@ impl App {
         let gpu = Gpu::new()?;
         // Vulkan on Wayland offers B8G8R8A8_UNORM; checked against each surface below
         let format = wgpu::TextureFormat::Bgra8Unorm;
-        let view = crate::load_view(&sky);
+        let view = wallpaper::load_view(&sky);
         let scene = Scene::new(Renderer::new(&gpu, format, &sky), sky, view);
         let mut d = Drag { screens: Vec::new(), scene, format, present_mode: wgpu::PresentMode::Fifo, gpu };
 
@@ -560,7 +485,7 @@ impl App {
         let Some(d) = self.drag.take() else { return Ok(()) };
         let v = d.scene.view;
         let size = d.screens.iter().map(|s| s.geom.pixels()).max_by_key(|&(w, h)| w as u64 * h as u64).unwrap_or((1920, 1080));
-        let result = crate::write_wallpapers(&d.scene.renderer, &v, size, true);
+        let result = wallpaper::write(&d.scene.renderer, &v, size, true);
         std::thread::sleep(Duration::from_millis(250)); // let awww put it up underneath
         drop(d);
         if self.listening {
@@ -735,8 +660,8 @@ impl KeyboardHandler for App {
     fn press_key(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: u32, ev: KeyEvent) {
         let Some(d) = &mut self.drag else { return };
         match ev.keysym {
-            Keysym::c | Keysym::C => d.scene.press_chip(0),
-            Keysym::l | Keysym::L => d.scene.press_chip(1),
+            Keysym::c | Keysym::C => d.scene.press_chip(Chip::Lines),
+            Keysym::l | Keysym::L => d.scene.press_chip(Chip::Lang),
             Keysym::Escape => d.scene.exit = true,
             _ => return,
         }

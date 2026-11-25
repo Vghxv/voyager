@@ -2,18 +2,19 @@
 //! lines and names, the chips and the probe, and how they fade. app.rs feeds it input;
 //! `export --overlay` uses it headless for previews.
 
+use std::path::Path;
 use std::time::Instant;
 
 use glyphon::{Attrs, Buffer, Color, Family, Metrics, Shaping, TextArea, TextBounds};
 
 use crate::data::SkyData;
-use crate::render::{Frame, Rect, Renderer, TextCtx};
+use crate::render::{Frame, Rect, Renderer, Target, TextCtx};
 use crate::view::{pin, Proj, View, V3};
 
 /// A constellation this close to the cursor (logical pixels) lights up.
 const HOVER_PX: f64 = 120.0;
 /// The probe appears when the cursor is this close to Voyager.
-const PROBE_PX: f64 = 150.0;
+const PROBE_HOVER_PX: f64 = 150.0;
 /// Label and chip text size, logical pixels.
 const LABEL_PX: f32 = 14.0;
 const CHIP_PX: f32 = 13.0;
@@ -51,7 +52,22 @@ struct Label {
     en_size: (f32, f32),
 }
 
-struct Chip {
+/// The chips in the bottom-right corner, left to right; each has a key too.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Chip {
+    /// C: constellation lines and names on/off
+    Lines,
+    /// L: names in Chinese or English
+    Lang,
+    /// Esc: end drag mode, making the view the wallpaper
+    Done,
+}
+
+impl Chip {
+    const ALL: [Chip; 3] = [Chip::Lines, Chip::Lang, Chip::Done];
+}
+
+struct ChipText {
     text: Buffer,
     size: (f32, f32),
 }
@@ -85,7 +101,8 @@ pub struct Scene {
     hovered: Option<usize>,
 
     labels: Vec<Label>,
-    chips: Vec<Chip>,
+    /// in Chip::ALL order
+    chips: Vec<ChipText>,
     /// per constellation: how lit its lines and name are (0 hidden, 0.5 shown, 1 hovered)
     glow: Vec<f32>,
     probe: f32,
@@ -185,7 +202,7 @@ impl Scene {
             .iter()
             .position(|&(x, y, w, h)| local.0 >= x && local.0 <= x + w && local.1 >= y && local.1 <= y + h);
         match hit {
-            Some(i) => self.press_chip(i),
+            Some(i) => self.press_chip(Chip::ALL[i]),
             None => self.grab = Some(self.proj().unproject(p)),
         }
     }
@@ -202,23 +219,37 @@ impl Scene {
         self.view = pin(v.clamped(), self.center, before, p);
     }
 
-    pub fn press_chip(&mut self, i: usize) {
-        match i {
-            0 => self.lines_on = !self.lines_on,
-            1 => self.zh = !self.zh,
-            _ => self.exit = true,
+    pub fn press_chip(&mut self, chip: Chip) {
+        match chip {
+            Chip::Lines => self.lines_on = !self.lines_on,
+            Chip::Lang => self.zh = !self.zh,
+            Chip::Done => self.exit = true,
         }
         self.set_chip_text();
     }
 
+    /// Drawn brighter: lines while they are on, and the language chip always.
+    fn chip_lit(&self, chip: Chip) -> bool {
+        match chip {
+            Chip::Lines => self.lines_on,
+            Chip::Lang => true,
+            Chip::Done => false,
+        }
+    }
+
     fn set_chip_text(&mut self) {
-        let lines = if self.lines_on { "C  ✦ lines" } else { "C  ✧ lines" };
-        let lang = if self.zh { "L  中文" } else { "L  English" };
-        self.chips = [lines, lang, "Esc  set as wallpaper"]
+        self.chips = Chip::ALL
             .iter()
-            .map(|s| {
+            .map(|chip| {
+                let s = match chip {
+                    Chip::Lines if self.lines_on => "C  ✦ lines",
+                    Chip::Lines => "C  ✧ lines",
+                    Chip::Lang if self.zh => "L  中文",
+                    Chip::Lang => "L  English",
+                    Chip::Done => "Esc  set as wallpaper",
+                };
                 let (text, size) = make_text(&mut self.text, s, CHIP_PX);
-                Chip { text, size }
+                ChipText { text, size }
             })
             .collect();
     }
@@ -228,7 +259,7 @@ impl Scene {
     fn probe_target(&self) -> f32 {
         let Some(c) = self.cursor else { return 0.0 };
         let (x, y, z) = self.proj().project(self.sky.voyager);
-        if z > -0.9 && (x - c.0).hypot(y - c.1) < PROBE_PX {
+        if z > -0.9 && (x - c.0).hypot(y - c.1) < PROBE_HOVER_PX {
             1.0
         } else {
             0.0
@@ -308,7 +339,7 @@ impl Scene {
 
     // --- drawing ---------------------------------------------------------------------
 
-    /// The chips' rectangles on a monitor of `size`, logical px: lines, language, done.
+    /// The chips' rectangles (x, y, w, h) on a monitor of `size`, logical px, in Chip::ALL order.
     fn chip_rects(&self, size: (u32, u32)) -> Vec<(f32, f32, f32, f32)> {
         let (pad, h, gap, margin) = (12.0, 26.0, 8.0, 24.0);
         let y = size.1 as f32 - margin - h;
@@ -324,22 +355,27 @@ impl Scene {
     }
 
     /// Draw monitor `g`'s slice of the canvas into `view` (drag mode: with overlay).
-    pub fn draw(&mut self, g: &Geom, view: &wgpu::TextureView, target: &mut crate::render::Target) {
-        let (frame, rects) = self.frame(g);
-        self.renderer.set_rects(&rects);
+    pub fn draw(&mut self, g: &Geom, view: &wgpu::TextureView, target: &mut Target) {
+        let frame = self.prepare(g);
         let specs = self.text_specs(g);
         let areas = areas(&self.labels, &self.chips, self.zh, &specs, g);
         self.renderer.draw(target, view, &frame, Some(&mut self.text), areas);
     }
 
     /// Like draw, but into a PNG (`export --overlay`).
-    pub fn snapshot(&mut self, g: &Geom, path: &std::path::Path) -> Result<(), String> {
-        let (frame, rects) = self.frame(g);
-        self.renderer.set_rects(&rects);
+    pub fn snapshot(&mut self, g: &Geom, path: &Path) -> Result<(), String> {
+        let frame = self.prepare(g);
         let mut target = self.renderer.target(Some(&mut self.text));
         let specs = self.text_specs(g);
         let areas = areas(&self.labels, &self.chips, self.zh, &specs, g);
         self.renderer.export_with(&mut target, &frame, Some(&mut self.text), areas, path)
+    }
+
+    /// Monitor `g`'s frame, with the chip rectangles handed to the renderer.
+    fn prepare(&mut self, g: &Geom) -> Frame {
+        let (frame, rects) = self.frame(g);
+        self.renderer.set_rects(&rects);
+        frame
     }
 
     fn frame(&self, g: &Geom) -> (Frame, Vec<Rect>) {
@@ -357,15 +393,14 @@ impl Scene {
             overlay: true,
         };
         let pal = self.renderer.palette();
-        let on = [self.lines_on, true, false];
         let rects = self
             .chip_rects(g.size)
             .iter()
-            .zip(on)
-            .map(|(&(x, y, w, h), on)| Rect {
+            .zip(Chip::ALL)
+            .map(|(&(x, y, w, h), chip)| Rect {
                 rect: [x * sc as f32, y * sc as f32, w * sc as f32, h * sc as f32],
                 col: [pal.ink[0], pal.ink[1], pal.ink[2], 0.62],
-                border: [pal.indigo[0], pal.indigo[1], pal.indigo[2], if on { 0.85 } else { 0.35 }],
+                border: [pal.indigo[0], pal.indigo[1], pal.indigo[2], if self.chip_lit(chip) { 0.85 } else { 0.35 }],
             })
             .collect();
         (frame, rects)
@@ -396,14 +431,13 @@ impl Scene {
                 colour: if Some(c) == self.hovered { rgba([1.0, 1.0, 1.0], gl) } else { rgba(mist, gl * 0.8) },
             });
         }
-        let on = [self.lines_on, true, false];
         for (k, &(x, y, rw, rh)) in self.chip_rects(g.size).iter().enumerate() {
             let size = self.chips[k].size;
             out.push(Spec {
                 which: Which::Chip(k),
                 left: (x + (rw - size.0) / 2.0) * sc,
                 top: (y + (rh - size.1) / 2.0) * sc,
-                colour: rgba(mist, if on[k] { 0.95 } else { 0.6 }),
+                colour: rgba(mist, if self.chip_lit(Chip::ALL[k]) { 0.95 } else { 0.6 }),
             });
         }
         out
@@ -414,7 +448,7 @@ impl Scene {
     }
 }
 
-fn areas<'a>(labels: &'a [Label], chips: &'a [Chip], zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'a>> {
+fn areas<'a>(labels: &'a [Label], chips: &'a [ChipText], zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'a>> {
     let (w, h) = g.pixels();
     let bounds = TextBounds { left: 0, top: 0, right: w as i32, bottom: h as i32 };
     specs
