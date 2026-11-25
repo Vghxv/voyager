@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Install the lock screen: assets to ~/.config/hypr/voyager, config to hyprlock.conf.
+# Install the lock screen: the probe to ~/.config/hypr/voyager, config to hyprlock.conf.
+# Its background is the wallpaper's lock.png (awww/install.sh writes it).
 #
 #   ./hyprlock/install.sh            install (backs up your current hyprlock.conf)
 #   ./hyprlock/install.sh --restore  put that backup back
@@ -21,11 +22,17 @@ if [[ "$OPT" == --restore ]]; then restore_latest "$CONF"; exit; fi
 check_deps "$SRC/deps"
 
 mkdir -p "$HYPR_VOYAGER"
-rm -f "$HYPR_VOYAGER"/stars-*.png   # next-frame.sh loops over all of them: no leftovers from a longer run
-install -m 644 "$SRC"/stars-*.png "$SRC"/probe.png "$HYPR_VOYAGER"/
-warn_if_small "$SRC/stars-0.png" "src/gen-hyprlock.py --size auto"
-install -m 755 "$SRC"/next-frame.sh "$HYPR_VOYAGER"/
-echo "Copied assets to $HYPR_VOYAGER"
+rm -f "$HYPR_VOYAGER"/stars-*.png "$HYPR_VOYAGER"/next-frame.sh   # the old twinkle frames
+install -m 644 "$SRC"/probe.png "$HYPR_VOYAGER"/
+echo "Copied the probe to $HYPR_VOYAGER"
+# the background is the wallpaper's sky: lock.png, written by voyager-sky
+if [[ ! -s "$HYPR_VOYAGER/lock.png" ]]; then
+  if [[ -x "$HYPR_VOYAGER/voyager-sky" ]]; then
+    "$HYPR_VOYAGER/voyager-sky" apply
+  else
+    yellow "  ! No sky yet: the lock screen needs the wallpaper's lock.png. Install it:  ./awww/install.sh"
+  fi
+fi
 
 backup_file "$CONF" "$SRC/hyprlock.conf"
 install -m 644 "$SRC"/hyprlock.conf "$CONF"

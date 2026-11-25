@@ -9,21 +9,18 @@ SRC="$(dirname "$(readlink -f "$0")")"
 source "$SRC/../lib/common.sh"
 DEST="$HYPR_VOYAGER"
 FIX="./hyprlock/install.sh"
+CONF="$HOME/.config/hypr/hyprlock.conf"
 
-[[ -f "$DEST/next-frame.sh" ]] || not_installed "$FIX"
+[[ -f "$CONF" ]] && grep -q '^# voyager' "$CONF" || not_installed "$FIX"
 
 check_deps_report "$SRC/deps" "hyprlock"
-check_same "$SRC/hyprlock.conf" "$HOME/.config/hypr/hyprlock.conf" "$FIX   (or --restore for your own)"
-cd "$SRC" || exit 1
-check_files "frames and probe" "$FIX" "$SRC" "$DEST" stars-*.png probe.png next-frame.sh
-extra=()
-for f in "$DEST"/stars-*.png; do
-  [[ -e "$f" && ! -e "$SRC/${f##*/}" ]] && extra+=("${f##*/}")
-done
-(( ${#extra[@]} )) && fail "leftover frames in $DEST: ${extra[*]}" "$FIX"
+check_same "$SRC/hyprlock.conf" "$CONF" "$FIX   (or --restore for your own)"
+check_files "probe files" "$FIX" "$SRC" "$DEST" probe.png
 
-frame=$("$DEST/next-frame.sh")
-if [[ -f "$frame" ]]; then pass "next-frame.sh picks an existing frame"
-else fail "next-frame.sh points at missing $frame" "$FIX"; fi
+if [[ -s "$DEST/lock.png" ]]; then pass "lock.png (the wallpaper's sky) is there"
+else fail "$DEST/lock.png is missing: the lock screen has no sky" "./awww/install.sh"; fi
+
+leftover=("$DEST"/stars-*.png "$DEST"/next-frame.sh)
+[[ -e "${leftover[0]}" || -e "${leftover[-1]}" ]] && fail "old twinkle frames left in $DEST" "$FIX"
 
 run_checks

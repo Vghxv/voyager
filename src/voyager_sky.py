@@ -1,7 +1,8 @@
-"""The voyager night sky: Ursa Major and Ursa Minor in a true-to-sky long exposure.
+"""The boot screen's night sky: Ursa Major and Ursa Minor in a true-to-sky long exposure.
 
-Shared by gen-wallpaper.py and gen-hyprlock.py, so the desktop and the lock screen
-show the same sky. Not a script.
+Used by gen-plymouth.py; build-sky-data.py borrows its star colours (bv_rgb) and
+background-star helpers for the wallpaper. (The wallpaper and lock screen are drawn
+by awww/voyager-sky, the draggable celestial sphere.) Not a script.
 
 The dipper stars are laid out as in a wide-field photo of the two (the Big Dipper's
 handle up on the left, its pointers aiming right at Polaris) and drawn by magnitude

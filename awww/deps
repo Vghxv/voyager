@@ -1,2 +1,4 @@
 # command[|alternative]  package  [required]   — read by install.sh and check.sh
 awww-daemon   awww       required
+cargo         rust       required
+hyprctl       hyprland   required

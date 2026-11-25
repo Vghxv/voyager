@@ -21,3 +21,6 @@ venv/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# voyager-sky build output
+/awww/voyager-sky/target/
