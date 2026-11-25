@@ -17,8 +17,8 @@ check_deps_report "$SRC/deps" "hyprlock"
 check_same "$SRC/hyprlock.conf" "$CONF" "$FIX   (or --restore for your own)"
 check_files "probe files" "$FIX" "$SRC" "$DEST" probe.png
 
-if [[ -s "$DEST/lock.png" ]]; then pass "lock.png (the wallpaper's sky) is there"
-else fail "$DEST/lock.png is missing: the lock screen has no sky" "./awww/install.sh"; fi
+if [[ -s "$DEST/lock.png" ]]; then pass "lock.png (the background) is there"
+else info "no $DEST/lock.png: the background is plain navy"; fi
 
 leftover=("$DEST"/stars-*.png "$DEST"/next-frame.sh)
 [[ -e "${leftover[0]}" || -e "${leftover[-1]}" ]] && fail "old twinkle frames left in $DEST" "$FIX"

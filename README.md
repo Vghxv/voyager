@@ -45,7 +45,9 @@ The mode is saved in `~/.config/voyager/theme`. Switching runs one small hook pe
 
 ## How the pieces fit
 
-The components share a look but do not depend on each other. Each folder holds its files, an `install.sh`, a `check.sh` (used by `doctor.sh`) and a `deps` file listing the commands it needs.
+The components share a look and work on their own, with one link: the lock screen shows the wallpaper's sky. Each time voyager-sky sets the wallpaper (install, `voyager-sky apply`, leaving drag mode) it also writes `~/.config/hypr/voyager/lock.png`, the same view without the small probe, and hyprlock uses that as its background. Without the wallpaper, the lock screen is plain navy.
+
+Each folder holds its files, an `install.sh`, a `check.sh` (used by `doctor.sh`) and a `deps` file listing the commands it needs.
 
 ```
 plymouth/    boot unlock screen     (preview.sh tries it without rebooting)
