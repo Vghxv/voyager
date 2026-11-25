@@ -95,7 +95,7 @@ Tunables at the top of `voyager/voyager.script`:
 
 | Variable | Default | Effect |
 |---|---|---|
-| `NUM_STARS` | `50` | number of warp stars (seen only while moving) |
+| `NUM_STARS` | `100` | number of warp stars (seen only while moving) |
 | `KEY_BOOST` | `1.4` | warp burst per typed character |
 | `BACK_PULL` | `1.0` | pull back per Backspace |
 | `WARP_MAX` | `6` | warp speed after Enter |

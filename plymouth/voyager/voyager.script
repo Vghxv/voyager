@@ -5,7 +5,7 @@
 # =====================================================================
 
 # ---------------- tunables ----------------
-NUM_STARS   = 50;     # warp stars (only seen while moving)
+NUM_STARS   = 100;    # warp stars (only seen while moving)
 KEY_BOOST   = 1.4;    # warp burst per typed character
 BACK_PULL   = 1.0;    # reverse pull per backspace
 WARP_MAX    = 6;      # warp speed after Enter
@@ -87,13 +87,23 @@ hint_target = 1;
 star_src   = Image("star.png");
 streak_src = Image("streak.png");
 
+# The streak's bright head points the way the star moves: outward while warping
+# forward (mode 1), inward while backing off (mode -1). mode 0 is a dot.
+fun streak_for(i, mode) {
+  if (mode > 0) {
+    return global.star[i].streak_out;
+  }
+  return global.star[i].streak_in;
+}
+
 fun aim_star(i) {
   ang = Math.ATan2(global.star[i].y - global.cy, global.star[i].x - global.cx);
-  global.star[i].streak = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang);
-  global.star[i].sw2 = global.star[i].streak.GetWidth() / 2;
-  global.star[i].sh2 = global.star[i].streak.GetHeight() / 2;
-  if (global.star[i].mode == 1) {
-    global.star[i].sprite.SetImage(global.star[i].streak);
+  global.star[i].streak_out = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang);
+  global.star[i].streak_in = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang + 3.14159);
+  global.star[i].sw2 = global.star[i].streak_out.GetWidth() / 2;
+  global.star[i].sh2 = global.star[i].streak_out.GetHeight() / 2;
+  if (global.star[i].mode != 0) {
+    global.star[i].sprite.SetImage(streak_for(i, global.star[i].mode));
   }
 }
 
@@ -201,9 +211,12 @@ fun refresh_callback() {
 
   # Polaris breathes, one breath every 4 s (as on the wallpaper)
   global.polaris_sprite.SetOpacity(0.775 + 0.225 * Math.Cos(6.2832 * global.t / 4));
-  fast = 0;
-  if (Math.Abs(global.speed) > global.STREAK_AT) {
+  fast = 0;                           # 1 streaks outward, -1 inward, 0 dots
+  if (global.speed > global.STREAK_AT) {
     fast = 1;
+  }
+  if (global.speed < -global.STREAK_AT) {
+    fast = -1;
   }
 
   # stars
@@ -227,8 +240,8 @@ fun refresh_callback() {
 
     if (fast != global.star[i].mode) {
       global.star[i].mode = fast;
-      if (fast) {
-        global.star[i].sprite.SetImage(global.star[i].streak);
+      if (fast != 0) {
+        global.star[i].sprite.SetImage(streak_for(i, fast));
       } else {
         global.star[i].sprite.SetImage(global.star[i].dot);
       }
@@ -236,7 +249,7 @@ fun refresh_callback() {
 
     global.star[i].sprite.SetOpacity(global.star[i].peak * seen * global.star[i].fade);
 
-    if (fast) {
+    if (fast != 0) {
       global.star[i].sprite.SetPosition(x - global.star[i].sw2, y - global.star[i].sh2, 0);
     } else {
       global.star[i].sprite.SetPosition(x - global.star[i].half, y - global.star[i].half, 0);
