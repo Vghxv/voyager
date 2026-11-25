@@ -11,6 +11,10 @@
     )
   )
 
+; fixed-width bar cell, so values changing length do not shift their neighbours
+(defwidget cell [width]
+  (box :width width (children)))
+
 (defwidget inp [class filename text ?tooltip]
   (box
     :space-evenly false

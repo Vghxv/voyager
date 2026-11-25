@@ -2,7 +2,8 @@
 # Webcam on/off by binding/unbinding its USB device.
 #
 #   webcam.sh status   prints On / Off (the bar polls this)
-#   webcam.sh toggle   bind <-> unbind
+#   webcam.sh toggle   bind <-> unbind, then show the new state in the bar right away
+#                      (the poll only runs every few seconds)
 #
 # The webcam's USB port is detected: the first USB device with a video interface
 # (class 0e) or "cam" in its product name. The name check finds it while it is
@@ -26,14 +27,16 @@ find_webcam() {
 
 DEVICE_ID="${CAM_USB:-$(find_webcam)}"
 
+status() { if [[ -n "$DEVICE_ID" && -e "$DRIVER/$DEVICE_ID" ]]; then echo On; else echo Off; fi; }
+
 case "${1:-status}" in
-  status)
-    [[ -n "$DEVICE_ID" && -e "$DRIVER/$DEVICE_ID" ]] && echo On || echo Off ;;
+  status) status ;;
   toggle)
     [[ -n "$DEVICE_ID" ]] || { echo "webcam.sh: no webcam found (set CAM_USB)" >&2; exit 1; }
     if [[ -e "$DRIVER/$DEVICE_ID" ]]; then op=unbind; else op=bind; fi
     echo "$DEVICE_ID" | sudo -n /usr/bin/tee "$DRIVER/$op" >/dev/null ||
-      { echo "webcam.sh: sudo refused — add the sudoers rule from eww/eww.md#webcam" >&2; exit 1; } ;;
+      { echo "webcam.sh: sudo refused — add the sudoers rule from eww/eww.md#webcam" >&2; exit 1; }
+    "${EWW:-eww}" update camera="$(status)" 2>/dev/null || true ;;
   *)
     echo "usage: $0 status|toggle" >&2; exit 1 ;;
 esac

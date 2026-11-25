@@ -19,38 +19,42 @@ $indigo: #8B8FF0;
 $teal:   #5EEAD4;
 $amber:  #F0C674;
 $red:    #FF3355;                        // hyprlock fail color
+$mist:   #D9D9F2;
+$navy:   #14141F;                        // wallpaper top
+$void:   #05050D;                        // wallpaper bottom
+$ink:    #0A0A14;                        // dark glass
 
 // ---------- modes ----------
 $modes: (
   light: (
-    fill:       rgba(217, 217, 242, 0.92),   // mist
+    fill:       rgba($mist, 0.92),
     fill-hover: rgba(236, 236, 252, 0.97),
-    text:       #14141F,                     // navy ink (= wallpaper top)
+    text:       $navy,
     dim:        #5A5A78,
-    frame:      rgba(139, 143, 240, 0.70),
+    frame:      rgba($indigo, 0.70),
     ok-fill:    rgba(178, 242, 231, 0.95),
     warn-fill:  rgba(248, 226, 180, 0.95),
     bad-fill:   rgba(255, 179, 192, 0.95),
-    ok-text:    #14141F,
-    warn-text:  #14141F,
-    bad-text:   #14141F,
-    trough:     rgba(20, 20, 31, 0.20),
-    on-accent:  #14141F,
+    ok-text:    $navy,
+    warn-text:  $navy,
+    bad-text:   $navy,
+    trough:     rgba($navy, 0.20),
+    on-accent:  $navy,
   ),
   dark: (
-    fill:       rgba(10, 10, 20, 0.82),      // navy glass
+    fill:       rgba($ink, 0.82),
     fill-hover: rgba(24, 24, 44, 0.90),
-    text:       #D9D9F2,                     // mist
+    text:       $mist,
     dim:        #7A7AA0,
-    frame:      rgba(139, 143, 240, 0.45),
-    ok-fill:    rgba(94, 234, 212, 0.14),
-    warn-fill:  rgba(240, 198, 116, 0.14),
-    bad-fill:   rgba(255, 51, 85, 0.18),
-    ok-text:    #5EEAD4,
-    warn-text:  #F0C674,
+    frame:      rgba($indigo, 0.45),
+    ok-fill:    rgba($teal, 0.14),
+    warn-fill:  rgba($amber, 0.14),
+    bad-fill:   rgba($red, 0.18),
+    ok-text:    $teal,
+    warn-text:  $amber,
     bad-text:   #FF6680,
-    trough:     rgba(217, 217, 242, 0.15),
-    on-accent:  #05050D,
+    trough:     rgba($mist, 0.15),
+    on-accent:  $void,
   ),
 );
 
@@ -70,10 +74,10 @@ $global-padding: 0px 10px 0px 10px;
 // tooltips are separate GTK windows, outside the themed box: one fixed (dark) style
 tooltip {
   border-radius: 0;
-  border: 1px solid rgba(139, 143, 240, 0.60);
+  border: 1px solid rgba($indigo, 0.60);
   border-bottom: 2px solid $teal;
-  background-color: rgba(10, 10, 20, 0.92);
-  color: #D9D9F2;
+  background-color: rgba($ink, 0.92);
+  color: $mist;
   padding: 4px 8px;
 }
 
@@ -91,7 +95,7 @@ tooltip {
 @mixin hover($p) {
   background-color: map-get($p, fill-hover);
   border-color: $teal;
-  box-shadow: 0 0 6px rgba(94, 234, 212, 0.45);
+  box-shadow: 0 0 6px rgba($teal, 0.45);
 }
 // states: tinted fill + colored bottom edge
 @mixin ok($p)   { background-color: map-get($p, ok-fill);   color: map-get($p, ok-text);   border-bottom-color: $teal; }
@@ -136,7 +140,7 @@ tooltip {
   .wifi-connected    { @include cell($p); @include ok($p);  padding: $global-padding; }
   .wifi-disconnected { @include cell($p); @include bad($p); padding: $global-padding; }
 
-  // volume slider inside .sound: flat, square
+  // volume sliders (bar and popup): flat, square
   scale {
     trough {
       min-height: 4px;

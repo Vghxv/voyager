@@ -7,24 +7,36 @@
 #
 # Needs: pactl (libpulse). Errors go to `eww logs`.
 
-kind="$1"
+source "$(dirname "$0")/lib.sh"
+export LC_ALL=C   # pactl's messages are translated; parse the English ones
+
+kind="${1:-}"
 [[ "$kind" == sink || "$kind" == source ]] || { echo "usage: $0 sink|source" >&2; exit 1; }
-command -v pactl >/dev/null || { echo "audio.sh: pactl missing — sudo pacman -S libpulse" >&2; exec sleep infinity; }
+need pactl
 dev="@DEFAULT_${kind^^}@"
 
+# Muted, or the average of all channels (an unbalanced device shows its middle).
 get_volume() {
-  if [[ "$(pactl "get-$kind-mute" "$dev")" == *yes* ]]; then
+  if [[ "$(pactl "get-$kind-mute" "$dev" 2>/dev/null)" == *yes* ]]; then
     echo Muted
   else
-    pactl "get-$kind-volume" "$dev" | grep -oP '\d+(?=%)' | head -1
+    pactl "get-$kind-volume" "$dev" 2>/dev/null | head -1 \
+      | grep -o '[0-9]*%' | awk '{ s += $1; n++ } END { if (n) printf "%d\n", s / n + 0.5 }'
   fi
 }
 
+# Every event, plus a made-up "on server" line at start and whenever pactl
+# subscribe ends (the sound server restarted): then the volume is read again.
+events() {
+  while :; do
+    echo "Event 'change' on server #0"
+    pactl subscribe
+    sleep 1
+  done
+}
+
 # "on server" = the default device changed (e.g. headphones connected): follow it.
-# Print only when the value changes, server events also come for unrelated reasons.
-last=$(get_volume); echo "$last"
-pactl subscribe | while read -r line; do
+events | while read -r line; do
   [[ "$line" == *" $kind "* || "$line" == *" on server "* ]] || continue
-  now=$(get_volume)
-  [[ "$now" == "$last" ]] || { last=$now; echo "$now"; }
-done
+  get_volume
+done | print_on_change
