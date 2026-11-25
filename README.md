@@ -12,7 +12,7 @@ A deep-space theme for an Arch + Hyprland desktop: a probe drifting through a st
 | [eww](eww/eww.md) | Top bar on every monitor: workspaces, clock, wifi, volume, brightness, webcam, battery, tray | `./eww/install.sh` | — (one-way copy) |
 | [dunst](dunst/dunst.md) | Notifications styled like the bar | `./dunst/install.sh` | `--restore` |
 
-Each component installs on its own; pick the ones you want. Installers that replace a config file back it up first, and `--restore` puts it back. Plymouth needs some boot setup first: read its [prerequisites](plymouth/plymouth.md#prerequisites).
+Each component installs on its own; pick the ones you want. Installers that replace a config file back it up first, and `--restore` puts it back (for the wallpaper: stops awww and puts back your own `awww.service`, if you had one). Plymouth needs some boot setup first: read its [prerequisites](plymouth/plymouth.md#prerequisites).
 
 ## When something breaks
 

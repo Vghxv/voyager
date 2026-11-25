@@ -11,28 +11,38 @@
 
 set -euo pipefail
 
+SRC="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=../lib/common.sh
+source "$SRC/../lib/common.sh"
+
+parse_option -- "$@"
+
 TTY_DEV="$(tty)"
 case "$TTY_DEV" in
   /dev/tty[0-9]*) ;;
-  *) echo "Run this from a text console (Ctrl+Alt+F3), not from $TTY_DEV."; exit 1 ;;
+  *) red "Run this from a text console (Ctrl+Alt+F3), not from $TTY_DEV."; exit 1 ;;
 esac
 
-[[ -d /usr/share/plymouth/themes/voyager ]] || { echo "Theme not installed — run: sudo ./plymouth/install.sh"; exit 1; }
+[[ -d "$PLYMOUTH_THEME_DIR" ]] || { red "Theme not installed — run: sudo ./plymouth/install.sh"; exit 1; }
 
 PREV_THEME="$(plymouth-set-default-theme)"
 if [[ "$PREV_THEME" != voyager ]]; then
   echo "Temporarily switching default theme ($PREV_THEME -> voyager, no initramfs rebuild)…"
   sudo plymouth-set-default-theme voyager
   restore() {
-    sudo plymouth-set-default-theme "$PREV_THEME" && echo "Restored default theme: $PREV_THEME"
+    sudo plymouth-set-default-theme "$PREV_THEME" && green "Restored default theme: $PREV_THEME"
   }
   trap restore EXIT
 fi
 
-# --tty is required: plymouthd reads the keyboard from tty1 by default
-sudo sh -c "plymouthd --debug --debug-file=/tmp/plymouth.log --tty=$TTY_DEV \
-  && plymouth show-splash && sleep 3 \
-  && plymouth ask-for-password --prompt=one; sleep 3; \
-  plymouth ask-for-password --prompt=two; sleep 4; plymouth quit"
+LOG="$(mktemp --tmpdir voyager-plymouth.XXXXXX.log)"
+# --tty is required: plymouthd reads the keyboard from tty1 by default.
+# Each step runs only if plymouthd came up; quit always runs.
+sudo sh -c "plymouthd --debug --debug-file='$LOG' --tty='$TTY_DEV' || exit 1
+  plymouth show-splash && sleep 3 \
+    && plymouth ask-for-password --prompt=one; sleep 3
+  plymouth ask-for-password --prompt=two; sleep 4
+  plymouth quit"
+sudo chown "$(id -u):$(id -g)" "$LOG" 2>/dev/null || true
 
-echo "Debug log: /tmp/plymouth.log"
+echo "Debug log: $LOG"
