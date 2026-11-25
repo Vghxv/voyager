@@ -24,9 +24,13 @@ Needs: rsvg-convert (librsvg), magick (ImageMagick).
 """
 
 import math
+import os
 import random
 import re
 import subprocess
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 from voyager_art import LOGO, BG_TOP, BG_BOTTOM, render
@@ -516,6 +520,18 @@ PNG_NO_DATES = ("-define", "png:exclude-chunks=date,time")
 
 
 # --- frames ----------------------------------------------------------------------
+
+@contextmanager
+def workspace():
+    """(tmp, pool): a scratch folder and a thread pool for the renderers."""
+    with tempfile.TemporaryDirectory() as tmp, ThreadPoolExecutor(os.cpu_count() or 4) as pool:
+        yield tmp, pool
+
+
+def flatten(base, layer, out):
+    """A final PNG: layer over base, without date chunks."""
+    magick(base, layer, "-composite", *PNG_NO_DATES, out)
+
 
 def render_base(scene, seed, out, tmp, pool, with_probe=True):
     """The raster sky with every still element on it: the image all frames share."""

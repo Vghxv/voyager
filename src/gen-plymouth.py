@@ -21,17 +21,14 @@ Needs: python3, rsvg-convert (librsvg), magick (ImageMagick).
 
 
 import argparse
-import os
 import re
 import sys
-import tempfile
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.dont_write_bytecode = True          # no src/__pycache__
-from voyager_art import ROOT, parse_size, render, rsvg  # noqa: E402
-from voyager_sky import (Scene, magick, render_base, PNG_NO_DATES,  # noqa: E402
-                         BLUE_SHIFT, RED_SHIFT)
+from voyager_art import ROOT, parse_size, render, rsvg, sky_args  # noqa: E402
+from voyager_sky import (Scene, flatten, magick, render_base, workspace,  # noqa: E402
+                         PNG_NO_DATES, BLUE_SHIFT, RED_SHIFT)
 
 ASSETS = ("logo", "ring", "star", "streak", "flash")
 SCRIPT = ROOT / "plymouth" / "voyager" / "voyager.script"
@@ -41,7 +38,7 @@ def render_sky(w, h, seed, out):
     """Write the sky layers into out; return Polaris's place as fractions of w, h."""
     scene = Scene(w, h, seed)
     px, py, pw, ph = scene.polaris_box()
-    with tempfile.TemporaryDirectory() as tmp, ThreadPoolExecutor(os.cpu_count() or 4) as pool:
+    with workspace() as (tmp, pool):
         base, rest, star = f"{tmp}/base.png", f"{tmp}/rest.png", f"{tmp}/polaris.png"
         jobs = [pool.submit(render, svg, w, h, png) for svg, png in (
             (scene.twinkle_layer(with_polaris=False), rest),
@@ -51,7 +48,7 @@ def render_sky(w, h, seed, out):
         render_base(scene, seed, base, tmp, pool, with_probe=False)
         for job in jobs:
             job.result()
-        magick(base, rest, "-composite", *PNG_NO_DATES, out / "sky.png")
+        flatten(base, rest, out / "sky.png")
         magick(star, "-crop", f"{pw}x{ph}+{px}+{py}", "+repage", *PNG_NO_DATES, out / "polaris.png")
     return px / w, py / h
 
@@ -70,9 +67,7 @@ def write_polaris(fx, fy):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--size", default="1920x1080",
-                    help="WxH, or 'auto' for the largest connected monitor (default 1920x1080)")
-    ap.add_argument("--seed", type=int, default=1977, help="faint stars and dust texture seed (default 1977)")
+    sky_args(ap)
     ap.add_argument("--out-dir", default=str(ROOT / "plymouth" / "voyager"),
                     help="output folder (default plymouth/voyager/)")
     a = ap.parse_args()

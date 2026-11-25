@@ -35,16 +35,13 @@ the WebP when installed (about 4x smaller and much faster); ImageMagick otherwis
 """
 
 import argparse
-import os
 import subprocess
 import sys
-import tempfile
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.dont_write_bytecode = True          # no src/__pycache__
-from voyager_art import ROOT, parse_size  # noqa: E402
-from voyager_sky import Scene, magick, render_base, render_twinkles, PNG_NO_DATES  # noqa: E402
+from voyager_art import ROOT, parse_size, sky_args  # noqa: E402
+from voyager_sky import Scene, flatten, magick, render_base, render_twinkles, workspace  # noqa: E402
 
 
 # --- output ------------------------------------------------------------------------
@@ -75,9 +72,7 @@ def encode_webp(base, layers, pattern, fps, out):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--size", default="1920x1080",
-                    help="WxH, or 'auto' for the largest connected monitor (default 1920x1080)")
-    ap.add_argument("--seed", type=int, default=1977, help="faint stars and dust texture seed (default 1977)")
+    sky_args(ap)
     ap.add_argument("--out", default=str(ROOT / "awww" / "wallpaper.png"), help="static PNG (--static)")
     ap.add_argument("--anim", default=str(ROOT / "awww" / "wallpaper.webp"), help="animated WebP")
     ap.add_argument("--frames", type=int, default=48, help="animation frames (default 48, 0 = no animation)")
@@ -90,11 +85,11 @@ def main():
     if a.svg:
         Path(a.svg).write_text(scene.still_layer())
 
-    with tempfile.TemporaryDirectory() as tmp, ThreadPoolExecutor(os.cpu_count() or 4) as pool:
+    with workspace() as (tmp, pool):
         base, rest = f"{tmp}/base.png", f"{tmp}/rest.png"
         render_base(scene, a.seed, base, tmp, pool)
         render_twinkles(scene, 1, [rest], pool)
-        magick(base, rest, "-composite", *PNG_NO_DATES, a.out)
+        flatten(base, rest, a.out)
         print(f"wrote {a.out}")
 
         if a.frames > 0:

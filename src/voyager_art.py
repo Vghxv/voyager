@@ -1,7 +1,7 @@
 """Shared building blocks for the voyager image generators.
 
 Imported by the generators and by voyager_sky.py: paths, the palette, the probe's
-dish position, rendering and --size parsing. Not a script.
+dish position, rendering and the --size / --seed options. Not a script.
 """
 
 import subprocess
@@ -33,6 +33,13 @@ def rsvg(svg_path, w, h, out):
                        check=True)
     except FileNotFoundError:
         raise SystemExit("rsvg-convert not found. Install it: sudo pacman -S librsvg")
+
+
+def sky_args(ap):
+    """Add the --size and --seed options every sky generator takes."""
+    ap.add_argument("--size", default="1920x1080",
+                    help="WxH, or 'auto' for the largest connected monitor (default 1920x1080)")
+    ap.add_argument("--seed", type=int, default=1977, help="faint stars and dust texture seed (default 1977)")
 
 
 def parse_size(size):

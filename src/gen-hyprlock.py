@@ -17,22 +17,17 @@ Needs: python3, rsvg-convert (librsvg), magick (ImageMagick).
 """
 
 import argparse
-import os
 import sys
-import tempfile
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.dont_write_bytecode = True          # no src/__pycache__
-from voyager_art import ROOT, LOGO, parse_size, rsvg  # noqa: E402
-from voyager_sky import Scene, magick, render_base, render_twinkles, PNG_NO_DATES  # noqa: E402
+from voyager_art import ROOT, LOGO, parse_size, rsvg, sky_args  # noqa: E402
+from voyager_sky import Scene, flatten, render_base, render_twinkles, workspace  # noqa: E402
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--size", default="1920x1080",
-                    help="WxH, or 'auto' for the largest connected monitor (default 1920x1080)")
-    ap.add_argument("--seed", type=int, default=1977, help="faint stars and dust texture seed (default 1977)")
+    sky_args(ap)
     ap.add_argument("--frames", type=int, default=6, help="frames, one per second (default 6)")
     ap.add_argument("--out-dir", default=str(ROOT / "hyprlock"), help="output folder (default hyprlock/)")
     a = ap.parse_args()
@@ -44,7 +39,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     scene = Scene(w, h, a.seed)
 
-    with tempfile.TemporaryDirectory() as tmp, ThreadPoolExecutor(os.cpu_count() or 4) as pool:
+    with workspace() as (tmp, pool):
         base = f"{tmp}/base.png"
         render_base(scene, a.seed, base, tmp, pool, with_probe=False)
         layers = [f"{tmp}/t{i}.png" for i in range(a.frames)]
@@ -55,8 +50,7 @@ def main():
         for old in out.glob("stars-*.png"):
             old.unlink()
         pngs = [out / f"stars-{i}.png" for i in range(a.frames)]
-        for job in [pool.submit(magick, base, layer, "-composite", *PNG_NO_DATES, png)
-                    for layer, png in zip(layers, pngs)]:
+        for job in [pool.submit(flatten, base, layer, png) for layer, png in zip(layers, pngs)]:
             job.result()
     for png in pngs:
         print(f"wrote {png}")
