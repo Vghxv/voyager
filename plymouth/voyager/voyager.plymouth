@@ -1,6 +1,6 @@
 [Plymouth Theme]
 Name=voyager
-Description=Animated LUKS unlock screen: twinkling stars, warp and signal pulses on typing
+Description=Animated LUKS unlock screen: the voyager sky, warp, Doppler shift and signal pulses on typing
 ModuleName=script
 
 [script]
