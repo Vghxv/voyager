@@ -3,7 +3,7 @@
 //!   voyager-sky listen      stay running; hold the left button on empty desktop to start drag mode
 //!   voyager-sky toggle      start drag mode, or end it (and make the view the wallpaper)
 //!   voyager-sky run         start drag mode in the foreground
-//!   voyager-sky export [--view RA,DEC[,FOV]] [--size WxH] [--out FILE] [--no-probe]
+//!   voyager-sky export [--view RA,DEC[,FOV[,ROLL]]] [--size WxH] [--out FILE] [--no-probe]
 //!   voyager-sky export --overlay [--cursor X,Y] [--english]   a drag-mode screenshot
 //!   voyager-sky apply       render wallpaper.png + lock.png from the saved view, show them
 //!
@@ -116,7 +116,7 @@ fn args() -> Result<Args, String> {
 }
 
 fn usage() -> &'static str {
-    "usage: voyager-sky listen | toggle | run | apply | export [--view RA,DEC[,FOV]] [--size WxH] [--out FILE] [--no-probe]\n\
+    "usage: voyager-sky listen | toggle | run | apply | export [--view RA,DEC[,FOV[,ROLL]]] [--size WxH] [--out FILE] [--no-probe]\n\
      \x20      export --overlay [--cursor X,Y] [--english]   preview drag mode: lines and names on\n\
      \x20      [--data DIR]   sky data folder (default: sky/ next to the binary)\n\
      listen: hold the left button on empty desktop to start drag mode\n\
@@ -134,13 +134,15 @@ fn parse_size(s: &str) -> Result<(u32, u32), String> {
 }
 
 fn parse_view(s: &str) -> Result<View, String> {
-    let err = || format!("--view {s}: expected RA,DEC[,FOV] in degrees");
+    let err = || format!("--view {s}: expected RA,DEC[,FOV[,ROLL]] in degrees");
     let v: Vec<f64> = s.split(',').map(|t| t.trim().parse::<f64>()).collect::<Result<_, _>>().map_err(|_| err())?;
-    match v.as_slice() {
-        [ra, dec] => Ok(View { ra: *ra, dec: *dec, fov: wallpaper::DEFAULT_FOV }.clamped()),
-        [ra, dec, fov] => Ok(View { ra: *ra, dec: *dec, fov: *fov }.clamped()),
-        _ => Err(err()),
-    }
+    let (ra, dec) = match v.as_slice() {
+        [ra, dec, ..] if v.len() <= 4 => (*ra, *dec),
+        _ => return Err(err()),
+    };
+    let fov = v.get(2).copied().unwrap_or(wallpaper::DEFAULT_FOV);
+    let roll = v.get(3).copied().unwrap_or(0.0);
+    Ok(View { ra, dec, fov, roll }.clamped())
 }
 
 fn parse_cursor(s: &str) -> Result<(f64, f64), String> {
@@ -176,7 +178,10 @@ fn render_still(cmd: Cmd, a: Args) -> Result<(), String> {
         println!("wrote {out} (drag-mode preview)");
     } else {
         r.export(&wallpaper::still_frame(&view, size, !a.no_probe), Path::new(&out))?;
-        println!("wrote {out} ({}x{}, RA {:.2} Dec {:.2} FOV {:.0})", size.0, size.1, view.ra, view.dec, view.fov);
+        println!(
+            "wrote {out} ({}x{}, RA {:.2} Dec {:.2} FOV {:.0} roll {:.0})",
+            size.0, size.1, view.ra, view.dec, view.fov, view.roll
+        );
     }
     Ok(())
 }

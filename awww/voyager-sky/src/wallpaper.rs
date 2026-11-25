@@ -18,7 +18,7 @@ pub fn out_dir() -> PathBuf {
 /// Centred on Voyager 1.
 pub fn default_view(sky: &SkyData) -> View {
     let (ra, dec) = radec(sky.voyager);
-    View { ra, dec, fov: DEFAULT_FOV }
+    View { ra, dec, fov: DEFAULT_FOV, roll: 0.0 }
 }
 
 /// The saved view, or the default if there is none (or it is unreadable).
