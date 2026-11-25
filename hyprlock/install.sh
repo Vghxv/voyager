@@ -9,28 +9,23 @@
 set -euo pipefail
 
 SRC="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=../lib/common.sh
 source "$SRC/../lib/common.sh"
 
-HYPR="$HOME/.config/hypr"
-DEST="$HYPR/voyager"
-CONF="$HYPR/hyprlock.conf"
+CONF="$HOME/.config/hypr/hyprlock.conf"
 
+parse_option --restore -- "$@"
 require_user
-
-case "${1:-}" in
-  --restore) restore_latest "$CONF"; exit ;;
-  "") ;;
-  *) red "Unknown option: $1 (use --restore or nothing)"; exit 1 ;;
-esac
+if [[ "$OPT" == --restore ]]; then restore_latest "$CONF"; exit; fi
 
 check_deps "$SRC/deps"
 
-mkdir -p "$DEST"
-rm -f "$DEST"/stars-*.png   # next-frame.sh loops over all of them: no leftovers from a longer run
-install -m 644 "$SRC"/stars-*.png "$SRC"/probe.png "$DEST"/
+mkdir -p "$HYPR_VOYAGER"
+rm -f "$HYPR_VOYAGER"/stars-*.png   # next-frame.sh loops over all of them: no leftovers from a longer run
+install -m 644 "$SRC"/stars-*.png "$SRC"/probe.png "$HYPR_VOYAGER"/
 warn_if_small "$SRC/stars-0.png" "src/gen-hyprlock.py --size auto"
-install -m 755 "$SRC"/next-frame.sh "$DEST"/
-echo "Copied assets to $DEST"
+install -m 755 "$SRC"/next-frame.sh "$HYPR_VOYAGER"/
+echo "Copied assets to $HYPR_VOYAGER"
 
 backup_file "$CONF" "$SRC/hyprlock.conf"
 install -m 644 "$SRC"/hyprlock.conf "$CONF"

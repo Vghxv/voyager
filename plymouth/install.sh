@@ -9,25 +9,27 @@
 
 set -euo pipefail
 
-THEME=voyager
-HERE="$(dirname "$(readlink -f "$0")")"
-source "$HERE/../lib/common.sh"
-SRC="$HERE/$THEME"
-DEST="/usr/share/plymouth/themes/$THEME"
-# every kernel's main initramfs (linux, linux-lts, linux-zen, ...), not the fallbacks
-shopt -s nullglob
-IMGS=()
-for f in /boot/initramfs-*.img; do [[ "$f" == *-fallback.img ]] || IMGS+=("$f"); done
-shopt -u nullglob
+SRC="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=../lib/common.sh
+source "$SRC/../lib/common.sh"
 
+THEME=voyager
+THEME_SRC="$SRC/$THEME"
+DEST="$PLYMOUTH_THEME_DIR"
+
+parse_option --apply --remove -- "$@"
 require_root
-check_deps "$HERE/deps"
+mapfile -t IMGS < <(initramfs_images)
 
 check_prereqs() {
-  local problems
-  problems="$("$HERE/prereqs.sh")"
-  if [[ -z "$problems" ]]; then green "  prerequisites look good"
-  else while read -r p; do yellow "  ! $p"; done <<<"$problems"; yellow "  see plymouth/plymouth.md#prerequisites"; fi
+  local problems p
+  problems="$("$SRC/prereqs.sh")"
+  if [[ -z "$problems" ]]; then
+    green "  prerequisites look good"
+  else
+    while read -r p; do yellow "  ! $p"; done <<<"$problems"
+    yellow "  see plymouth/plymouth.md#prerequisites"
+  fi
 }
 
 # Keep a copy of each current initramfs before rebuilding, if /boot has room.
@@ -45,32 +47,34 @@ backup_initramfs() {
   done
 }
 
-case "${1:-}" in
-  --remove)
-    if [[ "$(plymouth-set-default-theme)" == "$THEME" ]]; then
-      red "voyager is the current default. Switch first, e.g.: sudo plymouth-set-default-theme -R bgrt"
-      exit 1
+if [[ "$OPT" == --remove ]]; then
+  if [[ "$(plymouth-set-default-theme)" == "$THEME" ]]; then
+    red "voyager is the current default. Switch first, e.g.: sudo plymouth-set-default-theme -R bgrt"
+    exit 1
+  fi
+  rm -rf "$DEST"
+  green "Removed $DEST"
+  for img in "${IMGS[@]}"; do
+    if [[ -f "$img.pre-voyager" ]]; then
+      echo "Old initramfs backup still at $img.pre-voyager — delete it once you boot fine."
     fi
-    rm -rf "$DEST"
-    green "Removed $DEST"
-    for img in "${IMGS[@]}"; do
-      [[ -f "$img.pre-voyager" ]] && echo "Old initramfs backup still at $img.pre-voyager — delete it once you boot fine."
-    done
-    exit 0
-    ;;
-  ""|--apply) ;;
-  *) red "Unknown option: $1 (use --apply, --remove or nothing)"; exit 1 ;;
-esac
+  done
+  exit 0
+fi
+
+check_deps "$SRC/deps"
 
 echo "Checking prerequisites…"
 check_prereqs
 
 echo "Installing theme to $DEST…"
+rm -rf "$DEST"   # no leftovers from an earlier version end up in the initramfs
 install -d "$DEST"
-install -m 644 "$SRC"/* "$DEST"/
-green "  $(ls "$DEST" | wc -l) files installed"
+install -m 644 "$THEME_SRC"/* "$DEST"/
+files=("$DEST"/*)
+green "  ${#files[@]} files installed"
 
-if [[ "${1:-}" == "--apply" ]]; then
+if [[ "$OPT" == --apply ]]; then
   prev="$(plymouth-set-default-theme)"
   echo "Previous default theme: $prev   (revert: sudo plymouth-set-default-theme -R $prev)"
   backup_initramfs
@@ -78,7 +82,7 @@ if [[ "${1:-}" == "--apply" ]]; then
   plymouth-set-default-theme -R "$THEME"
   missing=0
   for img in "${IMGS[@]}"; do
-    if lsinitcpio "$img" 2>/dev/null | grep -q "themes/$THEME/voyager.script"; then
+    if has_voyager_plymouth "$img"; then
       green "  voyager is inside $img"
     else
       yellow "  ! voyager was not found in $img — check the mkinitcpio output above"; missing=1

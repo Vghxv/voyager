@@ -1,15 +1,51 @@
 # Shared helpers for voyager's install.sh and check.sh scripts. Source, don't run.
+# shellcheck shell=bash
 
 VOYAGER_LIB="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-VOYAGER_CONF="$HOME/.config/voyager"
+VOYAGER_CONF="$HOME/.config/voyager"          # saved mode + theme hooks
+THEME_HOOKS="$VOYAGER_CONF/theme.d"           # one hook per component
 THEME_CMD="$HOME/.config/scripts/voyager-theme"
+HYPR_VOYAGER="$HOME/.config/hypr/voyager"     # shared by awww and hyprlock
+SYSTEMD_USER="$HOME/.config/systemd/user"
+PLYMOUTH_THEME_DIR=/usr/share/plymouth/themes/voyager
 
-red()    { printf '\033[31m%s\033[0m\n' "$*"; }
-green()  { printf '\033[32m%s\033[0m\n' "$*"; }
-yellow() { printf '\033[33m%s\033[0m\n' "$*"; }
+# Colours only on a terminal, and never with NO_COLOR set.
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  C_RED=$'\033[31m' C_GREEN=$'\033[32m' C_YELLOW=$'\033[33m' C_DIM=$'\033[2m' C_OFF=$'\033[0m'
+else
+  C_RED="" C_GREEN="" C_YELLOW="" C_DIM="" C_OFF=""
+fi
+
+red()    { printf '%s%s%s\n' "$C_RED" "$*" "$C_OFF"; }
+green()  { printf '%s%s%s\n' "$C_GREEN" "$*" "$C_OFF"; }
+yellow() { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_OFF"; }
 
 require_root() { [[ $EUID -eq 0 ]] || { red "Run with sudo."; exit 1; }; }
 require_user() { [[ $EUID -ne 0 ]] || { red "Run as your normal user, not root."; exit 1; }; }
+
+# parse_option <allowed>... -- "$@": accept nothing or one of <allowed>, put it in
+# OPT, and stop with a message on anything else.
+parse_option() {
+  local allowed=() a hint
+  while [[ $1 != -- ]]; do allowed+=("$1"); shift; done
+  shift
+  if (( ${#allowed[@]} )); then
+    hint="use $(printf '%s, ' "${allowed[@]}")"; hint="${hint%, } or nothing"
+  else
+    hint="this installer takes none"
+  fi
+  (( $# <= 1 )) || { red "Too many options: $* ($hint)"; exit 1; }
+  OPT="${1:-}"
+  for a in "" "${allowed[@]}"; do [[ "$OPT" == "$a" ]] && return 0; done
+  red "Unknown option: $OPT ($hint)"
+  exit 1
+}
+
+# read_mode: the saved light/dark mode. Anything but "dark" is light, as in
+# voyager-theme (which keeps its own copy: it runs without this file).
+read_mode() {
+  if [[ "$(cat "$VOYAGER_CONF/theme" 2>/dev/null)" == dark ]]; then echo dark; else echo light; fi
+}
 
 # ---------- dependencies ----------
 # A component's `deps` file has one line per command it calls:
@@ -18,29 +54,38 @@ require_user() { [[ $EUID -ne 0 ]] || { red "Run as your normal user, not root."
 
 # missing_deps <deps file>: print "package" or "package required" per missing line.
 missing_deps() {
-  local cmds pkg req alt found
+  local cmds pkg req alt alts found
   while read -r cmds pkg req; do
     [[ -z "$cmds" || "$cmds" == \#* ]] && continue
+    IFS='|' read -ra alts <<<"$cmds"
     found=0
-    for alt in ${cmds//|/ }; do command -v "$alt" >/dev/null && { found=1; break; }; done
+    for alt in "${alts[@]}"; do
+      if command -v "$alt" >/dev/null; then found=1; break; fi
+    done
     (( found )) || echo "$pkg${req:+ $req}"
   done < "$1"
 }
 
+# missing_split <deps file>: fill the arrays NEED (required) and WANT (optional).
+missing_split() {
+  local pkg req
+  NEED=() WANT=()
+  while read -r pkg req; do
+    if [[ "$req" == required ]]; then NEED+=("$pkg"); else WANT+=("$pkg"); fi
+  done < <(missing_deps "$1")
+}
+
 # check_deps <deps file>: stop if a required package is missing, warn about the rest.
 check_deps() {
-  local pkg req need=() want=()
-  while read -r pkg req; do
-    [[ "$req" == required ]] && need+=("$pkg") || want+=("$pkg")
-  done < <(missing_deps "$1")
-  if (( ${#need[@]} )); then
-    red "Missing: ${need[*]}"
-    echo "  sudo pacman -S ${need[*]} ${want[*]}"
+  missing_split "$1"
+  if (( ${#NEED[@]} )); then
+    red "Missing: ${NEED[*]}"
+    echo "  sudo pacman -S ${NEED[*]}${WANT[*]:+ ${WANT[*]}}"
     exit 1
   fi
-  if (( ${#want[@]} )); then
-    yellow "Missing (parts will not work until installed): ${want[*]}"
-    echo "  sudo pacman -S ${want[*]}"
+  if (( ${#WANT[@]} )); then
+    yellow "Missing (parts will not work until installed): ${WANT[*]}"
+    echo "  sudo pacman -S ${WANT[*]}"
   fi
 }
 
@@ -62,11 +107,17 @@ backup_file() {
   green "  backed up $target -> $bak"
 }
 
+# latest_backup <target>: print the newest <target>.bak-* (names sort by date), if any.
+latest_backup() {
+  local baks
+  baks=("$1".bak-*)
+  [[ -e "${baks[0]}" ]] && echo "${baks[-1]}"
+}
+
 # restore_latest <target>: put the newest <target>.bak-* back.
 restore_latest() {
   local target="$1" last
-  last="$(ls -1t "$target".bak-* 2>/dev/null | head -1 || true)"
-  [[ -n "$last" ]] || { red "No backup found ($target.bak-*)."; return 1; }
+  last="$(latest_backup "$target")" || { red "No backup found ($target.bak-*)."; return 1; }
   cp -p "$last" "$target"
   green "Restored $last -> $target"
 }
@@ -76,10 +127,21 @@ restore_latest() {
 # switcher and this component's hook, then apply the saved mode.
 install_theme_hook() {
   install -D -m 755 "$VOYAGER_LIB/voyager-theme" "$THEME_CMD"
-  rm -f "$HOME/.local/bin/voyager-theme"   # from an earlier version
-  install -D -m 755 "$2" "$VOYAGER_CONF/theme.d/$1"
+  install -D -m 755 "$2" "$THEME_HOOKS/$1"
   "$THEME_CMD" apply || yellow "  ! applying the $("$THEME_CMD") mode failed (see above); the files are installed"
 }
+
+# ---------- Plymouth ----------
+# initramfs_images: every kernel's main initramfs (linux, linux-lts, ...), not the fallbacks.
+initramfs_images() {
+  local img
+  for img in /boot/initramfs-*.img; do
+    if [[ -e "$img" && "$img" != *-fallback.img ]]; then echo "$img"; fi
+  done
+}
+
+# has_voyager_plymouth <initramfs>: the voyager theme is built into it.
+has_voyager_plymouth() { lsinitcpio "$1" 2>/dev/null | grep -q "themes/voyager/voyager.script"; }
 
 # ---------- screen size ----------
 # warn_if_small <png> <re-render command>: warn when the largest connected monitor
@@ -103,16 +165,21 @@ warn_if_small() {
 # pass <what>              ✓ line
 # fail <what> <fix>        ✗ line plus the command that fixes it
 # info <what>              – line (not installed, nothing to check)
-pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
-fail() { printf '  \033[31m✗\033[0m %s\n      fix: %s\n' "$1" "$2"; FAILED=1; }
-info() { printf '  \033[2m– %s\033[0m\n' "$1"; }
+# not_installed <fix>      info line, then end the check successfully
+pass() { printf '  %s✓%s %s\n' "$C_GREEN" "$C_OFF" "$1"; }
+fail() { printf '  %s✗%s %s\n      fix: %s\n' "$C_RED" "$C_OFF" "$1" "$2"; FAILED=1; }
+info() { printf '  %s– %s%s\n' "$C_DIM" "$1" "$C_OFF"; }
+not_installed() { info "not installed ($1)"; exit 0; }
 FAILED=0
 
-# check_deps_report <deps file> <component>: pass/fail per missing package.
+# check_deps_report <deps file> <component>: one ✗ naming missing packages, else ✓.
 check_deps_report() {
-  local missing
-  missing="$(missing_deps "$1" | awk '{ print $1 }' | tr '\n' ' ')"
-  if [[ -n "$missing" ]]; then fail "$2: missing packages: $missing" "sudo pacman -S $missing"
+  local what="" all
+  missing_split "$1"
+  (( ${#NEED[@]} )) && what="${NEED[*]} (required)"
+  (( ${#WANT[@]} )) && what+="${what:+, }${WANT[*]} (optional)"
+  all="${NEED[*]} ${WANT[*]}"
+  if [[ -n "$what" ]]; then fail "$2: missing packages: $what" "sudo pacman -S $(echo $all)"
   else pass "$2: dependencies installed"; fi
 }
 

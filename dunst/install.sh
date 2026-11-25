@@ -9,13 +9,13 @@
 set -euo pipefail
 
 SRC="$(dirname "$(readlink -f "$0")")"
+# shellcheck source=../lib/common.sh
 source "$SRC/../lib/common.sh"
+
 DIR="$HOME/.config/dunst"
 CONF="$DIR/dunstrc"
-DROPIN="$DIR/dunstrc.d/90-voyager-theme.conf"
-HOOK="$VOYAGER_CONF/theme.d/dunst"
-
-require_user
+DROPIN="$DIR/dunstrc.d/90-voyager-theme.conf"   # the hook writes the colors here
+HOOK="$THEME_HOOKS/dunst"
 
 reload() {
   # dunst is D-Bus activated: if it is not running, the next notification starts it
@@ -29,11 +29,14 @@ reload() {
   fi
 }
 
-case "${1:-}" in
-  --restore) rm -f "$DROPIN" "$HOOK"; restore_latest "$CONF" || true; reload; exit ;;
-  "") ;;
-  *) red "Unknown option: $1 (use --restore or nothing)"; exit 1 ;;
-esac
+parse_option --restore -- "$@"
+require_user
+if [[ "$OPT" == --restore ]]; then
+  rm -f "$DROPIN" "$HOOK"
+  restore_latest "$CONF" || true
+  reload
+  exit
+fi
 
 check_deps "$SRC/deps"
 
@@ -42,7 +45,7 @@ install -D -m 644 "$SRC/dunstrc" "$CONF"
 install -d "$DIR/themes"
 install -m 644 "$SRC"/themes/*.conf "$DIR/themes"/
 install_theme_hook dunst "$SRC/theme-hook.sh"
-echo "Installed $CONF ($("$THEME_CMD") mode)"
+echo "Installed $CONF ($(read_mode) mode)"
 reload
 
 echo

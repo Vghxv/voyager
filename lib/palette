@@ -1,0 +1,20 @@
+# voyager's palette: the one place its colours are defined.
+#
+# Config files cannot read this file, so each keeps its own copy, written as hex
+# (#RRGGBB, any case, alpha allowed after it), rgb()/rgba(r, g, b, ...) or, in the
+# Plymouth script, 0-1 floats with two decimals. lib/check-palette.sh (run by
+# ./doctor.sh) checks that every file listed after a colour still contains it:
+# change a colour here, then in each of those files.
+#
+# name       colour   files that use it (from the repo root)
+navy         #14141F  eww/eww.scss dunst/themes/light.conf plymouth/voyager/voyager.script
+void         #05050D  eww/eww.scss plymouth/voyager/voyager.script
+mist         #D9D9F2  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf plymouth/voyager/voyager.script src/logo.svg
+indigo       #8B8FF0  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/logo.svg
+teal         #5EEAD4  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/ring.svg
+red          #FF3355  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/flash.svg
+amber        #F0C674  eww/eww.scss
+ink          #0A0A14  eww/eww.scss dunst/themes/dark.conf hyprlock/hyprlock.conf
+dim-light    #5A5A78  eww/eww.scss dunst/themes/light.conf
+dim-dark     #7A7AA0  eww/eww.scss dunst/themes/dark.conf
+pink         #FFB3C0  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf

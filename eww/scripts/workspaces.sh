@@ -3,36 +3,34 @@
 #   {"workspaces":[1,2,3],"active":2,"monitors":{"eDP-1":1,"HDMI-A-1":2}}
 # "active" is the focused workspace, "monitors" the workspace each monitor shows
 # (each bar highlights the one on its own monitor).
-
 #
 # Needs: hyprctl, jq, socat. Errors go to `eww logs`.
 
-SOCKET="$XDG_RUNTIME_DIR/hypr/${HYPRLAND_INSTANCE_SIGNATURE:-}/.socket2.sock"
-for c in hyprctl jq socat; do
-  command -v $c >/dev/null || { echo "workspaces.sh: $c missing — run ./eww/install.sh to see what to install" >&2; exec sleep infinity; }
-done
-[[ -S "$SOCKET" ]] || { echo "workspaces.sh: no Hyprland event socket ($SOCKET) — is eww running inside Hyprland?" >&2; exec sleep infinity; }
+source "$(dirname "$0")/lib.sh"
 
+need hyprctl jq socat
+[[ -S "$(hypr_socket)" ]] || { log "no Hyprland event socket ($(hypr_socket)) — is eww running inside Hyprland?"; exec sleep infinity; }
+
+# One JSON line; nothing if hyprctl fails (the bar keeps the last state).
 get_state() {
-    workspaces=$(hyprctl workspaces -j | jq -c 'map(select(.id > 0) | .id) | sort')
-    active=$(hyprctl activeworkspace -j | jq -c '.id')
-    monitors=$(hyprctl monitors -j | jq -c 'map({(.name): .activeWorkspace.id}) | add // {}')
-    echo "{\"workspaces\":$workspaces,\"active\":$active,\"monitors\":$monitors}"
+  local w a m
+  w=$(hyprctl workspaces -j) && a=$(hyprctl activeworkspace -j) && m=$(hyprctl monitors -j) || return
+  jq -nc --argjson w "$w" --argjson a "$a" --argjson m "$m" '{
+    workspaces: ($w | map(select(.id > 0) | .id) | sort),
+    active: $a.id,
+    monitors: ($m | map({(.name): .activeWorkspace.id}) | add // {})
+  }'
 }
 
-last_state=$(get_state)
-echo "$last_state"
-
-# Listen for Hyprland events
-socat -u UNIX-CONNECT:"$SOCKET" - | while read -r line; do
-    case "$line" in
-        workspace* | createworkspace* | destroyworkspace* | moveworkspace* | \
-        focusedmon* | monitoradded* | monitorremoved*)
-            current_state=$(get_state)
-            if [ "$current_state" != "$last_state" ]; then
-                echo "$current_state"
-                last_state="$current_state"
-            fi
-            ;;
-    esac
-done
+# Hyprland sends most events twice (v1 and v2): react to one of each.
+{
+  echo start
+  hypr_events
+} | while read -r line; do
+  case "$line" in
+    start | workspacev2'>>'* | createworkspacev2'>>'* | destroyworkspacev2'>>'* | \
+    moveworkspacev2'>>'* | renameworkspace'>>'* | focusedmon'>>'* | \
+    monitoradded'>>'* | monitorremoved'>>'*)
+      get_state ;;
+  esac
+done | print_on_change

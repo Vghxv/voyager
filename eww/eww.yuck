@@ -25,7 +25,7 @@
     :text_off "📷" 
     :color_on "camera_on" 
     :color_off "element" 
-    :cmd "${EWW_CONFIG_DIR}/scripts/webcam.sh toggle"
+    :cmd "EWW='${EWW_EXECUTABLE}' ${EWW_CONFIG_DIR}/scripts/webcam.sh toggle"
     )
   )
 
@@ -90,14 +90,8 @@
       :onclick "EWW='${EWW_EXECUTABLE}' ${EWW_CONFIG_DIR}/scripts/popup.sh power_menu '${monitor}'"
       (bimage :filename "menu-burger.png")
       )
-    (box
-      :width 80
-      (w_time :class "element" :format "%R")
-      )
-    (box
-      :width 80
-      (w_time :class "element" :format "%a %v")
-      )
+    (cell :width 80 (w_time :class "element" :format "%R"))
+    (cell :width 80 (w_time :class "element" :format "%a %v"))
     (box 
       :class "btn-ws"
       :spacing 10
@@ -112,36 +106,16 @@
     )
   )
 
-(defwidget cBoxMiddle []
-  (box  
-    )
-  )
-
 (defwidget cBoxEnd [monitor]
   (box 
     :spacing 10 
     :space-evenly false 
     :halign "end"
-    (box
-      :width 80
-      (w_wifi)
-    )
-    (box
-      :width 100
-      (w_sound :class "sound")
-      )
-    (box
-      :width 40
-      (w_volctl :class "element" :monitor monitor)
-      )
-    (box
-      :width 80
-      (w_brightness :class "element")
-      )
-    (box
-      :width 40
-      (w_camera) 
-      )
+    (cell :width 80 (w_wifi))
+    (cell :width 100 (w_sound :class "sound"))
+    (cell :width 40 (w_volctl :class "element" :monitor monitor))
+    (cell :width 80 (w_brightness :class "element"))
+    (cell :width 40 (w_camera))
     (box
       :width 80
       :visible {BAT_NAME != ""}
@@ -177,7 +151,7 @@
   (box :class mode
     (centerbox
       (cBoxStart :monitor monitor)
-      (cBoxMiddle)
+      (box)
       (cBoxEnd :monitor monitor)
       )
     )

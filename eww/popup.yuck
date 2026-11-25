@@ -5,4 +5,4 @@
   :geometry (geometry :width "100%" :height "100%" :anchor "top left")
   :stacking "fg"
   :focusable "none"
-  (eventbox :onclick "${EWW_CMD} close sound power_menu popup_closer"))
+  (eventbox :onclick "EWW='${EWW_EXECUTABLE}' ${EWW_CONFIG_DIR}/scripts/popup.sh close"))

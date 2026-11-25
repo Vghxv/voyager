@@ -16,7 +16,7 @@
 (defvar volume_scroll_amount 5)
 
 ; webcam On/Off (device is detected, see scripts/webcam.sh)
-(defpoll camera :interval "0.5s" "scripts/webcam.sh status")
+(defpoll camera :interval "2s" "scripts/webcam.sh status")
 
 ; active wifi network, "" when offline
 (defpoll wifi_name :interval "10s" "scripts/wifi.sh")

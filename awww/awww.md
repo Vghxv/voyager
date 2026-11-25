@@ -21,7 +21,7 @@ You need Hyprland started through [uwsm](https://github.com/Vladimir-csp/uwsm) (
 sudo pacman -S awww
 ./awww/install.sh               # animated
 ./awww/install.sh --static      # still image, no ongoing CPU cost
-./awww/install.sh --restore     # stop and disable awww
+./awww/install.sh --restore     # stop awww, put your own awww.service back (or remove voyager's)
 ```
 
 awww is the only wallpaper daemon voyager uses. You do not need hyprpaper, and the installer leaves it alone.

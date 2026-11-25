@@ -17,7 +17,7 @@ hyprlock cannot run animations the way Plymouth does, so the effects are adapted
 hyprlock                 # try it: unlock with your user password
 ```
 
-Your current `~/.config/hypr/hyprlock.conf` is backed up first. `./hyprlock/install.sh --restore` brings it back. The images in `~/.config/hypr/voyager/` stay; they are shared with the wallpaper.
+Your current `~/.config/hypr/hyprlock.conf` is backed up first. `./hyprlock/install.sh --restore` brings it back. The images in `~/.config/hypr/voyager/` stay (the wallpaper keeps its own files in that folder too).
 
 ## Adjust
 
