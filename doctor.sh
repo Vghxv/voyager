@@ -4,7 +4,8 @@
 #   ./doctor.sh            all components
 #   ./doctor.sh eww dunst  only these
 #
-# Read-only: it changes nothing. Each component's own check.sh does the work.
+# Read-only: it changes nothing. Each component's own check.sh does the work;
+# lib/check-palette.sh checks the repo's copies of the palette.
 
 set -uo pipefail   # no -e: every check runs, failures are reported
 
@@ -31,6 +32,12 @@ for c in "${components[@]}"; do
   echo "$c"
   "$c/check.sh" || status=1
 done
+
+# the palette's copies in the repo (not an installed component): on a full run
+if (( $# == 0 )); then
+  echo "palette"
+  lib/check-palette.sh || status=1
+fi
 
 # shared light/dark switch
 if [[ -d "$THEME_HOOKS" ]]; then

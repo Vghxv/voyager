@@ -61,6 +61,6 @@ doctor.sh    runs every check.sh
 
 A few things are kept in step by hand, because they change rarely:
 
-- **Palette** (navy `#14141F`, mist `#D9D9F2`, indigo `#8B8FF0`, teal `#5EEAD4`, red `#FF3355`): repeated in `eww/eww.scss`, `dunst/themes/`, `hyprlock/hyprlock.conf`, `plymouth/voyager/voyager.script` and `src/voyager_art.py`.
+- **Palette** (navy `#14141F`, mist `#D9D9F2`, indigo `#8B8FF0`, teal `#5EEAD4`, red `#FF3355`, and a few shades): defined in [`lib/palette`](lib/palette), which also lists every file that keeps a copy (eww, dunst, hyprlock, the Plymouth script, the SVGs). `src/voyager_art.py` reads it directly; `./doctor.sh` checks the copies still match.
 - **Probe dish position**: in `src/voyager_art.py` and `voyager.script`. Both comments point at each other.
 - **dunst `offset`**: it leaves room for the eww bar's height.
