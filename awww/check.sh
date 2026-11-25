@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Check the installed wallpaper and awww service. Read-only; ./doctor.sh runs this.
+# Check the installed wallpaper, voyager-sky and the awww service. Read-only; ./doctor.sh runs this.
 # Docs: awww/awww.md#if-it-breaks
 
 set -uo pipefail   # no -e: every check runs, failures are reported
@@ -9,11 +9,23 @@ SRC="$(dirname "$(readlink -f "$0")")"
 source "$SRC/../lib/common.sh"
 UNIT=awww.service
 FIX="./awww/install.sh"
+SKY="$HYPR_VOYAGER/voyager-sky"
 
 [[ -f "$SYSTEMD_USER/$UNIT" ]] || not_installed "$FIX"
 
 check_deps_report "$SRC/deps" "awww"
-check_files "wallpaper files" "$FIX" "$SRC" "$HYPR_VOYAGER" wallpaper.webp wallpaper.png
+cd "$SRC/sky" || exit 1
+check_files "sky data" "$FIX" "$SRC/sky" "$HYPR_VOYAGER/sky" *
+
+if [[ -x "$SKY" ]] && "$SKY" --version >/dev/null 2>&1; then pass "voyager-sky runs ($("$SKY" --version))"
+else fail "voyager-sky is missing or does not run" "$FIX"; fi
+if [[ "$(readlink -f "$HOME/.config/scripts/voyager-sky")" == "$(readlink -f "$SKY")" ]]; then pass "~/.config/scripts/voyager-sky points at it"
+else fail "~/.config/scripts/voyager-sky is missing" "$FIX"; fi
+
+missing=()
+for f in wallpaper.png lock.png view.json; do [[ -s "$HYPR_VOYAGER/$f" ]] || missing+=("$f"); done
+if (( ${#missing[@]} )); then fail "missing in $HYPR_VOYAGER: ${missing[*]}" "$SKY apply"
+else pass "wallpaper.png, lock.png and view.json are there"; fi
 
 if systemctl --user is-active -q graphical-session.target; then pass "systemd graphical session is up"
 else fail "graphical-session.target is not active, so awww.service never starts" "start Hyprland through uwsm: uwsm start hyprland.desktop"; fi

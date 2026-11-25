@@ -7,8 +7,8 @@ A deep-space theme for an Arch + Hyprland desktop: a probe drifting through a st
 | Component | What you get | Install | Undo |
 |---|---|---|---|
 | [Plymouth](plymouth/plymouth.md) | Animated disk-unlock screen in the voyager sky: stars warp, blue-shift and signal rings pulse as you type | `sudo ./plymouth/install.sh` | [see docs](plymouth/plymouth.md#remove) |
-| [hyprlock](hyprlock/hyprlock.md) | Lock screen over the same sky as the wallpaper, with ✦ password dots | `./hyprlock/install.sh` | `--restore` |
-| [Wallpaper](awww/awww.md) | The Big and Little Dipper around a twinkling Polaris, or a still image | `./awww/install.sh` | `--restore` |
+| [hyprlock](hyprlock/hyprlock.md) | Lock screen over the same sky as the wallpaper, with ✦ password dots | `./hyprlock/install.sh` (after the wallpaper) | `--restore` |
+| [Wallpaper](awww/awww.md) | The real sky around Voyager 1's true position, with every constellation star at its true brightness and color and the Milky Way. In drag mode you turn the sky (lines, names in 中文/English) and set the view you like | `./awww/install.sh` | `--restore` |
 | [eww](eww/eww.md) | Top bar on every monitor: workspaces, clock, wifi, volume, brightness, webcam, battery, tray | `./eww/install.sh` | — (one-way copy) |
 | [dunst](dunst/dunst.md) | Notifications styled like the bar | `./dunst/install.sh` | `--restore` |
 
@@ -50,17 +50,17 @@ The components share a look but do not depend on each other. Each folder holds i
 ```
 plymouth/    boot unlock screen     (preview.sh tries it without rebooting)
 hyprlock/    lock screen
-awww/        wallpaper + systemd unit
+awww/        wallpaper: voyager-sky (Rust, drag mode + renderer), sky data, systemd unit
 eww/         the bar
 dunst/       notifications
 lib/         helpers shared by the scripts, voyager-theme
-src/         SVG artwork and the generators that render every image
+src/         SVG artwork, the Plymouth generators, and the scripts that build awww/sky
 docs/        preview.gif, recorded by src/gen-plymouth-preview.py
 doctor.sh    runs every check.sh
 ```
 
 A few things are kept in step by hand, because they change rarely:
 
-- **Palette** (navy `#14141F`, mist `#D9D9F2`, indigo `#8B8FF0`, teal `#5EEAD4`, red `#FF3355`, and a few shades): defined in [`lib/palette`](lib/palette), which also lists every file that keeps a copy (eww, dunst, hyprlock, the Plymouth script, the SVGs). `src/voyager_art.py` reads it directly; `./doctor.sh` checks the copies still match.
+- **Palette** (navy `#14141F`, mist `#D9D9F2`, indigo `#8B8FF0`, teal `#5EEAD4`, red `#FF3355`, and a few shades): defined in [`lib/palette`](lib/palette), which also lists every file that keeps a copy (eww, dunst, hyprlock, the Plymouth script, the SVGs). `src/voyager_art.py` and `awww/voyager-sky` (compiled in) read it directly; `./doctor.sh` checks the copies still match.
 - **Probe dish position**: in `src/voyager_art.py` and `voyager.script`. Both comments point at each other.
 - **dunst `offset`**: it leaves room for the eww bar's height.

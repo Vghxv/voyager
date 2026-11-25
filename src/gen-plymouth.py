@@ -9,7 +9,8 @@
 Artwork, each at its SVG's own size: logo (the probe), ring (signal ring), star,
 streak (warp streak), flash (wrong-passphrase flash, stretched).
 
-The sky is the wallpaper's (voyager_sky.py), without the wallpaper's small probe:
+The sky is voyager_sky.py's Big Dipper field (the wallpaper used it before it became
+a draggable celestial sphere), without a small probe:
 - sky.png        the sky with every star at rest, except Polaris;
 - polaris.png    Polaris alone, cropped: the script makes it breathe. Its place in
                  sky.png is written into voyager.script (POLARIS_X / POLARIS_Y);
