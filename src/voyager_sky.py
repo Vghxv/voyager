@@ -100,10 +100,11 @@ UMA_HALO = 0.72                         # the Big Dipper's bright stars get a ti
 FIELD_TWINKLERS = 5                     # background stars that twinkle, besides Polaris
 PROBE = (0.80, 0.76, 0.016)             # top-left x, y and width, as fractions of the screen
 DITHER = 0.35                           # +noise Uniform strength: about one 8-bit step
-# Doppler layers (Plymouth fades them in as the probe speeds up or backs off): this
-# share of the background stars, their B-V moved by BLUE_SHIFT / RED_SHIFT and their
-# tint pushed SHIFT_SAT times further from white, so the shift reads on tiny dots.
-SHIFT_FRACTION, BLUE_SHIFT, RED_SHIFT, SHIFT_SAT = 0.45, -0.9, 1.1, 1.4
+# Doppler layers (Plymouth fades them in as the probe speeds up or backs off): every
+# constellation star and this share of the background stars, their B-V moved by
+# BLUE_SHIFT / RED_SHIFT and their tint pushed SHIFT_SAT times further from white,
+# so the shift reads on tiny dots.
+SHIFT_FRACTION, BLUE_SHIFT, RED_SHIFT, SHIFT_SAT = 0.9, -0.9, 1.1, 1.4
 
 
 # --- colour ------------------------------------------------------------------------
@@ -329,24 +330,25 @@ def bright_star(i, x, y, core, halo, col, op, defs, body):
                 f'fill-opacity="{min(1, 0.35 + op * 0.65):.3f}"/>')
 
 
-def dipper_star(sky, i, op, defs, body):
+def dipper_star(sky, i, op, defs, body, shift=(0.0, 1.0)):
+    """shift = (B-V offset, saturation): (0, 1) is the star's true colour."""
     name, x, y, m, bv, *_ = CONSTELLATIONS[i]
     sx, sy = sky.photo(x, y)
     f, u = mag_scale(m), sky.u
     halo = (3.5 + 15 * f) * u * (UMA_HALO if name in URSA_MAJOR else 1.0)
-    bright_star(i, sx, sy, (0.7 + 1.9 * f) * u, halo, bv_rgb(bv), op, defs, body)
+    bright_star(i, sx, sy, (0.7 + 1.9 * f) * u, halo, bv_rgb(bv + shift[0], shift[1]), op, defs, body)
     return sx, sy
 
 
 POLARIS = next(i for i, c in enumerate(CONSTELLATIONS) if c[0] == "Polaris")
 
 
-def polaris(sky, frame, frames, defs, body):
+def polaris(sky, frame, frames, defs, body, shift=(0.0, 1.0)):
     """Polaris, twinkling, with a thin four-point glint that breathes."""
     op = twinkle(1, 0.0, frame, frames, 0.45)
-    x, y = dipper_star(sky, POLARIS, op, defs, body)
+    x, y = dipper_star(sky, POLARIS, op, defs, body, shift)
     arm, u = (10 + 7 * op) * sky.u, sky.u
-    body.append(f'<g stroke="{bv_rgb(CONSTELLATIONS[POLARIS][4])}" stroke-width="{0.45 * u:.2f}" '
+    body.append(f'<g stroke="{bv_rgb(CONSTELLATIONS[POLARIS][4] + shift[0], shift[1])}" stroke-width="{0.45 * u:.2f}" '
                 f'stroke-linecap="round" stroke-opacity="{0.15 + 0.35 * op:.3f}">'
                 f'<line x1="{x - arm:.2f}" y1="{y:.2f}" x2="{x + arm:.2f}" y2="{y:.2f}"/>'
                 f'<line x1="{x:.2f}" y1="{y - arm:.2f}" x2="{x:.2f}" y2="{y + arm:.2f}"/></g>')
@@ -443,12 +445,17 @@ class Scene:
         return x0, y0, min(self.w, math.floor(cx) + r + 1) - x0, min(self.h, math.floor(cy) + r + 1) - y0
 
     def shift_layer(self, dbv):
-        """The Doppler-shifted share of the background stars, B-V moved by dbv."""
+        """The Doppler-shifted stars, B-V moved by dbv: the chosen share of the
+        background and every constellation star, Polaris and its glint included."""
         defs, body = [], []
         for j in self.shifted:
             star = list(self.stars[j])
             star[4] = bv_rgb(star[6] + dbv, star[7] * SHIFT_SAT)
             field_star(j, star, defs, body)
+        for i in range(len(CONSTELLATIONS)):
+            if i != POLARIS:
+                dipper_star(self.sky, i, 1.0, defs, body, (dbv, SHIFT_SAT))
+        polaris(self.sky, 0, 1, defs, body, (dbv, SHIFT_SAT))
         return svg_doc(self.w, self.h, defs, body)
 
 
