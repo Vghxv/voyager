@@ -1,15 +1,26 @@
 //! What drag mode shows, apart from Wayland: the view, the cursor, the constellation
-//! lines and names, the chips and the probe, and how they fade. app.rs feeds it input;
-//! `export --overlay` uses it headless for previews.
+//! lines and names, the chips, the navigation ball and the probe, how they fade, and
+//! how the view moves on its own (snaps and the idle zodiac tour). app.rs feeds it
+//! input; `export --overlay` uses it headless for previews.
+//!
+//! Two orbit methods, as in Blender: Turntable keeps the roll (north stays up on a
+//! level sky), Trackball turns the sphere freely, so the sky can tilt. Left alone for
+//! IDLE in Trackball, the view zooms out, settles on the ecliptic (keeping its tilt)
+//! and glides east through the twelve zodiac signs. Only taking hold of the sky (a
+//! click or drag on it or on the ball) ends the tour; moving the mouse, keys and chips
+//! leave it running, and scrolling zooms the tour itself.
 
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use glyphon::{Attrs, Buffer, Color, Family, Metrics, Shaping, TextArea, TextBounds};
 
 use crate::data::SkyData;
-use crate::render::{Frame, Rect, Renderer, Target, TextCtx};
-use crate::view::{pin, Proj, View, V3};
+use crate::render::{Frame, Renderer, Shape, Target, TextCtx, PROBE_PX};
+use crate::view::{
+    self as view, angle, cross, dot, ease_basis, ecliptic_lon, ecliptic_point, neg, normalize, pin, pin_free, radec,
+    rotate_basis, turn_basis_to, Basis, Proj, View, V3,
+};
 
 /// A constellation this close to the cursor (logical pixels) lights up.
 const HOVER_PX: f64 = 120.0;
@@ -19,6 +30,36 @@ const PROBE_HOVER_PX: f64 = 150.0;
 const LABEL_PX: f32 = 14.0;
 const CHIP_PX: f32 = 13.0;
 const FONT: &str = "Noto Sans CJK TC";
+/// The probe's name, in English and 繁體中文.
+const PROBE_NAME: [&str; 2] = ["Voyager 1", "航海家1號"];
+
+/// A press that moves less than this before letting go is a click.
+const CLICK_SLOP_PX: f64 = 6.0;
+/// Dragging the navigation ball turns the sky this much per pixel.
+const ORBIT_DEG_PER_PX: f64 = 0.5;
+/// How fast a snap (axis click, levelling) closes in, per second.
+const SNAP_RATE: f64 = 5.0;
+
+/// No input for this long in Trackball starts the zodiac tour.
+const IDLE: Duration = Duration::from_secs(5);
+/// The tour zooms out to at least this field of view.
+const TOUR_FOV: f64 = 120.0;
+/// Along the ecliptic: one sign every 15 s, the whole zodiac in 3 minutes.
+const TOUR_DEG_PER_S: f64 = 2.0;
+/// How fast the view closes in on the moving tour target, per second, reached
+/// gradually over TOUR_RAMP seconds so the start is gentle.
+const TOUR_RATE: f64 = 1.0;
+const TOUR_RAMP: f64 = 1.5;
+
+/// The navigation ball, bottom right of every monitor above the chips (logical px).
+const BALL_R: f32 = 44.0;
+const BALL_MARGIN: f32 = 24.0;
+const KNOB_R: f32 = 9.0;
+const NEG_KNOB_R: f32 = 6.0;
+const AXIS_LEN: f32 = BALL_R - KNOB_R - 3.0;
+const AXIS_TEXT_PX: f32 = 11.0;
+/// X, Y, Z: red, green, blue, softened to sit in the night palette.
+const AXIS_COL: [[f32; 3]; 3] = [[0.89, 0.42, 0.45], [0.55, 0.78, 0.40], [0.40, 0.60, 0.94]];
 
 /// A monitor's place in the canvas, in logical pixels, and its buffer scale.
 #[derive(Clone, Copy, Debug)]
@@ -52,9 +93,20 @@ struct Label {
     en_size: (f32, f32),
 }
 
+/// How dragging the sky turns it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Nav {
+    /// the roll stays as it is: on a level sky, north stays up
+    Turntable,
+    /// the sphere turns freely, so the sky can tilt
+    Trackball,
+}
+
 /// The chips in the bottom-right corner, left to right; each has a key too.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Chip {
+    /// T: Turntable or Trackball
+    Nav,
     /// C: constellation lines and names on/off
     Lines,
     /// L: names in Chinese or English
@@ -64,7 +116,7 @@ pub enum Chip {
 }
 
 impl Chip {
-    const ALL: [Chip; 3] = [Chip::Lines, Chip::Lang, Chip::Done];
+    const ALL: [Chip; 4] = [Chip::Nav, Chip::Lines, Chip::Lang, Chip::Done];
 }
 
 struct ChipText {
@@ -83,6 +135,57 @@ struct Spec {
 enum Which {
     Label(usize),
     Chip(usize),
+    Probe,
+    Axis(usize),
+}
+
+/// Every piece of text drag mode can show, shaped once.
+struct Texts {
+    labels: Vec<Label>,
+    /// in Chip::ALL order
+    chips: Vec<ChipText>,
+    probe: Label,
+    /// X, Y, Z
+    axes: Vec<ChipText>,
+}
+
+/// The view moving on its own, eased every frame toward a target.
+#[derive(Clone, Copy, Debug)]
+enum Motion {
+    /// to a fixed view: an axis of the navigation ball, or levelling
+    Snap { to: Basis, fov: f64 },
+    /// the zodiac tour: along the ecliptic from longitude `lon0`, started at `t0`
+    Tour { lon0: f64, t0: Instant, fov: f64 },
+}
+
+/// The left button went down on the navigation ball.
+#[derive(Clone, Copy, Debug)]
+struct BallPress {
+    /// on an axis knob (0-2 +X +Y +Z, 3-5 -X -Y -Z), or on the ball itself
+    axis: Option<usize>,
+    at: (f64, f64),
+    last: (f64, f64),
+    /// went beyond CLICK_SLOP_PX: an orbit, not a click
+    moved: bool,
+}
+
+/// One axis knob on the ball, in monitor-local logical px.
+struct Knob {
+    axis: usize,
+    pos: (f32, f32),
+    /// toward the view centre (1) or away (-1): drawn back to front
+    depth: f64,
+}
+
+fn axis_dir(k: usize) -> V3 {
+    let mut a = [0.0; 3];
+    a[k % 3] = 1.0;
+    if k < 3 { a } else { neg(a) }
+}
+
+fn ball_center(size: (u32, u32)) -> (f32, f32) {
+    // clear of the chip row: its 24 px margin, 26 px height, then a 12 px gap
+    (size.0 as f32 - BALL_MARGIN - BALL_R, size.1 as f32 - 24.0 - 26.0 - 12.0 - BALL_R)
 }
 
 pub struct Scene {
@@ -95,14 +198,16 @@ pub struct Scene {
     pub center: (f64, f64),
     pub cursor: Option<(f64, f64)>,
     grab: Option<V3>,
+    ball: Option<BallPress>,
+    pub nav: Nav,
+    motion: Option<Motion>,
+    last_input: Instant,
     pub lines_on: bool,
     pub zh: bool,
     pub exit: bool,
     hovered: Option<usize>,
 
-    labels: Vec<Label>,
-    /// in Chip::ALL order
-    chips: Vec<ChipText>,
+    texts: Texts,
     /// per constellation: how lit its lines and name are (0 hidden, 0.5 shown, 1 hovered)
     glow: Vec<f32>,
     probe: f32,
@@ -136,13 +241,18 @@ fn rgba(c: [f32; 3], a: f32) -> Color {
 impl Scene {
     pub fn new(renderer: Renderer, sky: SkyData, view: View) -> Self {
         let mut text = TextCtx::new(&renderer);
-        let labels = sky
-            .constellations
+        let mut label = |en: &str, zh: &str| {
+            let (zh, zh_size) = make_text(&mut text, zh, LABEL_PX);
+            let (en, en_size) = make_text(&mut text, en, LABEL_PX);
+            Label { zh, en, zh_size, en_size }
+        };
+        let labels = sky.constellations.iter().map(|c| label(&c.en, &c.zh)).collect();
+        let probe = label(PROBE_NAME[0], PROBE_NAME[1]);
+        let axes = ["X", "Y", "Z"]
             .iter()
-            .map(|c| {
-                let (zh, zh_size) = make_text(&mut text, &c.zh, LABEL_PX);
-                let (en, en_size) = make_text(&mut text, &c.en, LABEL_PX);
-                Label { zh, en, zh_size, en_size }
+            .map(|s| {
+                let (text, size) = make_text(&mut text, s, AXIS_TEXT_PX);
+                ChipText { text, size }
             })
             .collect();
         let seg_con: Vec<usize> =
@@ -155,12 +265,15 @@ impl Scene {
             center: (0.0, 0.0),
             cursor: None,
             grab: None,
+            ball: None,
+            nav: Nav::Trackball,
+            motion: None,
+            last_input: Instant::now(),
             lines_on: false,
             zh: true,
             exit: false,
             hovered: None,
-            labels,
-            chips: Vec::new(),
+            texts: Texts { labels, chips: Vec::new(), probe, axes },
             glow: vec![0.0; n],
             probe: 0.0,
             line_alpha: vec![0.0; seg_con.len()],
@@ -180,47 +293,118 @@ impl Scene {
 
     // --- input ---------------------------------------------------------------------
 
+    /// Any input: it restarts the idle clock (but leaves a running tour alone).
+    fn touch(&mut self) {
+        self.last_input = Instant::now();
+    }
+
+    fn touring(&self) -> bool {
+        matches!(self.motion, Some(Motion::Tour { .. }))
+    }
+
+    /// The sky was taken hold of: end the zodiac tour, the view staying where it is.
+    fn stop_tour(&mut self) {
+        if self.touring() {
+            self.motion = None;
+        }
+    }
+
+    /// A key was pressed (app.rs calls this for every key).
+    pub fn key_input(&mut self) {
+        self.touch();
+    }
+
     pub fn pointer_moved(&mut self, p: (f64, f64)) {
+        // compositors can repeat the position (a redraw, a re-enter): that is not input
+        if self.cursor != Some(p) {
+            self.touch();
+        }
         self.cursor = Some(p);
+        if let Some(mut b) = self.ball {
+            if !b.moved && (p.0 - b.at.0).hypot(p.1 - b.at.1) > CLICK_SLOP_PX {
+                b.moved = true;
+            }
+            if b.moved {
+                self.motion = None;
+                self.orbit((p.0 - b.last.0, p.1 - b.last.1));
+                b.last = p;
+            }
+            self.ball = Some(b);
+            return;
+        }
         if let Some(g) = self.grab {
-            self.view = pin(self.view, self.center, g, p);
+            self.motion = None;
+            self.view = self.pin(self.view, g, p);
         }
     }
 
     pub fn pointer_left(&mut self) {
-        if self.grab.is_none() {
+        if self.grab.is_none() && self.ball.is_none() {
             self.cursor = None;
         }
     }
 
-    /// Left button down at `p` on monitor `g`: a chip, or grab the sky.
+    /// Left button down at `p` on monitor `g`: a chip, the navigation ball, or grab the sky.
     pub fn press(&mut self, p: (f64, f64), g: &Geom) {
+        self.touch();
         self.cursor = Some(p);
         let local = ((p.0 - g.origin.0) as f32, (p.1 - g.origin.1) as f32);
         let hit = self
             .chip_rects(g.size)
             .iter()
             .position(|&(x, y, w, h)| local.0 >= x && local.0 <= x + w && local.1 >= y && local.1 <= y + h);
-        match hit {
-            Some(i) => self.press_chip(Chip::ALL[i]),
-            None => self.grab = Some(self.proj().unproject(p)),
+        if let Some(i) = hit {
+            return self.press_chip(Chip::ALL[i]);
         }
+        let dist = |q: (f32, f32)| (local.0 - q.0).hypot(local.1 - q.1);
+        let knob = self.knobs(g.size).into_iter().rev().find(|k| dist(k.pos) <= knob_r(k.axis) + 2.0).map(|k| k.axis);
+        if knob.is_some() || dist(ball_center(g.size)) <= BALL_R {
+            self.stop_tour();
+            self.ball = Some(BallPress { axis: knob, at: p, last: p, moved: false });
+            return;
+        }
+        self.stop_tour();
+        self.motion = None;
+        self.grab = Some(self.proj().unproject(p));
     }
 
-    pub fn release(&mut self) {
+    /// Left button up at `p`: let go of the sky; a click on an axis knob turns to it.
+    pub fn release(&mut self, p: (f64, f64)) {
+        self.touch();
+        self.cursor = Some(p);
         self.grab = None;
+        if let Some(BallPress { axis: Some(k), moved: false, .. }) = self.ball.take() {
+            self.snap_to_axis(k);
+        }
     }
 
     /// Scroll by `steps` notches at `p`: zoom, keeping the sky under the cursor still.
     pub fn zoom(&mut self, p: (f64, f64), steps: f64) {
+        self.touch();
+        // during the tour, zoom the tour: it eases to the new field of view
+        if let Some(Motion::Tour { fov, .. }) = &mut self.motion {
+            *fov = (*fov * (0.12 * steps).exp()).clamp(view::FOV_MIN, view::FOV_MAX);
+            return;
+        }
+        self.motion = None;
         let before = self.proj().unproject(p);
         let mut v = self.view;
         v.fov *= (0.12 * steps).exp();
-        self.view = pin(v.clamped(), self.center, before, p);
+        self.view = self.pin(v.clamped(), before, p);
     }
 
     pub fn press_chip(&mut self, chip: Chip) {
+        self.touch();
         match chip {
+            Chip::Nav => {
+                // Turntable never tours
+                self.stop_tour();
+                self.nav = match self.nav {
+                    Nav::Turntable => Nav::Trackball,
+                    Nav::Trackball => Nav::Turntable,
+                };
+                self.level();
+            }
             Chip::Lines => self.lines_on = !self.lines_on,
             Chip::Lang => self.zh = !self.zh,
             Chip::Done => self.exit = true,
@@ -228,9 +412,66 @@ impl Scene {
         self.set_chip_text();
     }
 
+    /// R, and going back to Turntable: turn the sky smoothly back to north-up.
+    pub fn level(&mut self) {
+        if self.nav == Nav::Turntable && self.view.roll != 0.0 {
+            self.motion = Some(Motion::Snap { to: View { roll: 0.0, ..self.view }.basis(), fov: self.view.fov });
+        }
+    }
+
+    /// `view` moved so sky point `p` sits under canvas pixel `px`, the current way.
+    fn pin(&self, view: View, p: V3, px: (f64, f64)) -> View {
+        match self.nav {
+            Nav::Turntable => pin(view, self.center, p, px),
+            Nav::Trackball => pin_free(view, self.center, p, px),
+        }
+    }
+
+    /// Dragging the navigation ball by `d` pixels: the sky turns the way the cursor goes.
+    fn orbit(&mut self, d: (f64, f64)) {
+        let k = ORBIT_DEG_PER_PX;
+        self.view = match self.nav {
+            Nav::Turntable => View { ra: self.view.ra + d.0 * k, dec: self.view.dec + d.1 * k, ..self.view }.clamped(),
+            Nav::Trackball => {
+                let b = self.view.basis();
+                let b = rotate_basis(b, b.1, (d.0 * k).to_radians());
+                let b = rotate_basis(b, b.0, (-d.1 * k).to_radians());
+                View::from_basis(b, self.view.fov)
+            }
+        };
+    }
+
+    /// Turn to look along axis `k`; if already looking that way, to the opposite one.
+    fn snap_to_axis(&mut self, k: usize) {
+        let (_, n, f) = self.view.basis();
+        let mut a = axis_dir(k);
+        if angle(f, a) < 0.5_f64.to_radians() {
+            a = neg(a);
+        }
+        let (ra, dec) = radec(a);
+        // at a pole the RA is arbitrary: keep the current one
+        let ra = if dec.abs() > 89.9 { self.view.ra } else { ra };
+        let level = View { ra, dec, fov: self.view.fov, roll: 0.0 }.basis();
+        let to = match self.nav {
+            Nav::Turntable => level,
+            Nav::Trackball => {
+                // keep screen-up as close to what it is as the new forward allows
+                let up = [n[0] - dot(n, a) * a[0], n[1] - dot(n, a) * a[1], n[2] - dot(n, a) * a[2]];
+                if dot(up, up) < 1e-6 {
+                    level
+                } else {
+                    let up = normalize(up);
+                    (cross(up, a), up, a)
+                }
+            }
+        };
+        self.motion = Some(Motion::Snap { to, fov: self.view.fov });
+    }
+
     /// Drawn brighter: lines while they are on, and the language chip always.
     fn chip_lit(&self, chip: Chip) -> bool {
         match chip {
+            Chip::Nav => self.nav == Nav::Trackball,
             Chip::Lines => self.lines_on,
             Chip::Lang => true,
             Chip::Done => false,
@@ -238,10 +479,12 @@ impl Scene {
     }
 
     fn set_chip_text(&mut self) {
-        self.chips = Chip::ALL
+        self.texts.chips = Chip::ALL
             .iter()
             .map(|chip| {
                 let s = match chip {
+                    Chip::Nav if self.nav == Nav::Trackball => "T  trackball",
+                    Chip::Nav => "T  turntable",
                     Chip::Lines if self.lines_on => "C  ✦ lines",
                     Chip::Lines => "C  ✧ lines",
                     Chip::Lang if self.zh => "L  中文",
@@ -274,10 +517,21 @@ impl Scene {
         }
     }
 
+    /// Trackball, left alone for IDLE, nothing else moving: time for the zodiac tour.
+    fn tour_due(&self) -> bool {
+        self.nav == Nav::Trackball
+            && self.motion.is_none()
+            && self.grab.is_none()
+            && self.ball.is_none()
+            && self.last_input.elapsed() >= IDLE
+    }
+
     /// Something is still moving, so keep drawing frames.
     pub fn animating(&self) -> bool {
         self.lines_on
             || self.grab.is_some()
+            || self.motion.is_some()
+            || self.tour_due()
             || (0..self.glow.len()).any(|i| self.glow[i] != self.glow_target(i))
             || self.probe != self.probe_target()
     }
@@ -312,6 +566,15 @@ impl Scene {
         let dt = dt.unwrap_or_else(|| (now - self.last).as_secs_f32().min(0.1));
         self.last = now;
         let t = (now - self.start).as_secs_f32();
+
+        if self.tour_due() {
+            let lon0 = ecliptic_lon(self.view.basis().2);
+            self.motion = Some(Motion::Tour { lon0, t0: now, fov: self.view.fov.max(TOUR_FOV) });
+        }
+        if let Some(m) = self.motion {
+            self.advance(m, dt as f64, now);
+        }
+
         let ease = |cur: &mut f32, target: f32, rate: f32| {
             *cur += (target - *cur) * (1.0 - (-dt * rate).exp());
             if (*cur - target).abs() < 0.002 {
@@ -337,6 +600,32 @@ impl Scene {
         self.renderer.set_line_alpha(&self.line_alpha);
     }
 
+    /// Ease the view one step toward where `m` wants it.
+    fn advance(&mut self, m: Motion, dt: f64, now: Instant) {
+        let (to, fov, rate) = match m {
+            Motion::Snap { to, fov } => (to, fov, SNAP_RATE),
+            Motion::Tour { lon0, t0, fov } => {
+                // the target glides east along the ecliptic; easing toward it zooms
+                // out, centres on the ecliptic and pans, all at once, then settles into
+                // following it. The sky keeps its tilt: the target is the current view
+                // moved there by the shortest turn, with no turn about its centre.
+                let t = (now - t0).as_secs_f64();
+                let f = ecliptic_point(lon0 + TOUR_DEG_PER_S * t);
+                let ramp = (t / TOUR_RAMP).min(1.0);
+                (turn_basis_to(self.view.basis(), f), fov, TOUR_RATE * (ramp * ramp * (3.0 - 2.0 * ramp)).max(0.02))
+            }
+        };
+        let k = 1.0 - (-dt * rate).exp();
+        let (b, left) = ease_basis(self.view.basis(), to, k);
+        let new_fov = self.view.fov + (fov - self.view.fov) * k;
+        if matches!(m, Motion::Snap { .. }) && left < 0.05_f64.to_radians() && (fov - new_fov).abs() < 0.05 {
+            self.view = View::from_basis(to, fov);
+            self.motion = None;
+        } else {
+            self.view = View::from_basis(b, new_fov);
+        }
+    }
+
     // --- drawing ---------------------------------------------------------------------
 
     /// The chips' rectangles (x, y, w, h) on a monitor of `size`, logical px, in Chip::ALL order.
@@ -344,9 +633,9 @@ impl Scene {
         let (pad, h, gap, margin) = (12.0, 26.0, 8.0, 24.0);
         let y = size.1 as f32 - margin - h;
         let mut x = size.0 as f32 - margin;
-        let mut out = vec![(0.0, 0.0, 0.0, 0.0); self.chips.len()];
-        for i in (0..self.chips.len()).rev() {
-            let w = self.chips[i].size.0 + 2.0 * pad;
+        let mut out = vec![(0.0, 0.0, 0.0, 0.0); self.texts.chips.len()];
+        for i in (0..self.texts.chips.len()).rev() {
+            let w = self.texts.chips[i].size.0 + 2.0 * pad;
             x -= w;
             out[i] = (x, y, w, h);
             x -= gap;
@@ -354,11 +643,27 @@ impl Scene {
         out
     }
 
+    /// The navigation ball's axis knobs on a monitor of `size`, back to front.
+    fn knobs(&self, size: (u32, u32)) -> Vec<Knob> {
+        let (e, n, f) = self.view.basis();
+        let c = ball_center(size);
+        let mut out: Vec<Knob> = (0..6)
+            .map(|axis| {
+                let a = axis_dir(axis);
+                // east is left and north up, as on the sky
+                let pos = (c.0 - AXIS_LEN * dot(a, e) as f32, c.1 - AXIS_LEN * dot(a, n) as f32);
+                Knob { axis, pos, depth: dot(a, f) }
+            })
+            .collect();
+        out.sort_by(|a, b| a.depth.total_cmp(&b.depth));
+        out
+    }
+
     /// Draw monitor `g`'s slice of the canvas into `view` (drag mode: with overlay).
     pub fn draw(&mut self, g: &Geom, view: &wgpu::TextureView, target: &mut Target) {
         let frame = self.prepare(g);
         let specs = self.text_specs(g);
-        let areas = areas(&self.labels, &self.chips, self.zh, &specs, g);
+        let areas = areas(&self.texts, self.zh, &specs, g);
         self.renderer.draw(target, view, &frame, Some(&mut self.text), areas);
     }
 
@@ -367,18 +672,18 @@ impl Scene {
         let frame = self.prepare(g);
         let mut target = self.renderer.target(Some(&mut self.text));
         let specs = self.text_specs(g);
-        let areas = areas(&self.labels, &self.chips, self.zh, &specs, g);
+        let areas = areas(&self.texts, self.zh, &specs, g);
         self.renderer.export_with(&mut target, &frame, Some(&mut self.text), areas, path)
     }
 
-    /// Monitor `g`'s frame, with the chip rectangles handed to the renderer.
+    /// Monitor `g`'s frame, with the chips and the ball handed to the renderer.
     fn prepare(&mut self, g: &Geom) -> Frame {
-        let (frame, rects) = self.frame(g);
-        self.renderer.set_rects(&rects);
+        let (frame, shapes) = self.frame(g);
+        self.renderer.set_shapes(&shapes);
         frame
     }
 
-    fn frame(&self, g: &Geom) -> (Frame, Vec<Rect>) {
+    fn frame(&self, g: &Geom) -> (Frame, Vec<Shape>) {
         let sc = g.scale as f64;
         let pr = self.proj();
         let mut proj = pr;
@@ -393,17 +698,48 @@ impl Scene {
             overlay: true,
         };
         let pal = self.renderer.palette();
-        let rects = self
+        let sc = sc as f32;
+        let at = |p: (f32, f32)| (p.0 * sc, p.1 * sc);
+        let mut shapes: Vec<Shape> = self
             .chip_rects(g.size)
             .iter()
             .zip(Chip::ALL)
-            .map(|(&(x, y, w, h), chip)| Rect {
-                rect: [x * sc as f32, y * sc as f32, w * sc as f32, h * sc as f32],
-                col: [pal.ink[0], pal.ink[1], pal.ink[2], 0.62],
-                border: [pal.indigo[0], pal.indigo[1], pal.indigo[2], if self.chip_lit(chip) { 0.85 } else { 0.35 }],
+            .map(|(&(x, y, w, h), chip)| {
+                let r = h / 2.0;
+                Shape::capsule(
+                    at((x + r, y + r)),
+                    at((x + w - r, y + r)),
+                    r * sc,
+                    [pal.ink[0], pal.ink[1], pal.ink[2], 0.62],
+                    [pal.indigo[0], pal.indigo[1], pal.indigo[2], if self.chip_lit(chip) { 0.85 } else { 0.35 }],
+                )
             })
             .collect();
-        (frame, rects)
+
+        // the navigation ball: brighter under the cursor
+        let c = ball_center(g.size);
+        let local = self.cursor.map(|p| ((p.0 - g.origin.0) as f32, (p.1 - g.origin.1) as f32));
+        let near = |q: (f32, f32), r: f32| local.is_some_and(|l| (l.0 - q.0).hypot(l.1 - q.1) <= r);
+        let hot = near(c, BALL_R) || self.ball.is_some_and(|b| b.moved);
+        shapes.push(Shape::capsule(
+            at(c),
+            at(c),
+            BALL_R * sc,
+            [pal.ink[0], pal.ink[1], pal.ink[2], if hot { 0.55 } else { 0.35 }],
+            [pal.indigo[0], pal.indigo[1], pal.indigo[2], if hot { 0.7 } else { 0.3 }],
+        ));
+        for k in self.knobs(g.size) {
+            let [r, gr, b] = AXIS_COL[k.axis % 3];
+            let ring = if near(k.pos, knob_r(k.axis) + 2.0) { [1.0, 1.0, 1.0, 0.9] } else { [r, gr, b, 0.0] };
+            if k.axis < 3 {
+                shapes.push(Shape::capsule(at(c), at(k.pos), 1.1 * sc, [r, gr, b, 0.85], [0.0; 4]));
+                shapes.push(Shape::capsule(at(k.pos), at(k.pos), KNOB_R * sc, [r, gr, b, 1.0], ring));
+            } else {
+                let ring = if ring[3] > 0.0 { ring } else { [r, gr, b, 0.8] };
+                shapes.push(Shape::capsule(at(k.pos), at(k.pos), NEG_KNOB_R * sc, [r, gr, b, 0.25], ring));
+            }
+        }
+        (frame, shapes)
     }
 
     /// Where every visible label and chip text goes on monitor `g`.
@@ -422,7 +758,7 @@ impl Scene {
             if z < 0.0 || x < -200.0 || y < -50.0 || x > g.size.0 as f32 + 200.0 || y > g.size.1 as f32 + 50.0 {
                 continue;
             }
-            let lab = &self.labels[c];
+            let lab = &self.texts.labels[c];
             let (bw, bh) = if self.zh { lab.zh_size } else { lab.en_size };
             out.push(Spec {
                 which: Which::Label(c),
@@ -431,8 +767,33 @@ impl Scene {
                 colour: if Some(c) == self.hovered { rgba([1.0, 1.0, 1.0], gl) } else { rgba(mist, gl * 0.8) },
             });
         }
+        // the probe's name, under it, fading in and out with it
+        if self.probe > 0.01 {
+            let (x, y, z) = pr.project(self.sky.voyager);
+            if z > -0.9 {
+                let (x, y) = ((x - g.origin.0) as f32, (y - g.origin.1) as f32);
+                let lab = &self.texts.probe;
+                let (bw, _) = if self.zh { lab.zh_size } else { lab.en_size };
+                out.push(Spec {
+                    which: Which::Probe,
+                    left: (x - bw / 2.0) * sc,
+                    top: (y + PROBE_PX / 2.0 + 4.0) * sc,
+                    colour: rgba(mist, self.probe),
+                });
+            }
+        }
+        let ink = self.renderer.palette().ink;
+        for k in self.knobs(g.size).iter().filter(|k| k.axis < 3) {
+            let (w, h) = self.texts.axes[k.axis].size;
+            out.push(Spec {
+                which: Which::Axis(k.axis),
+                left: (k.pos.0 - w / 2.0) * sc,
+                top: (k.pos.1 - h / 2.0) * sc,
+                colour: rgba(ink, 1.0),
+            });
+        }
         for (k, &(x, y, rw, rh)) in self.chip_rects(g.size).iter().enumerate() {
-            let size = self.chips[k].size;
+            let size = self.texts.chips[k].size;
             out.push(Spec {
                 which: Which::Chip(k),
                 left: (x + (rw - size.0) / 2.0) * sc,
@@ -448,16 +809,23 @@ impl Scene {
     }
 }
 
-fn areas<'a>(labels: &'a [Label], chips: &'a [ChipText], zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'a>> {
+fn knob_r(axis: usize) -> f32 {
+    if axis < 3 { KNOB_R } else { NEG_KNOB_R }
+}
+
+fn areas<'a>(t: &'a Texts, zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'a>> {
     let (w, h) = g.pixels();
     let bounds = TextBounds { left: 0, top: 0, right: w as i32, bottom: h as i32 };
     specs
         .iter()
         .map(|s| TextArea {
             buffer: match s.which {
-                Which::Label(c) if zh => &labels[c].zh,
-                Which::Label(c) => &labels[c].en,
-                Which::Chip(k) => &chips[k].text,
+                Which::Label(c) if zh => &t.labels[c].zh,
+                Which::Label(c) => &t.labels[c].en,
+                Which::Chip(k) => &t.chips[k].text,
+                Which::Probe if zh => &t.probe.zh,
+                Which::Probe => &t.probe.en,
+                Which::Axis(k) => &t.axes[k].text,
             },
             left: s.left,
             top: s.top,
@@ -469,3 +837,65 @@ fn areas<'a>(labels: &'a [Label], chips: &'a [ChipText], zh: bool, specs: &[Spec
         .collect()
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::render::Gpu;
+
+    fn scene() -> Option<Scene> {
+        let gpu = Gpu::new().ok()?;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../sky");
+        let sky = SkyData::load(&dir).ok()?;
+        let r = Renderer::new(&gpu, wgpu::TextureFormat::Bgra8Unorm, &sky);
+        let view = crate::wallpaper::default_view(&sky);
+        let mut s = Scene::new(r, sky, view);
+        s.center = (960.0, 540.0);
+        Some(s)
+    }
+
+    #[test]
+    fn only_taking_hold_of_the_sky_stops_the_tour() {
+        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let g = Geom { origin: (0.0, 0.0), size: (1920, 1080), scale: 1 };
+        assert_eq!(s.nav, Nav::Trackball, "drag mode opens in Trackball");
+        s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
+        s.update(Some(0.016));
+        assert!(s.touring(), "tour should start");
+
+        // moving the mouse, keys and chips leave it running
+        s.pointer_moved((100.0, 300.0));
+        s.pointer_moved((140.0, 320.0));
+        for chip in [Chip::Lines, Chip::Lang] {
+            s.key_input();
+            s.press_chip(chip);
+        }
+        s.update(Some(0.016));
+        assert!(s.touring(), "tour should keep going");
+
+        // scrolling zooms the tour, without stopping it
+        let Some(Motion::Tour { fov: before, .. }) = s.motion else { unreachable!() };
+        s.zoom((500.0, 500.0), -2.0);
+        let Some(Motion::Tour { fov: after, .. }) = s.motion else { panic!("scroll stopped the tour") };
+        assert!(after < before);
+
+        // a click on the sky ends it, and the view stays put
+        s.press((800.0, 400.0), &g);
+        s.release((800.0, 400.0));
+        let held = s.view;
+        s.update(Some(0.016));
+        assert!(!s.touring(), "a click should stop the tour");
+        assert_eq!(s.view, held);
+    }
+
+    #[test]
+    fn switching_to_turntable_stops_the_tour() {
+        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
+        s.update(Some(0.016));
+        assert!(s.touring());
+        s.press_chip(Chip::Nav);
+        assert_eq!(s.nav, Nav::Turntable);
+        assert!(!s.touring());
+    }
+}

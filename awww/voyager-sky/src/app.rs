@@ -15,7 +15,8 @@
 //!           press already holds the sky. Esc saves the view and goes back to listening.
 //!
 //! Frames are paced by Wayland frame callbacks and drawn only while something
-//! changes: a drag, a fade, or the slow flicker of the constellation lines.
+//! changes: a drag, a fade, a snap, the zodiac tour, or the slow flicker of the
+//! constellation lines.
 
 use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
@@ -427,7 +428,7 @@ impl App {
             layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
             layer.set_exclusive_zone(-1);
             // a long-press never clicks these surfaces, so ask for the keyboard outright:
-            // Esc, C and L must work straight away
+            // Esc, T, R, C and L must work straight away
             layer.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
             layer.set_size(0, 0);
             layer.commit();
@@ -640,7 +641,7 @@ impl PointerHandler for App {
                 PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. } => d.scene.pointer_moved(p),
                 PointerEventKind::Leave { .. } => d.scene.pointer_left(),
                 PointerEventKind::Press { button, .. } if button == BTN_LEFT => d.scene.press(p, &g),
-                PointerEventKind::Release { button, .. } if button == BTN_LEFT => d.scene.release(),
+                PointerEventKind::Release { button, .. } if button == BTN_LEFT => d.scene.release(p),
                 PointerEventKind::Axis { vertical, .. } => {
                     let steps = if vertical.absolute != 0.0 { vertical.absolute / 15.0 } else { vertical.discrete as f64 };
                     if steps != 0.0 {
@@ -659,7 +660,10 @@ impl KeyboardHandler for App {
     fn leave(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: &wl_surface::WlSurface, _: u32) {}
     fn press_key(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_keyboard::WlKeyboard, _: u32, ev: KeyEvent) {
         let Some(d) = &mut self.drag else { return };
+        d.scene.key_input();
         match ev.keysym {
+            Keysym::t | Keysym::T => d.scene.press_chip(Chip::Nav),
+            Keysym::r | Keysym::R => d.scene.level(),
             Keysym::c | Keysym::C => d.scene.press_chip(Chip::Lines),
             Keysym::l | Keysym::L => d.scene.press_chip(Chip::Lang),
             Keysym::Escape => d.scene.exit = true,

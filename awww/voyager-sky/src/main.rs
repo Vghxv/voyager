@@ -12,8 +12,10 @@
 //! sky already in hand; Esc saves the view and goes back to listening.
 //!
 //! Drag mode puts the live sky on the desktop layer of every monitor, behind your
-//! windows, as one canvas across them: drag to turn the sky, scroll to zoom. C toggles
-//! the constellation lines and names, L switches their language (中/EN), Esc ends it.
+//! windows, as one canvas across them: drag to turn the sky, scroll to zoom, or use the
+//! XYZ ball bottom right. T switches Turntable/Trackball, R levels the sky, C toggles the
+//! constellation lines and names, L switches their language (中/EN),
+//! Esc ends it. Left alone 5 s in Trackball, it tours the zodiac along the ecliptic.
 //! On exit, the view on the monitor drag mode started on becomes wallpaper.png (with the
 //! probe if Voyager is in it) and lock.png (without), and awww shows it.
 //!
@@ -120,7 +122,8 @@ fn usage() -> &'static str {
      \x20      export --overlay [--cursor X,Y] [--english]   preview drag mode: lines and names on\n\
      \x20      [--data DIR]   sky data folder (default: sky/ next to the binary)\n\
      listen: hold the left button on empty desktop to start drag mode\n\
-     drag mode: drag to turn the sky, scroll to zoom, C lines + names, L 中/EN, Esc to end"
+     drag mode: drag to turn the sky, scroll to zoom, XYZ ball to orbit or snap to an axis,\n\
+     \x20          T turntable/trackball, R level, C lines + names, L 中/EN, Esc to end"
 }
 
 fn parse_size(s: &str) -> Result<(u32, u32), String> {

@@ -1,13 +1,14 @@
 // voyager-sky: every pass of the sky, in one shader module.
 //
-// Projection: stereographic around the view centre, celestial north up, east to the
-// left (as the sky is seen from inside the sphere). The same maths is in view.rs.
+// Projection: stereographic around the view centre, east to the left (as the sky is
+// seen from inside the sphere); e and n carry the view's roll (0 = celestial north up).
+// The same maths is in view.rs.
 // All work happens in gamma (sRGB-encoded) space, like the old SVG renderer, so the
 // palette colours come out exactly as written.
 
 struct U {
-    e: vec4f,             // east at the view centre (xyz)
-    n: vec4f,             // north at the view centre
+    e: vec4f,             // screen-left at the view centre (xyz): east when level
+    n: vec4f,             // screen-up at the view centre: north when level
     f: vec4f,             // the view centre
     center: vec2f,        // projection centre, in this target's pixels
     scale: f32,           // pixels per stereographic unit
@@ -231,37 +232,43 @@ struct LineOut {
     return vec4f(uni.line_col.rgb, a);
 }
 
-// --- 6. rounded rectangles (the toggle chips) ----------------------------------------
+// --- 6. capsules: the chips and the navigation ball (drag mode) -----------------------
 
-struct RectIn {
-    @location(0) rect: vec4f,  // x, y, w, h in pixels
+struct ShapeIn {
+    @location(0) seg: vec4f,   // a.xy, b.xy in pixels
     @location(1) col: vec4f,
     @location(2) border: vec4f,
+    @location(3) extra: vec4f, // x = radius
 };
-struct RectOut {
+struct ShapeOut {
     @builtin(position) pos: vec4f,
-    @location(0) p: vec2f,     // pixels from the centre
-    @location(1) half: vec2f,
-    @location(2) col: vec4f,
-    @location(3) border: vec4f,
+    @location(0) p: vec2f,     // this pixel
+    @location(1) seg: vec4f,
+    @location(2) r: f32,
+    @location(3) col: vec4f,
+    @location(4) border: vec4f,
 };
 
-@vertex fn rect_vs(@builtin(vertex_index) i: u32, r: RectIn) -> RectOut {
-    let half = r.rect.zw * 0.5;
-    let c = corner(i) * (half + 1.0);
-    var out: RectOut;
-    out.p = c;
-    out.half = half;
-    out.col = r.col;
-    out.border = r.border;
-    out.pos = to_clip(r.rect.xy + half + c);
+@vertex fn shape_vs(@builtin(vertex_index) i: u32, s: ShapeIn) -> ShapeOut {
+    let r = s.extra.x;
+    let lo = min(s.seg.xy, s.seg.zw) - r - 1.0;
+    let hi = max(s.seg.xy, s.seg.zw) + r + 1.0;
+    let px = mix(lo, hi, corner(i) * 0.5 + 0.5);
+    var out: ShapeOut;
+    out.p = px;
+    out.seg = s.seg;
+    out.r = r;
+    out.col = s.col;
+    out.border = s.border;
+    out.pos = to_clip(px);
     return out;
 }
 
-@fragment fn rect_fs(in: RectOut) -> @location(0) vec4f {
-    let rad = in.half.y;
-    let q = abs(in.p) - in.half + rad;
-    let d = length(max(q, vec2f(0.0))) + min(max(q.x, q.y), 0.0) - rad;
+@fragment fn shape_fs(in: ShapeOut) -> @location(0) vec4f {
+    let pa = in.p - in.seg.xy;
+    let ba = in.seg.zw - in.seg.xy;
+    let h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-6), 0.0, 1.0);
+    let d = length(pa - ba * h) - in.r;
     let fill = clamp(0.5 - d, 0.0, 1.0);
     let edge = clamp(0.5 - abs(d + 0.75), 0.0, 1.0);
     let a = fill * in.col.a;

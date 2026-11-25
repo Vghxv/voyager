@@ -62,13 +62,24 @@ struct LineInst {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-pub struct Rect {
-    pub rect: [f32; 4],
+/// A capsule in target pixels: the points within `r` of the segment a-b, filled with
+/// `col` and edged with `border`. a == b makes a disk; a chip is a wide one.
+pub struct Shape {
+    /// a.x, a.y, b.x, b.y
+    pub seg: [f32; 4],
     pub col: [f32; 4],
     pub border: [f32; 4],
+    /// x = r
+    pub extra: [f32; 4],
 }
 
-const MAX_RECTS: usize = 8;
+impl Shape {
+    pub fn capsule(a: (f32, f32), b: (f32, f32), r: f32, col: [f32; 4], border: [f32; 4]) -> Self {
+        Shape { seg: [a.0, a.1, b.0, b.1], col, border, extra: [r, 0.0, 0.0, 0.0] }
+    }
+}
+
+const MAX_SHAPES: usize = 32;
 
 /// What one frame shows, in the target's own pixels.
 pub struct Frame {
@@ -145,7 +156,7 @@ pub struct Renderer {
     stars: wgpu::RenderPipeline,
     probe: wgpu::RenderPipeline,
     lines: wgpu::RenderPipeline,
-    rects: wgpu::RenderPipeline,
+    shapes: wgpu::RenderPipeline,
     field_buf: wgpu::Buffer,
     n_field: u32,
     star_buf: wgpu::Buffer,
@@ -153,8 +164,8 @@ pub struct Renderer {
     line_buf: wgpu::Buffer,
     line_alpha: wgpu::Buffer,
     n_lines: u32,
-    rect_buf: wgpu::Buffer,
-    n_rects: u32,
+    shape_buf: wgpu::Buffer,
+    n_shapes: u32,
     palette: Palette,
     milky_way: [f32; 3],
     voyager: [f32; 3],
@@ -278,8 +289,8 @@ impl Renderer {
             wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Unorm8x4];
         const LINE: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
         const ALPHA: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![2 => Float32];
-        const RECT: [wgpu::VertexAttribute; 3] =
-            wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Float32x4];
+        const SHAPE: [wgpu::VertexAttribute; 4] =
+            wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Float32x4, 3 => Float32x4];
         let point_layout = inst(20, &POINT);
 
         let sky_p = pipeline("sky", "sky_vs", "sky_fs", &[], None);
@@ -287,7 +298,7 @@ impl Renderer {
         let stars = pipeline("stars", "star_vs", "star_fs", &[point_layout], blend);
         let probe = pipeline("probe", "probe_vs", "probe_fs", &[], blend);
         let lines = pipeline("lines", "line_vs", "line_fs", &[inst(24, &LINE), inst(4, &ALPHA)], blend);
-        let rects = pipeline("rects", "rect_vs", "rect_fs", &[inst(48, &RECT)], blend);
+        let shapes = pipeline("shapes", "shape_vs", "shape_fs", &[inst(64, &SHAPE)], blend);
 
         let field_inst: Vec<PointInst> = sky
             .field
@@ -316,7 +327,7 @@ impl Renderer {
         let star_buf = vbuf("stars", bytemuck::cast_slice(&star_inst));
         let line_buf = vbuf("lines", bytemuck::cast_slice(&line_inst));
         let line_alpha = vbuf("line alpha", bytemuck::cast_slice(&vec![0f32; line_inst.len()]));
-        let rect_buf = vbuf("rects", bytemuck::cast_slice(&[Rect::zeroed(); MAX_RECTS]));
+        let shape_buf = vbuf("shapes", bytemuck::cast_slice(&[Shape::zeroed(); MAX_SHAPES]));
 
         let mw = &sky.milky_way;
         let mw_view = texture(&device, &queue, &[(mw.width, mw.height, mw.rgba.clone())], "milky way");
@@ -344,7 +355,7 @@ impl Renderer {
             stars,
             probe,
             lines,
-            rects,
+            shapes,
             field_buf,
             n_field: field_inst.len() as u32,
             star_buf,
@@ -352,8 +363,8 @@ impl Renderer {
             line_buf,
             line_alpha,
             n_lines: line_inst.len() as u32,
-            rect_buf,
-            n_rects: 0,
+            shape_buf,
+            n_shapes: 0,
             palette: Palette::get(),
             milky_way: milky_way(),
             voyager: v3(sky.voyager),
@@ -394,10 +405,11 @@ impl Renderer {
         self.queue.write_buffer(&self.line_alpha, 0, bytemuck::cast_slice(alpha));
     }
 
-    pub fn set_rects(&mut self, rects: &[Rect]) {
-        let n = rects.len().min(MAX_RECTS);
-        self.queue.write_buffer(&self.rect_buf, 0, bytemuck::cast_slice(&rects[..n]));
-        self.n_rects = n as u32;
+    /// The overlay's shapes (chips, navigation ball), drawn in this order.
+    pub fn set_shapes(&mut self, shapes: &[Shape]) {
+        let n = shapes.len().min(MAX_SHAPES);
+        self.queue.write_buffer(&self.shape_buf, 0, bytemuck::cast_slice(&shapes[..n]));
+        self.n_shapes = n as u32;
     }
 
     fn uniforms(&self, fr: &Frame) -> Uniforms {
@@ -473,10 +485,10 @@ impl Renderer {
                 pass.set_pipeline(&self.probe);
                 pass.draw(0..6, 0..1);
             }
-            if fr.overlay && self.n_rects > 0 {
-                pass.set_pipeline(&self.rects);
-                pass.set_vertex_buffer(0, self.rect_buf.slice(..));
-                pass.draw(0..6, 0..self.n_rects);
+            if fr.overlay && self.n_shapes > 0 {
+                pass.set_pipeline(&self.shapes);
+                pass.set_vertex_buffer(0, self.shape_buf.slice(..));
+                pass.draw(0..6, 0..self.n_shapes);
             }
             if text_ok {
                 if let (Some((tr, vp)), Some(ctx)) = (target.text.as_ref(), text.as_deref()) {
