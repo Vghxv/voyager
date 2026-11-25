@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Install the wallpaper: build voyager-sky, run awww as a systemd user service and
 # show the sky (your last chosen view, or Voyager 1 in the middle the first time).
+# Drag mode needs `voyager-sky listen` started with Hyprland; that line in
+# hyprland.lua is yours to add (the end of this script shows it).
 #
 #   ./awww/install.sh            install / update (keeps the view you chose in drag mode)
 #   ./awww/install.sh --restore  stop awww and put your previous unit back (or remove voyager's)
@@ -18,7 +20,7 @@ UNIT_FILE="$SYSTEMD_USER/$UNIT"
 SKY_CMD="$HOME/.config/scripts/voyager-sky"
 
 restore() {
-  pkill -x voyager-sky 2>/dev/null && green "Ended drag mode" || true
+  pkill -x voyager-sky 2>/dev/null && green "Stopped voyager-sky (listen and drag mode)" || true
   if systemctl --user disable --now "$UNIT" 2>/dev/null; then green "Stopped and disabled $UNIT"; fi
   if latest_backup "$UNIT_FILE" >/dev/null; then
     restore_latest "$UNIT_FILE"
@@ -29,7 +31,7 @@ restore() {
   fi
   systemctl --user daemon-reload
   if [[ -L "$SKY_CMD" ]]; then rm -f "$SKY_CMD"; green "Removed $SKY_CMD"; fi
-  echo "The wallpaper files stay in $HYPR_VOYAGER (remove your voyager-sky keybind by hand)."
+  echo "The wallpaper files stay in $HYPR_VOYAGER. Remove the voyager-sky lines (listen, any toggle keybind) from hyprland.lua by hand."
 }
 
 parse_option --restore -- "$@"
@@ -51,7 +53,8 @@ fi
 echo "Building voyager-sky (the first build takes a few minutes)..."
 cargo build --release --locked --quiet --manifest-path "$SRC/voyager-sky/Cargo.toml"
 
-# a running drag mode would keep the old binary and write over the new wallpaper
+# a running listen or drag mode would keep the old binary (and drag mode would write
+# over the new wallpaper); listen starts again with your next login
 pkill -x voyager-sky 2>/dev/null && sleep 1 || true
 
 mkdir -p "$HYPR_VOYAGER/sky"
@@ -82,7 +85,8 @@ awww query >/dev/null 2>&1 || { red "awww-daemon did not come up — see: journa
 green "Showing $HYPR_VOYAGER/wallpaper.png"
 
 echo
-echo "Drag mode: bind a key to toggle it, e.g. in hyprland.lua:"
-echo "  hl.bind(\"SUPER + D\", hl.dsp.exec_cmd(os.getenv(\"HOME\") .. \"/.config/scripts/voyager-sky toggle\"))"
-echo "Try it now:  $SKY_CMD toggle   (drag the sky on an empty desktop; Esc or toggle again to set it)"
+echo "Drag mode: hold the left button on empty desktop. Start the listener with Hyprland, in hyprland.lua:"
+echo "  hl.on(\"hyprland.start\", function() hl.exec_cmd(os.getenv(\"HOME\") .. \"/.config/scripts/voyager-sky listen\") end)"
+echo "Start it now: setsid -f $SKY_CMD listen"
+echo "Or from the keyboard: bind a key to \"$SKY_CMD toggle\" (Esc or toggle again sets the wallpaper)"
 echo "Undo:        ./awww/install.sh --restore"

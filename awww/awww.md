@@ -34,7 +34,7 @@ The first time, Voyager 1 is in the middle. After that, re-running the installer
 
 ## Drag mode
 
-**Hold the left button on empty desktop** for about half a second, without moving, and drag mode opens with the sky already in your hand: keep holding and drag. This needs `voyager-sky listen` running, so start it with Hyprland, e.g. in `hyprland.lua`:
+**Hold the left button on empty desktop** for about 0.4 s, without moving, and drag mode opens with the sky already in your hand: keep holding and drag. This needs `voyager-sky listen` running, so start it with Hyprland, e.g. in `hyprland.lua`:
 
 ```lua
 hl.on("hyprland.start", function()
@@ -55,7 +55,7 @@ While drag mode is on, the live sky sits on the desktop behind your windows, so 
 | `C`, or the **lines** chip | Shows or hides the constellation lines, which flicker slowly in blue, and their names |
 | `L`, or the **中文 / English** chip | Switches the names between Traditional Chinese and English |
 | Move the cursor near a constellation | Its lines and name light up |
-| Move the cursor near Voyager 1 | The probe fades in, a bit larger than on the wallpaper |
+| Move the cursor near Voyager 1 | The probe fades in |
 | `Esc`, or the **set as wallpaper** chip | Ends drag mode and makes the view the wallpaper (with `listen`, it goes back to waiting) |
 
 Drag mode takes the keyboard while it's on, so `C`, `L` and `Esc` work straight away.
@@ -71,10 +71,15 @@ Drag mode takes the keyboard while it's on, so `C`, `L` and `Esc` work straight 
 ```bash
 voyager-sky listen                       # wait for a long-press on empty desktop, then drag mode
 voyager-sky toggle                       # start drag mode, or end it and set the wallpaper
+voyager-sky run                          # drag mode in the foreground (Ctrl-C ends it like Esc)
 voyager-sky apply                        # re-render wallpaper.png + lock.png from the saved view and show it
 voyager-sky export --view 83,0,90 --size 3840x2160 --out orion.png   # any view to a PNG (RA,Dec[,FOV] in degrees)
+voyager-sky export --no-probe --out sky.png                          # the same without the probe (like lock.png)
 voyager-sky export --overlay --cursor 960,540 --out preview.png      # what drag mode looks like (lines + names)
+voyager-sky export --overlay --english --out preview-en.png          # ... with the names in English
 ```
+
+`export` and `apply` render at your largest monitor's size unless you pass `--size WxH`. Every command takes `--data DIR` to read the sky data from somewhere other than `~/.config/hypr/voyager/sky`.
 
 The saved view is in `~/.config/hypr/voyager/view.json` (`ra`, `dec`, `fov`). Delete it and run `voyager-sky apply` to put Voyager 1 back in the middle.
 
@@ -108,7 +113,7 @@ Start with `./doctor.sh awww`.
 | Installer says "No systemd graphical session" | start Hyprland with `uwsm start hyprland.desktop` |
 | No wallpaper after login | `systemctl --user restart awww`; why: `journalctl --user -u awww -n 20` |
 | Wallpaper looks soft on a new, bigger monitor | `voyager-sky apply` (renders at the largest monitor's size) |
-| Holding the button on the desktop does nothing | is it running? `pgrep -a voyager-sky`; if not, run `~/.config/scripts/voyager-sky listen` in a terminal to see the error |
+| Holding the button on the desktop does nothing | is it running? `pgrep -a voyager-sky` (re-running the installer stops it until your next login); if not, run `~/.config/scripts/voyager-sky listen` in a terminal to see the error |
 | "already listening" | one is already running; restart it with `pkill -x voyager-sky`, then start `listen` again |
 | The keybind does nothing | run `~/.config/scripts/voyager-sky toggle` in a terminal to see the error |
 | "drag mode is already on" | end it with `voyager-sky toggle`; a stuck one: `pkill -x voyager-sky` |
