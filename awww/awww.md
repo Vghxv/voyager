@@ -12,7 +12,7 @@ What the sky shows:
 - **The probe** (the voyager logo), drawn on Voyager 1's position whenever that part of the sky is in view.
 - No galaxies or nebulae: they're too dim to see.
 
-The view is drawn north up, with east to the left, as you see the sky from inside the sphere.
+The view is drawn north up, with east to the left, as you see the sky from inside the sphere. If you tilt the sky in drag mode (Trackball), the wallpaper keeps the tilt.
 
 ## Install
 
@@ -52,19 +52,30 @@ While drag mode is on, the live sky sits on the desktop behind your windows, so 
 |---|---|
 | Drag on an empty part of the desktop | Turns the sky. The point you grab stays under the cursor. |
 | Scroll | Zooms in or out (40°–140° across a 1920 px screen) |
+| `T`, or the **turntable / trackball** chip | Switches how dragging turns the sky (see below). Going back to Turntable levels the sky. |
+| `R` | In Turntable, levels the sky (north up again) |
+| Click an axis on the **XYZ ball** (bottom right, above the chips) | Turns smoothly to look along that axis; click it again for the opposite one |
+| Drag the **XYZ ball** | Turns the sky the way you drag |
 | `C`, or the **lines** chip | Shows or hides the constellation lines, which flicker slowly in blue, and their names |
+| `E`, or the **ecliptic** chip | Shows or hides the ecliptic, the Sun's path through the zodiac, as a dashed line |
 | `L`, or the **中文 / English** chip | Switches the names between Traditional Chinese and English |
 | Move the cursor near a constellation | Its lines and name light up |
-| Move the cursor near Voyager 1 | The probe fades in |
+| Move the cursor near Voyager 1 | The probe fades in, with its name (航海家1號 / Voyager 1) under it |
 | `Esc`, or the **set as wallpaper** chip | Ends drag mode and makes the view the wallpaper (with `listen`, it goes back to waiting) |
 
-Drag mode takes the keyboard while it's on, so `C`, `L` and `Esc` work straight away.
+Drag mode takes the keyboard only while the cursor is on the sky (empty desktop). Move the cursor onto a window and typing goes to the window as usual.
+
+**Turntable and Trackball.** These are the two ways to turn the sky, named after Blender's. Drag mode always opens in **Trackball**, which turns the sphere freely: drag in a circle and the sky tilts. In **Turntable**, dragging never tilts the sky, so north stays up. When you leave drag mode, the wallpaper keeps any tilt. To level it, switch back to Turntable or press `R` there.
+
+**The XYZ ball.** The axes are equatorial: **Z** points to the north celestial pole (near Polaris), **X** to RA 0h (the vernal equinox, in Pisces) and **Y** to RA 6h (near Orion). The axis nearest the middle of the view is drawn on top. The negative axes are the small hollow knobs.
+
+**Zodiac tour.** In Trackball, if you leave drag mode alone for 5 seconds (no mouse, no keys), the sky starts moving on its own. It zooms out to at least 120°, moves to the nearest point of the ecliptic, then glides east through the twelve zodiac signs at one sign every 15 seconds. All of this happens at once, and the sky keeps whatever tilt it has. Only taking hold of the sky stops it: a click or drag on the sky or on the XYZ ball, and the view stays where it is. Moving the mouse, `C`, `E`, `L` and their chips leave it running. Scrolling zooms the tour, which carries on at the new size. Switching to Turntable (`T`) also ends it, because the tour never runs in Turntable. Once stopped, it starts again after another 5 seconds of no input.
 
 **More than one monitor.** In drag mode the monitors form one wide sky, laid out like your monitors: drag across the seam and the sky keeps going. The monitor you start drag mode on (where you held the button, or where the cursor is for `toggle`) keeps showing exactly your wallpaper, and the others extend it. When you leave, the view on **that starting monitor** becomes the wallpaper, wherever the cursor is by then, and every monitor shows it.
 
 **What drag mode leaves on the wallpaper.** The lines, names and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes the probe if Voyager 1 is in view. The lock screen's copy (`lock.png`) has no probe, because hyprlock draws its own big probe.
 
-**Cost.** Drag mode draws frames only while something moves: a drag, a fade, or the flickering lines while they're on. It sets up the GPU when it opens and frees it when you leave the mode, so `listen` holds no GPU memory while it waits. The wallpaper itself is a still image, so it uses nothing once shown.
+**Cost.** Drag mode draws frames only while something moves: a drag, a fade, a snap, the zodiac tour, or the flickering lines while they're on. It sets up the GPU when it opens and frees it when you leave the mode, so `listen` holds no GPU memory while it waits. The wallpaper itself is a still image, so it uses nothing once shown.
 
 ## Commands
 
@@ -73,15 +84,16 @@ voyager-sky listen                       # wait for a long-press on empty deskto
 voyager-sky toggle                       # start drag mode, or end it and set the wallpaper
 voyager-sky run                          # drag mode in the foreground (Ctrl-C ends it like Esc)
 voyager-sky apply                        # re-render wallpaper.png + lock.png from the saved view and show it
-voyager-sky export --view 83,0,90 --size 3840x2160 --out orion.png   # any view to a PNG (RA,Dec[,FOV] in degrees)
+voyager-sky export --view 83,0,90 --size 3840x2160 --out orion.png   # any view to a PNG (RA,Dec[,FOV[,roll]] in degrees)
 voyager-sky export --no-probe --out sky.png                          # the same without the probe (like lock.png)
 voyager-sky export --overlay --cursor 960,540 --out preview.png      # what drag mode looks like (lines + names)
 voyager-sky export --overlay --english --out preview-en.png          # ... with the names in English
+voyager-sky export --overlay --ecliptic --out preview-ecl.png        # ... with the ecliptic
 ```
 
 `export` and `apply` render at your largest monitor's size unless you pass `--size WxH`. Every command takes `--data DIR` to read the sky data from somewhere other than `~/.config/hypr/voyager/sky`.
 
-The saved view is in `~/.config/hypr/voyager/view.json` (`ra`, `dec`, `fov`). Delete it and run `voyager-sky apply` to put Voyager 1 back in the middle.
+The saved view is in `~/.config/hypr/voyager/view.json` (`ra`, `dec`, `fov`, and `roll`, the tilt in degrees; 0 is north up). Delete it and run `voyager-sky apply` to put Voyager 1 back in the middle.
 
 ## Data
 
@@ -117,6 +129,6 @@ Start with `./doctor.sh awww`.
 | "already listening" | one is already running; restart it with `pkill -x voyager-sky`, then start `listen` again |
 | The keybind does nothing | run `~/.config/scripts/voyager-sky toggle` in a terminal to see the error |
 | "drag mode is already on" | end it with `voyager-sky toggle`; a stuck one: `pkill -x voyager-sky` |
-| Drag mode's keys don't work | click the sky once to give it the keyboard |
+| Drag mode's keys don't work | move the cursor onto the empty desktop (the keys only work there), or click the sky once |
 | "no Vulkan GPU found" | install your GPU's Vulkan driver: `vulkan-intel`, `vulkan-radeon` or `nvidia-utils` |
 | Chinese names show as boxes | `sudo pacman -S noto-fonts-cjk` |
