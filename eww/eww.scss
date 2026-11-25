@@ -9,8 +9,8 @@
 // that box with the other class (see LIGHT / DARK in utils.yuck); nothing
 // reloads. Icons follow the same `theme` variable (assets/<theme>/).
 //
-// CONTRAST: the bar window is transparent, so cells sit straight on the navy
-// wallpaper (#14141F -> #05050D). Keep each mode's `text` (and the icons) readable
+// CONTRAST: the bar window is transparent, so cells sit straight on whatever is
+// behind it. Keep each mode's `text` (and the icons) readable
 // on its `fill`; the frame and bottom edge keep neighbouring cells apart.
 // Tooltips are separate GTK windows outside the themed box: one fixed dark style.
 
@@ -18,10 +18,10 @@
 $indigo: #8B8FF0;
 $teal:   #5EEAD4;
 $amber:  #F0C674;
-$red:    #FF3355;                        // hyprlock fail color
+$red:    #FF3355;
 $mist:   #D9D9F2;
-$navy:   #14141F;                        // wallpaper top
-$void:   #05050D;                        // wallpaper bottom
+$navy:   #14141F;                        // deep space
+$void:   #05050D;                        // deeper space
 $ink:    #0A0A14;                        // dark glass
 
 // ---------- modes ----------

@@ -9,8 +9,7 @@
 Artwork, each at its SVG's own size: logo (the probe), ring (signal ring), star,
 streak (warp streak), flash (wrong-passphrase flash, stretched).
 
-The sky is voyager_sky.py's Big Dipper field (the wallpaper used it before it became
-a draggable celestial sphere), without a small probe:
+The sky is voyager_sky.py's Big Dipper field:
 - sky.png        the sky with every star at rest, except Polaris;
 - polaris.png    Polaris alone, cropped: the script makes it breathe. Its place in
                  sky.png is written into voyager.script (POLARIS_X / POLARIS_Y);
@@ -46,7 +45,7 @@ def render_sky(w, h, seed, out):
             (scene.polaris_layer(), star),
             (scene.shift_layer(BLUE_SHIFT), out / "blueshift.png"),
             (scene.shift_layer(RED_SHIFT), out / "redshift.png"))]
-        render_base(scene, seed, base, tmp, pool, with_probe=False)
+        render_base(scene, seed, base, tmp, pool)
         for job in jobs:
             job.result()
         flatten(base, rest, out / "sky.png")

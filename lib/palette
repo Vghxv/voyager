@@ -7,7 +7,7 @@
 # change a colour here, then in each of those files.
 #
 # name       colour   files that use it (from the repo root)
-navy         #14141F  eww/eww.scss dunst/themes/light.conf plymouth/voyager/voyager.script
+navy         #14141F  eww/eww.scss dunst/themes/light.conf hyprlock/hyprlock.conf plymouth/voyager/voyager.script
 void         #05050D  eww/eww.scss plymouth/voyager/voyager.script
 mist         #D9D9F2  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf plymouth/voyager/voyager.script src/logo.svg
 indigo       #8B8FF0  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/logo.svg

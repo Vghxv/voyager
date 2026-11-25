@@ -1,9 +1,11 @@
 """Shared building blocks for the voyager image generators.
 
-Imported by the generators and by voyager_sky.py: paths, the palette, the probe's
-dish position, rendering and the --size / --seed options. Not a script.
+Imported by the generators and by voyager_sky.py: paths, the palette, rendering,
+the --size / --seed options, and the sky maths every sky uses (star colour from
+B-V, galactic coordinates, background-star mix and density). Not a script.
 """
 
+import math
 import subprocess
 import tempfile
 from pathlib import Path
@@ -25,9 +27,13 @@ def read_palette():
 PALETTE = read_palette()
 BG_TOP, BG_BOTTOM = PALETTE["navy"], PALETTE["void"]   # Plymouth Window.SetBackground*Color
 INDIGO, TEAL, MIST = PALETTE["indigo"], PALETTE["teal"], PALETTE["mist"]
-# Dish centre in the 400x400 logo. plymouth/voyager/voyager.script has its own
-# copy (dish_x / dish_y): update both if the probe artwork changes.
-DISH = (190, 150)
+
+
+def magick(*args):
+    try:
+        subprocess.run(["magick", *map(str, args)], check=True)
+    except FileNotFoundError:
+        raise SystemExit("magick not found. Install it: sudo pacman -S imagemagick")
 
 
 def render(svg, w, h, out):
@@ -74,3 +80,55 @@ def parse_size(size):
     sizes = [(m["height"], m["width"]) if m.get("transform", 0) % 2 else (m["width"], m["height"])
              for m in mons]
     return max(sizes, key=lambda wh: wh[0] * wh[1])
+
+
+# --- the sky: star colours and galactic coordinates -------------------------------
+
+NGP = (192.85948, 27.12825, 122.93192)     # galactic north pole RA, Dec; l of the NCP
+
+# Spectral mix of the faint background, as the eye sees a dark sky: (weight, B-V range).
+STAR_CLASSES = [(0.30, (-0.30, 0.00)),        # blue: O, B
+                (0.34, (0.00, 0.35)),         # white: A, early F
+                (0.26, (0.50, 0.95)),         # yellow: G
+                (0.10, (1.00, 1.50))]         # orange: K
+
+
+def bv_rgb(bv, sat=1.0):
+    """B-V colour index -> sRGB hex of a blackbody at that star's temperature.
+
+    sat > 1 pushes the tint away from white, so it still reads on a sub-pixel dot."""
+    bv = max(-0.3, min(1.8, bv))
+    t = 4600 * (1 / (0.92 * bv + 1.7) + 1 / (0.92 * bv + 0.62)) / 100   # Ballesteros 2012
+    if t <= 66:
+        r, g = 255, 99.4708025861 * math.log(t) - 161.1195681661
+        b = 0 if t <= 19 else 138.5177312231 * math.log(t - 10) - 305.0447927307
+    else:
+        r = 329.698727446 * (t - 60) ** -0.1332047592
+        g = 288.1221695283 * (t - 60) ** -0.0755148492
+        b = 255
+    return "#" + "".join(f"{max(0, min(255, round(255 - (255 - c) * sat))):02X}" for c in (r, g, b))
+
+
+def field_bv(rng):
+    """A random B-V index for a background star, following STAR_CLASSES."""
+    pick, acc = rng.random(), 0.0
+    for weight, (lo, hi) in STAR_CLASSES:
+        acc += weight
+        if pick <= acc:
+            return rng.uniform(lo, hi)
+    return 1.2
+
+
+def eq2gal(ra, dec):
+    """Equatorial (RA, Dec) -> galactic (l, b), degrees."""
+    an, dn, ln = (math.radians(t) for t in NGP)
+    a, d = math.radians(ra), math.radians(dec)
+    b = math.asin(math.sin(d) * math.sin(dn) + math.cos(d) * math.cos(dn) * math.cos(a - an))
+    l = ln - math.atan2(math.cos(d) * math.sin(a - an),
+                        math.sin(d) * math.cos(dn) - math.cos(d) * math.sin(dn) * math.cos(a - an))
+    return math.degrees(l) % 360, math.degrees(b)
+
+
+def star_density(l, b):
+    """Relative density of faint background stars: more toward the galactic plane."""
+    return 0.35 + 0.65 * min(1.0, math.exp(-(b - 20) / 20))

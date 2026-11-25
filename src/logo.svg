@@ -4,8 +4,8 @@
        RTG boom (left) on opposite sides; the three RTGs stacked end to end; IRIS dish and
        NA/WA cameras on the scan platform; 13 m triangular magnetometer truss with low-field
        sensors at its middle and tip; two 10 m PRA/PWS whips; Golden Record on the bus.
-       Ids are prefixed vg- because gen-wallpaper.py inlines this file into a larger SVG.
-       Dish centre stays at (190,147): Plymouth and the wallpaper start their signal rings there. -->
+       Ids are prefixed vg- so the file can be inlined into a larger SVG without clashes.
+       Dish centre stays at (190,147): Plymouth starts its signal rings there. -->
   <defs>
     <linearGradient id="vg-bowl" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#8B8FF0"/>
