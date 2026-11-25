@@ -11,8 +11,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LOGO = ROOT / "src" / "logo.svg"
 
-BG_TOP, BG_BOTTOM = "#14141F", "#05050D"   # Plymouth Window.SetBackground*Color
-INDIGO, TEAL, MIST = "#8B8FF0", "#5EEAD4", "#D9D9F2"
+
+def read_palette():
+    """lib/palette as {name: "#RRGGBB"}."""
+    colours = {}
+    for line in (ROOT / "lib" / "palette").read_text().splitlines():
+        name, _, rest = line.partition(" ")
+        if name and not name.startswith("#"):
+            colours[name] = rest.split()[0]
+    return colours
+
+
+PALETTE = read_palette()
+BG_TOP, BG_BOTTOM = PALETTE["navy"], PALETTE["void"]   # Plymouth Window.SetBackground*Color
+INDIGO, TEAL, MIST = PALETTE["indigo"], PALETTE["teal"], PALETTE["mist"]
 # Dish centre in the 400x400 logo. plymouth/voyager/voyager.script has its own
 # copy (dish_x / dish_y): update both if the probe artwork changes.
 DISH = (190, 150)
