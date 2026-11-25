@@ -6,8 +6,8 @@ hyprlock cannot run animations the way Plymouth does, so the effects are adapted
 
 | Plymouth (boot) | hyprlock (lock screen) |
 |---|---|
-| Stars twinkle smoothly | Polaris and a few faint stars twinkle: hyprlock shows one still image, so `next-frame.sh` hands it the next of six frames every second and it crossfades |
-| Stars warp and rings pulse as you type | Each typed character appears as a ✦ star that fades in |
+| Polaris breathes smoothly | Polaris and a few faint stars twinkle: hyprlock shows one still image, so `next-frame.sh` hands it the next of six frames every second and it crossfades |
+| Stars warp, the sky blue-shifts and rings pulse as you type | Each typed character appears as a ✦ star that fades in |
 | Red flash and shake on a wrong passphrase | The field outline turns red: *"signal lost — N"* |
 
 ## Install

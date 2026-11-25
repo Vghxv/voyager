@@ -1,16 +1,16 @@
 # Plymouth boot screen
 
-An animated screen for unlocking an encrypted disk at boot: a probe drifting in a twinkling starfield that reacts as you type.
+An animated screen for unlocking an encrypted disk at boot: the probe in the wallpaper's sky (Ursa Major and Minor, the faint Integrated Flux Nebula, the Owl Nebula and a few galaxies; see [the wallpaper](../awww/awww.md)), which reacts as you type.
 
 ![preview](../docs/preview.gif)
 
 | When | What happens |
 |---|---|
-| Waiting | ~110 stars twinkle, and a faint hint says *"type your passphrase, press enter to launch"* |
-| You type a character | Stars streak outward in a warp burst, and a signal ring pulses from the probe's dish |
-| Backspace | Stars pull back in, and the ring collapses into the dish |
-| Enter | The warp speeds up while the disk unlocks |
-| Wrong passphrase | Red flash, the probe shakes, the hint comes back |
+| Waiting | Just the sky. Polaris breathes, and a faint hint says *"type your passphrase, press enter to launch"* |
+| You type a character | Stars streak outward in a warp burst, the sky's stars blue-shift, and a signal ring pulses from the probe's dish |
+| Backspace | Stars pull back in and red-shift, and the ring collapses into the dish |
+| Enter | The warp speeds up and the sky turns blue while the disk unlocks |
+| Wrong passphrase | Red flash, the probe shakes, the sky red-shifts, the hint comes back |
 
 It never draws bullets, so the screen does not reveal how long your passphrase is. Press **Esc** at boot to get the plain text prompt instead.
 
@@ -65,7 +65,7 @@ The theme is built into the initramfs, so re-run `--apply` after **any** change 
 
 Switch to a text console (**Ctrl+Alt+F3**, add **Fn** if your F-keys are media keys), log in, and run `./plymouth/preview.sh`:
 
-1. The starfield idles for ~3 s.
+1. The sky idles for ~3 s.
 2. Prompt **one**: type, try Backspace, press Enter, and watch the warp.
 3. Prompt **two** acts as if the passphrase was wrong: red flash and shake. Type again and press Enter to finish.
 
@@ -95,16 +95,21 @@ Tunables at the top of `voyager/voyager.script`:
 
 | Variable | Default | Effect |
 |---|---|---|
-| `NUM_STARS` | `110` | number of stars |
+| `NUM_STARS` | `100` | number of warp stars (seen only while moving) |
 | `KEY_BOOST` | `1.4` | warp burst per typed character |
 | `BACK_PULL` | `1.0` | pull back per Backspace |
 | `WARP_MAX` | `6` | warp speed after Enter |
 | `STREAK_AT` | `1.2` | speed at which stars become streaks |
+| `WARP_SEEN` | `0.6` | speed at which the warp stars are fully visible |
+| `BLUE_AT` | `3` | speed at which the sky is fully blue-shifted |
+| `RED_AT` | `1.5` | reverse speed at which it is fully red-shifted |
 | `ROT_SIGN` | `1` | set to `-1` if streaks point sideways instead of outward |
 
 - **Text:** search the script for `Image.Text("voyager"` and `Image.Text("type your passphrase`.
-- **Background:** `Window.SetBackgroundTopColor` / `BottomColor` in the script (RGB, 0–1).
-- **Images:** every PNG in `voyager/` is rendered from an SVG in `src/`. Edit the SVG, run `src/gen-plymouth.py`, then `--apply`. If you move the probe's dish, update `dish_x` / `dish_y` in the script.
+- **Images:** every PNG in `voyager/` is rendered by `src/gen-plymouth.py`: the artwork from the SVGs in `src/`, and the sky (`sky.png`, `polaris.png`, `blueshift.png`, `redshift.png`) from `src/voyager_sky.py`, shared with the wallpaper and the lock screen. Edit, run it, then `--apply`. If you move the probe's dish, update `dish_x` / `dish_y` in the script.
+- **Screen size:** the sky is 1920×1080 and is scaled to cover the screen. For a sharper one on a bigger screen: `src/gen-plymouth.py --size auto` (or `--size 2560x1440`), then `--apply`. The sky adds about 2 MB to the initramfs.
+- **Shift strength:** `SHIFT_FRACTION`, `BLUE_SHIFT`, `RED_SHIFT` and `SHIFT_SAT` in `src/voyager_sky.py`.
+- **Fallback background:** `Window.SetBackgroundTopColor` / `BottomColor` in the script (RGB, 0–1), seen only if `sky.png` is missing.
 
 ## If it breaks
 

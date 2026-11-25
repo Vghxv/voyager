@@ -1,17 +1,27 @@
 # =====================================================================
 #  voyager  -  Plymouth LUKS unlock screen
-#  twinkling stars + warp on typing + signal pulses + wrong-pass shake
+#  the voyager sky + warp and blue shift on typing, red shift on
+#  backspace + signal pulses + wrong-pass shake
 # =====================================================================
 
 # ---------------- tunables ----------------
-NUM_STARS   = 110;    # number of stars
+NUM_STARS   = 100;    # warp stars (only seen while moving)
 KEY_BOOST   = 1.4;    # warp burst per typed character
 BACK_PULL   = 1.0;    # reverse pull per backspace
 WARP_MAX    = 6;      # warp speed after Enter
 STREAK_AT   = 1.2;    # speed above which stars turn into streaks
+WARP_SEEN   = 0.6;    # speed at which the warp stars are fully visible
+BLUE_AT     = 3;      # speed at which the sky is fully blue-shifted
+RED_AT      = 1.5;    # reverse speed at which it is fully red-shifted
 ROT_SIGN    = 1;      # set to -1 if streaks point the wrong way
 
+# Polaris's top-left corner in sky.png, as fractions of its size.
+# Written by src/gen-plymouth.py: do not edit by hand.
+POLARIS_X = 0.699479;
+POLARIS_Y = 0.571296;
+
 # ---------------- background ----------------
+# shown only if sky.png is missing
 Window.SetBackgroundTopColor(0.08, 0.08, 0.12);
 Window.SetBackgroundBottomColor(0.02, 0.02, 0.05);
 
@@ -22,6 +32,48 @@ cy = H / 2;
 DT = 0.02;            # refresh runs ~50 times per second
 t  = 0;
 
+fun clamp01(v) {
+  if (v < 0) { return 0; }
+  if (v > 1) { return 1; }
+  return v;
+}
+
+# ---------------- the voyager sky (src/gen-plymouth.py) ----------------
+# Every layer is the same size: scale it to cover the screen, centred.
+sky_src = Image("sky.png");
+sky_s = W / sky_src.GetWidth();
+if (H / sky_src.GetHeight() > sky_s) {
+  sky_s = H / sky_src.GetHeight();
+}
+sky_w = Math.Int(sky_src.GetWidth() * sky_s + 0.5);
+sky_h = Math.Int(sky_src.GetHeight() * sky_s + 0.5);
+sky_x = (W - sky_w) / 2;
+sky_y = (H - sky_h) / 2;
+
+fun sky_layer(file, z) {
+  img = Image(file);
+  if (global.sky_s != 1) {
+    img = img.Scale(global.sky_w, global.sky_h);
+  }
+  sp = Sprite(img);
+  sp.SetPosition(global.sky_x, global.sky_y, z);
+  return sp;
+}
+
+sky_sprite  = sky_layer("sky.png", -100);
+blue_sprite = sky_layer("blueshift.png", -80);
+red_sprite  = sky_layer("redshift.png", -80);
+blue_sprite.SetOpacity(0);
+red_sprite.SetOpacity(0);
+
+# Polaris on its own small sprite, so its breathing redraws only its corner
+polaris_img = Image("polaris.png");
+if (sky_s != 1) {
+  polaris_img = polaris_img.Scale(polaris_img.GetWidth() * sky_s, polaris_img.GetHeight() * sky_s);
+}
+polaris_sprite = Sprite(polaris_img);
+polaris_sprite.SetPosition(sky_x + POLARIS_X * sky_w, sky_y + POLARIS_Y * sky_h, -90);
+
 speed     = 0;
 warping   = 0;
 submitted = 0;
@@ -31,17 +83,27 @@ flash_a   = 0;
 hint_a    = 0;
 hint_target = 1;
 
-# ---------------- stars ----------------
+# ---------------- warp stars ----------------
 star_src   = Image("star.png");
 streak_src = Image("streak.png");
 
+# The streak's bright head points the way the star moves: outward while warping
+# forward (mode 1), inward while backing off (mode -1). mode 0 is a dot.
+fun streak_for(i, mode) {
+  if (mode > 0) {
+    return global.star[i].streak_out;
+  }
+  return global.star[i].streak_in;
+}
+
 fun aim_star(i) {
   ang = Math.ATan2(global.star[i].y - global.cy, global.star[i].x - global.cx);
-  global.star[i].streak = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang);
-  global.star[i].sw2 = global.star[i].streak.GetWidth() / 2;
-  global.star[i].sh2 = global.star[i].streak.GetHeight() / 2;
-  if (global.star[i].mode == 1) {
-    global.star[i].sprite.SetImage(global.star[i].streak);
+  global.star[i].streak_out = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang);
+  global.star[i].streak_in = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang + 3.14159);
+  global.star[i].sw2 = global.star[i].streak_out.GetWidth() / 2;
+  global.star[i].sh2 = global.star[i].streak_out.GetHeight() / 2;
+  if (global.star[i].mode != 0) {
+    global.star[i].sprite.SetImage(streak_for(i, global.star[i].mode));
   }
 }
 
@@ -53,16 +115,14 @@ fun place_star(i) {
 }
 
 for (i = 0; i < NUM_STARS; i++) {
-  size = 4 + Math.Int(Math.Random() * 12);
+  size = 2 + Math.Int(Math.Random() * 5);
   star[i].dot = star_src.Scale(size, size);
-  star[i].streak_base = streak_src.Scale(size * 5, size);
+  star[i].streak_base = streak_src.Scale(size * 8, size);
   star[i].half = size / 2;
   star[i].sprite = Sprite(star[i].dot);
+  star[i].sprite.SetOpacity(0);
   star[i].mode = 0;
-  star[i].peak  = 0.3 + Math.Random() * 0.7;
-  star[i].low   = Math.Random() * 0.2;
-  star[i].freq  = 0.15 + Math.Random() * 1.2;
-  star[i].phase = Math.Random() * 6.2832;
+  star[i].peak  = 0.4 + Math.Random() * 0.6;
   place_star(i);
   star[i].fade = 1;
 }
@@ -139,10 +199,24 @@ fun refresh_callback() {
     global.speed = global.speed + (global.WARP_MAX - global.speed) * 0.04;
   } else {
     global.speed = global.speed * 0.92;
+    if (Math.Abs(global.speed) < 0.005) {
+      global.speed = 0;               # truly still: nothing left to redraw
+    }
   }
-  fast = 0;
-  if (Math.Abs(global.speed) > global.STREAK_AT) {
+  seen = clamp01(Math.Abs(global.speed) / global.WARP_SEEN);
+
+  # Doppler shift: blue while speeding up, red while backing off
+  global.blue_sprite.SetOpacity(clamp01(global.speed / global.BLUE_AT));
+  global.red_sprite.SetOpacity(clamp01(-global.speed / global.RED_AT));
+
+  # Polaris breathes, one breath every 4 s (as on the wallpaper)
+  global.polaris_sprite.SetOpacity(0.775 + 0.225 * Math.Cos(6.2832 * global.t / 4));
+  fast = 0;                           # 1 streaks outward, -1 inward, 0 dots
+  if (global.speed > global.STREAK_AT) {
     fast = 1;
+  }
+  if (global.speed < -global.STREAK_AT) {
+    fast = -1;
   }
 
   # stars
@@ -166,22 +240,16 @@ fun refresh_callback() {
 
     if (fast != global.star[i].mode) {
       global.star[i].mode = fast;
-      if (fast) {
-        global.star[i].sprite.SetImage(global.star[i].streak);
+      if (fast != 0) {
+        global.star[i].sprite.SetImage(streak_for(i, fast));
       } else {
         global.star[i].sprite.SetImage(global.star[i].dot);
       }
     }
 
-    wave = 0.5 + 0.5 * Math.Sin(6.2832 * global.star[i].freq * global.t + global.star[i].phase);
-    a = global.star[i].low + (global.star[i].peak - global.star[i].low) * wave;
-    a = a + Math.Abs(global.speed) * 0.15;
-    if (a > 1) {
-      a = 1;
-    }
-    global.star[i].sprite.SetOpacity(a * global.star[i].fade);
+    global.star[i].sprite.SetOpacity(global.star[i].peak * seen * global.star[i].fade);
 
-    if (fast) {
+    if (fast != 0) {
       global.star[i].sprite.SetPosition(x - global.star[i].sw2, y - global.star[i].sh2, 0);
     } else {
       global.star[i].sprite.SetPosition(x - global.star[i].half, y - global.star[i].half, 0);

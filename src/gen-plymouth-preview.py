@@ -14,9 +14,10 @@ import subprocess
 import sys
 import tempfile
 import time
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+sys.dont_write_bytecode = True          # no src/__pycache__ (and none owned by root)
+from voyager_art import ROOT  # noqa: E402
+
 OUT = ROOT / "docs" / "preview.gif"
 STEPS = """\
 Once the splash is up:
