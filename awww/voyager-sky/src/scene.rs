@@ -216,6 +216,8 @@ pub struct Scene {
     /// per constellation: how lit its lines and name are (0 hidden, 0.5 shown, 1 hovered)
     glow: Vec<f32>,
     probe: f32,
+    /// how visible the chips and the navigation ball are: they fade out for the tour
+    controls: f32,
     /// line segment -> constellation, and a flicker phase per constellation
     seg_con: Vec<usize>,
     phase: Vec<f32>,
@@ -283,6 +285,7 @@ impl Scene {
             texts: Texts { labels, chips: Vec::new(), probe, axes },
             glow: vec![0.0; n],
             probe: 0.0,
+            controls: 1.0,
             line_alpha: vec![0.0; seg_con.len() + ECLIPTIC_SEGS],
             seg_con,
             phase: (0..n).map(|i| (i as f32 * 0.618_034).fract()).collect(),
@@ -355,6 +358,12 @@ impl Scene {
     pub fn press(&mut self, p: (f64, f64), g: &Geom) {
         self.touch();
         self.cursor = Some(p);
+        // during the tour the chips and the ball are hidden: any click takes the sky
+        if self.touring() {
+            self.stop_tour();
+            self.grab = Some(self.proj().unproject(p));
+            return;
+        }
         let local = ((p.0 - g.origin.0) as f32, (p.1 - g.origin.1) as f32);
         let hit = self
             .chip_rects(g.size)
@@ -532,6 +541,10 @@ impl Scene {
         if self.ecliptic_on { 0.6 } else { 0.0 }
     }
 
+    fn controls_target(&self) -> f32 {
+        if self.touring() { 0.0 } else { 1.0 }
+    }
+
     /// Trackball, left alone for IDLE, nothing else moving: time for the zodiac tour.
     fn tour_due(&self) -> bool {
         self.nav == Nav::Trackball
@@ -546,6 +559,7 @@ impl Scene {
         self.lines_on
             || self.grab.is_some()
             || self.motion.is_some()
+            || self.controls != self.controls_target()
             || self.tour_due()
             || self.ecliptic != self.ecliptic_target()
             || (0..self.glow.len()).any(|i| self.glow[i] != self.glow_target(i))
@@ -603,6 +617,8 @@ impl Scene {
             let target = self.glow_target(i);
             ease(&mut self.glow[i], target, 7.0);
         }
+        let ct = self.controls_target();
+        ease(&mut self.controls, ct, 4.0);
         let pt = self.probe_target();
         ease(&mut self.probe, pt, 5.0);
         let et = self.ecliptic_target();
@@ -759,6 +775,13 @@ impl Scene {
                 shapes.push(Shape::capsule(at(k.pos), at(k.pos), NEG_KNOB_R * sc, [r, gr, b, 0.25], ring));
             }
         }
+        // faded out during the tour
+        let c = self.controls;
+        shapes.retain_mut(|s| {
+            s.col[3] *= c;
+            s.border[3] *= c;
+            c > 0.01
+        });
         (frame, shapes)
     }
 
@@ -809,7 +832,7 @@ impl Scene {
                 which: Which::Axis(k.axis),
                 left: (k.pos.0 - w / 2.0) * sc,
                 top: (k.pos.1 - h / 2.0) * sc,
-                colour: rgba(ink, 1.0),
+                colour: rgba(ink, self.controls),
             });
         }
         for (k, &(x, y, rw, rh)) in self.chip_rects(g.size).iter().enumerate() {
@@ -818,8 +841,11 @@ impl Scene {
                 which: Which::Chip(k),
                 left: (x + (rw - size.0) / 2.0) * sc,
                 top: (y + (rh - size.1) / 2.0) * sc,
-                colour: rgba(mist, if self.chip_lit(Chip::ALL[k]) { 0.95 } else { 0.6 }),
+                colour: rgba(mist, if self.chip_lit(Chip::ALL[k]) { 0.95 } else { 0.6 } * self.controls),
             });
+        }
+        if self.controls < 0.01 {
+            out.retain(|s| !matches!(s.which, Which::Axis(_) | Which::Chip(_)));
         }
         out
     }
@@ -899,13 +925,22 @@ mod tests {
         let Some(Motion::Tour { fov: after, .. }) = s.motion else { panic!("scroll stopped the tour") };
         assert!(after < before);
 
-        // a click on the sky ends it, and the view stays put
-        s.press((800.0, 400.0), &g);
+        // the chips and the ball fade out
+        for _ in 0..30 {
+            s.update(Some(0.1));
+        }
+        assert_eq!(s.controls, 0.0);
+
+        // a click on the sky ends it (even where a chip was), and the view stays put
+        s.press((1800.0, 1040.0), &g);
+        assert!(s.grab.is_some(), "a click during the tour takes the sky");
         s.release((800.0, 400.0));
         let held = s.view;
         s.update(Some(0.016));
         assert!(!s.touring(), "a click should stop the tour");
         assert_eq!(s.view, held);
+        s.update(Some(0.1));
+        assert!(s.controls > 0.0, "the chips come back");
     }
 
     #[test]
