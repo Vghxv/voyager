@@ -14,6 +14,9 @@
 //!           button there (LONG_PRESS, without moving) opens drag mode, and that same
 //!           press already holds the sky. Esc saves the view and goes back to listening.
 //!
+//! Drag mode takes the keyboard only while the cursor is on the sky: on a window,
+//! typing goes to the window as usual.
+//!
 //! Frames are paced by Wayland frame callbacks and drawn only while something
 //! changes: a drag, a fade, a snap, the zodiac tour, or the slow flicker of the
 //! constellation lines.
@@ -200,6 +203,19 @@ impl Drag {
                 desired_maximum_frame_latency: 2,
             },
         );
+    }
+
+    /// Take the keyboard while the cursor is on this sky surface, give it back when it
+    /// leaves (onto a window), so drag mode's keys never steal typing from windows.
+    fn grab_keyboard(&self, surface: &wl_surface::WlSurface, on: bool) {
+        if let Some(s) = self.screens.iter().find(|s| s.layer.wl_surface() == surface) {
+            s.layer.set_keyboard_interactivity(if on {
+                KeyboardInteractivity::Exclusive
+            } else {
+                KeyboardInteractivity::None
+            });
+            s.layer.commit();
+        }
     }
 
     fn draw(&mut self, i: usize, qh: &QueueHandle<App>) {
@@ -427,9 +443,14 @@ impl App {
                 self.layer_shell.create_layer_surface(&self.qh, surface, Layer::Bottom, Some("voyager-sky"), Some(&output));
             layer.set_anchor(Anchor::TOP | Anchor::BOTTOM | Anchor::LEFT | Anchor::RIGHT);
             layer.set_exclusive_zone(-1);
-            // a long-press never clicks these surfaces, so ask for the keyboard outright:
-            // Esc, T, R, C, E and L must work straight away
-            layer.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
+            // the keyboard is ours only while the cursor is on the sky (see grab_keyboard);
+            // a long-press starts there, so its monitor takes it at once
+            let held_here = held_at.is_some() && home.as_ref() == Some(&output);
+            layer.set_keyboard_interactivity(if held_here {
+                KeyboardInteractivity::Exclusive
+            } else {
+                KeyboardInteractivity::None
+            });
             layer.set_size(0, 0);
             layer.commit();
             let window = RawWindowHandle::Wayland(WaylandWindowHandle::new(
@@ -637,6 +658,11 @@ impl PointerHandler for App {
             // in drag mode, events may still come from the listener the long-press
             // started on (the compositor keeps a held button on its surface); they are
             // in global coordinates all the same
+            match ev.kind {
+                PointerEventKind::Enter { .. } => d.grab_keyboard(&ev.surface, true),
+                PointerEventKind::Leave { .. } => d.grab_keyboard(&ev.surface, false),
+                _ => {}
+            }
             match ev.kind {
                 PointerEventKind::Enter { .. } | PointerEventKind::Motion { .. } => d.scene.pointer_moved(p),
                 PointerEventKind::Leave { .. } => d.scene.pointer_left(),
