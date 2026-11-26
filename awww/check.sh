@@ -15,7 +15,8 @@ SKY="$HYPR_VOYAGER/voyager-sky"
 
 check_deps_report "$SRC/deps" "awww"
 cd "$SRC/sky" || exit 1
-check_files "sky data" "$FIX" "$SRC/sky" "$HYPR_VOYAGER/sky" *
+mapfile -t sky_files < <(find . -type f -printf '%P\n' | sort)
+check_files "sky data" "$FIX" "$SRC/sky" "$HYPR_VOYAGER/sky" "${sky_files[@]}"
 
 if [[ -x "$SKY" ]] && "$SKY" --version >/dev/null 2>&1; then pass "voyager-sky runs ($("$SKY" --version))"
 else fail "voyager-sky is missing or does not run" "$FIX"; fi

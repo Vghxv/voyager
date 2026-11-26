@@ -275,3 +275,33 @@ struct ShapeOut {
     let rgb = mix(in.col.rgb, in.border.rgb, edge * in.border.a);
     return vec4f(rgb, max(a, edge * in.border.a));
 }
+
+// --- 7. a constellation's figure (drag mode, F) --------------------------------------
+//
+// The image is a square of the gnomonic tangent plane at the constellation's centre,
+// east to the left and north up, `half` tangent units from the middle to each edge
+// (see Constellation::centre in data.rs). Every pixel is taken back to the sphere and
+// onto that plane, so the art stays on its stars at any view, tilt and zoom.
+
+struct Figure {
+    c: vec4f,
+    e: vec4f,
+    n: vec4f,
+    params: vec4f,        // x = half-width (tangent units), y = opacity
+};
+
+@group(1) @binding(0) var<uniform> fig: Figure;
+@group(1) @binding(1) var fig_tex: texture_2d<f32>;
+@group(1) @binding(2) var fig_samp: sampler;
+
+@fragment fn figure_fs(in: SkyOut) -> @location(0) vec4f {
+    let p = unproject(in.pos.xy);
+    let d = dot(p, fig.c.xyz);
+    let h = fig.params.x;
+    let x = dot(p, fig.e.xyz) / max(d, 1e-4);
+    let y = dot(p, fig.n.xyz) / max(d, 1e-4);
+    let uv = vec2f(0.5 - x / (2.0 * h), 0.5 - y / (2.0 * h));
+    let c = textureSample(fig_tex, fig_samp, uv);
+    let inside = d > 0.05 && all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
+    return vec4f(c.rgb, select(0.0, c.a * fig.params.y, inside));
+}

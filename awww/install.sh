@@ -57,9 +57,9 @@ cargo build --release --locked --quiet --manifest-path "$SRC/voyager-sky/Cargo.t
 # over the new wallpaper); listen starts again with your next login
 pkill -x voyager-sky 2>/dev/null && sleep 1 || true
 
-mkdir -p "$HYPR_VOYAGER/sky"
+require_lfs_files "$SRC"/sky/*.png "$SRC"/sky/figures/*.png
 install -m 755 "$SRC/voyager-sky/target/release/voyager-sky" "$HYPR_VOYAGER/voyager-sky"
-install -m 644 "$SRC"/sky/* "$HYPR_VOYAGER/sky/"
+(cd "$SRC/sky" && find . -type f -exec install -D -m 644 {} "$HYPR_VOYAGER/sky/{}" \;)    # every file, as check.sh checks
 mkdir -p "$(dirname "$SKY_CMD")"
 ln -sfn "$HYPR_VOYAGER/voyager-sky" "$SKY_CMD"
 rm -f "$HYPR_VOYAGER/wallpaper.webp"        # the old animated wallpaper

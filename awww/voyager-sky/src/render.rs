@@ -85,6 +85,26 @@ impl Shape {
 
 const MAX_SHAPES: usize = 32;
 
+/// A constellation figure's placement and opacity (see `Constellation::centre`).
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+struct FigureUniforms {
+    c: [f32; 4],
+    e: [f32; 4],
+    n: [f32; 4],
+    /// x = half-width in tangent units, y = opacity
+    params: [f32; 4],
+}
+
+/// One figure on the GPU. There are two slots, so one can fade out as the next fades in.
+struct FigureSlot {
+    /// which constellation it holds
+    id: usize,
+    uniform: wgpu::Buffer,
+    bind: wgpu::BindGroup,
+    alpha: f32,
+}
+
 /// What one frame shows, in the target's own pixels.
 pub struct Frame {
     pub proj: Proj,
@@ -170,6 +190,10 @@ pub struct Renderer {
     n_lines: u32,
     shape_buf: wgpu::Buffer,
     n_shapes: u32,
+    figure: wgpu::RenderPipeline,
+    figure_layout: wgpu::BindGroupLayout,
+    figure_sampler: wgpu::Sampler,
+    figures: [Option<FigureSlot>; 2],
     palette: Palette,
     milky_way: [f32; 3],
     voyager: [f32; 3],
@@ -211,18 +235,42 @@ fn texture(gpu: &wgpu::Device, q: &wgpu::Queue, levels: &[(u32, u32, Vec<u8>)], 
     tex.create_view(&Default::default())
 }
 
-/// The probe and its smaller copies, so it stays clean when drawn at 48 px.
-fn mip_chain(img: &crate::data::Image) -> Vec<(u32, u32, Vec<u8>)> {
-    let base = image::RgbaImage::from_raw(img.width, img.height, img.rgba.clone()).expect("probe size");
-    let mut out = vec![(img.width, img.height, img.rgba.clone())];
-    let (mut w, mut h) = (img.width, img.height);
-    while w > 1 && h > 1 {
-        w = (w / 2).max(1);
-        h = (h / 2).max(1);
-        let small = image::imageops::resize(&base, w, h, image::imageops::FilterType::Lanczos3);
-        out.push((w, h, small.into_raw()));
+/// An image and its smaller copies down to 1 px, (width, height, RGBA) each.
+pub type Mips = Vec<(u32, u32, Vec<u8>)>;
+
+/// The mip levels of `img`, each the 2x2 average of the one before, weighted by alpha:
+/// transparent pixels carry no colour (black), and must not darken the edges.
+/// Fast enough to run per figure (a few ms for 1024 px); any thread.
+pub fn mip_chain(img: &crate::data::Image) -> Mips {
+    let mut out: Mips = vec![(img.width, img.height, img.rgba.clone())];
+    loop {
+        let (w, h, px) = out.last().expect("one level");
+        let (w, h) = (*w, *h);
+        if w <= 1 || h <= 1 {
+            return out;
+        }
+        let (nw, nh) = (w / 2, h / 2);
+        let mut next = vec![0u8; (nw * nh * 4) as usize];
+        for y in 0..nh {
+            for x in 0..nw {
+                let (mut rgb, mut a) = ([0u32; 3], 0u32);
+                for (dx, dy) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                    let i = (((2 * y + dy) * w + 2 * x + dx) * 4) as usize;
+                    let pa = px[i + 3] as u32;
+                    for c in 0..3 {
+                        rgb[c] += px[i + c] as u32 * pa;
+                    }
+                    a += pa;
+                }
+                let o = ((y * nw + x) * 4) as usize;
+                for c in 0..3 {
+                    next[o + c] = if a > 0 { ((rgb[c] + a / 2) / a) as u8 } else { 0 };
+                }
+                next[o + 3] = ((a + 2) / 4) as u8;
+            }
+        }
+        out.push((nw, nh, next));
     }
-    out
 }
 
 impl Renderer {
@@ -261,10 +309,11 @@ impl Renderer {
         });
 
         let blend = Some(wgpu::BlendState::ALPHA_BLENDING);
-        let pipeline = |name: &str, vs: &str, fs: &str, buffers: &[wgpu::VertexBufferLayout], blend| {
+        let pipeline = |layout: &wgpu::PipelineLayout, name: &str, vs: &str, fs: &str,
+                        buffers: &[wgpu::VertexBufferLayout], blend| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(name),
-                layout: Some(&pl),
+                layout: Some(layout),
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: Some(vs),
@@ -297,12 +346,38 @@ impl Renderer {
             wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Float32x4, 3 => Float32x4];
         let point_layout = inst(20, &POINT);
 
-        let sky_p = pipeline("sky", "sky_vs", "sky_fs", &[], None);
-        let field = pipeline("field", "field_vs", "field_fs", &[point_layout.clone()], blend);
-        let stars = pipeline("stars", "star_vs", "star_fs", &[point_layout], blend);
-        let probe = pipeline("probe", "probe_vs", "probe_fs", &[], blend);
-        let lines = pipeline("lines", "line_vs", "line_fs", &[inst(24, &LINE), inst(4, &ALPHA)], blend);
-        let shapes = pipeline("shapes", "shape_vs", "shape_fs", &[inst(64, &SHAPE)], blend);
+        let sky_p = pipeline(&pl, "sky", "sky_vs", "sky_fs", &[], None);
+        let field = pipeline(&pl, "field", "field_vs", "field_fs", &[point_layout.clone()], blend);
+        let stars = pipeline(&pl, "stars", "star_vs", "star_fs", &[point_layout], blend);
+        let probe = pipeline(&pl, "probe", "probe_vs", "probe_fs", &[], blend);
+        let lines = pipeline(&pl, "lines", "line_vs", "line_fs", &[inst(24, &LINE), inst(4, &ALPHA)], blend);
+        let shapes = pipeline(&pl, "shapes", "shape_vs", "shape_fs", &[inst(64, &SHAPE)], blend);
+
+        let figure_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("figure"),
+            entries: &[
+                entry(0, wgpu::ShaderStages::FRAGMENT, wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                }),
+                entry(1, wgpu::ShaderStages::FRAGMENT, tex_ty),
+                entry(2, wgpu::ShaderStages::FRAGMENT, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
+            ],
+        });
+        let figure_pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("figure"),
+            bind_group_layouts: &[&layout, &figure_layout],
+            push_constant_ranges: &[],
+        });
+        let figure = pipeline(&figure_pl, "figure", "sky_vs", "figure_fs", &[], blend);
+        let figure_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("figure"),
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
 
         let field_inst: Vec<PointInst> = sky
             .field
@@ -373,6 +448,10 @@ impl Renderer {
             n_lines: line_inst.len() as u32,
             shape_buf,
             n_shapes: 0,
+            figure,
+            figure_layout,
+            figure_sampler,
+            figures: [None, None],
             palette: Palette::get(),
             milky_way: milky_way(),
             voyager: v3(sky.voyager),
@@ -418,6 +497,55 @@ impl Renderer {
         let n = shapes.len().min(MAX_SHAPES);
         self.queue.write_buffer(&self.shape_buf, 0, bytemuck::cast_slice(&shapes[..n]));
         self.n_shapes = n as u32;
+    }
+
+    /// The constellation figure slot `slot` (0 or 1) holds, if any.
+    pub fn figure_id(&self, slot: usize) -> Option<usize> {
+        self.figures[slot].as_ref().map(|f| f.id)
+    }
+
+    /// Put constellation `id`'s figure (`mips`, see `mip_chain`) in slot `slot`, centred at `centre` and
+    /// reaching `half` tangent units to each edge (see `Constellation::centre`).
+    pub fn set_figure(&mut self, slot: usize, id: usize, mips: &Mips, centre: [f64; 3], half: f64) {
+        let view = texture(&self.device, &self.queue, mips, "figure");
+        let (e, n) = crate::data::tangent_basis(centre);
+        let u = FigureUniforms {
+            c: v4(v3(centre), 0.0),
+            e: v4(v3(e), 0.0),
+            n: v4(v3(n), 0.0),
+            params: [half as f32, 0.0, 0.0, 0.0],
+        };
+        let uniform = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("figure"),
+            contents: bytemuck::bytes_of(&u),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+        let bind = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("figure"),
+            layout: &self.figure_layout,
+            entries: &[
+                wgpu::BindGroupEntry { binding: 0, resource: uniform.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&view) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&self.figure_sampler) },
+            ],
+        });
+        self.figures[slot] = Some(FigureSlot { id, uniform, bind, alpha: 0.0 });
+    }
+
+    /// How visible the figure in slot `slot` is (0 hidden, or empty).
+    pub fn figure_alpha(&self, slot: usize) -> f32 {
+        self.figures[slot].as_ref().map_or(0.0, |f| f.alpha)
+    }
+
+    /// Set how visible the figure in slot `slot` is.
+    pub fn set_figure_alpha(&mut self, slot: usize, alpha: f32) {
+        if let Some(f) = &mut self.figures[slot] {
+            if f.alpha != alpha {
+                f.alpha = alpha;
+                let params_y = std::mem::offset_of!(FigureUniforms, params) as u64 + 4;
+                self.queue.write_buffer(&f.uniform, params_y, bytemuck::bytes_of(&alpha));
+            }
+        }
     }
 
     fn uniforms(&self, fr: &Frame) -> Uniforms {
@@ -485,6 +613,12 @@ impl Renderer {
                 pass.set_vertex_buffer(0, self.line_buf.slice(..));
                 pass.set_vertex_buffer(1, self.line_alpha.slice(..));
                 pass.draw(0..6, 0..self.n_lines);
+                // the figures, under the stars so the real ones shine through the art
+                for f in self.figures.iter().flatten().filter(|f| f.alpha > 0.0) {
+                    pass.set_pipeline(&self.figure);
+                    pass.set_bind_group(1, &f.bind, &[]);
+                    pass.draw(0..3, 0..1);
+                }
             }
             pass.set_pipeline(&self.stars);
             pass.set_vertex_buffer(0, self.star_buf.slice(..));

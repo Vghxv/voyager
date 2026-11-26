@@ -9,6 +9,10 @@
 //! and glides east through the twelve zodiac signs. Only taking hold of the sky (a
 //! click or drag on it or on the ball) ends the tour; moving the mouse, keys and chips
 //! leave it running, and scrolling zooms the tour itself.
+//!
+//! F shows one constellation's figure at a time: the one nearest the cursor, or,
+//! while the tour runs and the cursor has not moved since it started, the zodiac sign
+//! passing the middle of the view.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -16,6 +20,7 @@ use std::time::{Duration, Instant};
 use glyphon::{Attrs, Buffer, Color, Family, Metrics, Shaping, TextArea, TextBounds};
 
 use crate::data::SkyData;
+use crate::figures::Figures;
 use crate::render::{Frame, Renderer, Shape, Target, TextCtx, ECLIPTIC_SEGS, PROBE_PX};
 use crate::view::{
     self as view, angle, cross, dot, ease_basis, ecliptic_lon, ecliptic_point, neg, normalize, pin, pin_free, radec,
@@ -24,6 +29,11 @@ use crate::view::{
 
 /// A constellation this close to the cursor (logical pixels) lights up.
 const HOVER_PX: f64 = 120.0;
+/// During the tour, a zodiac sign's figure shows while its centre is within this
+/// angle of the middle of the view.
+const ZODIAC_FIGURE_DEG: f64 = 15.0;
+/// The twelve signs the tour passes, by constellation abbreviation.
+const ZODIAC: [&str; 12] = ["Ari", "Tau", "Gem", "Cnc", "Leo", "Vir", "Lib", "Sco", "Sgr", "Cap", "Aqr", "Psc"];
 /// The probe appears when the cursor is this close to Voyager.
 const PROBE_HOVER_PX: f64 = 150.0;
 /// Label and chip text size, logical pixels.
@@ -109,6 +119,8 @@ pub enum Chip {
     Nav,
     /// C: constellation lines and names on/off
     Lines,
+    /// F: constellation figures on/off
+    Figures,
     /// E: the ecliptic on/off
     Ecliptic,
     /// L: names in Chinese or English
@@ -118,7 +130,7 @@ pub enum Chip {
 }
 
 impl Chip {
-    const ALL: [Chip; 5] = [Chip::Nav, Chip::Lines, Chip::Ecliptic, Chip::Lang, Chip::Done];
+    const ALL: [Chip; 6] = [Chip::Nav, Chip::Lines, Chip::Figures, Chip::Ecliptic, Chip::Lang, Chip::Done];
 }
 
 struct ChipText {
@@ -205,10 +217,17 @@ pub struct Scene {
     motion: Option<Motion>,
     last_input: Instant,
     pub lines_on: bool,
+    pub figures_on: bool,
     pub ecliptic_on: bool,
     pub zh: bool,
     pub exit: bool,
     hovered: Option<usize>,
+    /// the cursor has moved on the sky since the tour started: figures follow it
+    tour_hover: bool,
+    /// the zodiac signs' constellation indices
+    zodiac: Vec<usize>,
+    /// the figure images, loaded as they are wanted
+    figures: Figures,
 
     texts: Texts,
     /// how visible the ecliptic is (0 hidden)
@@ -265,6 +284,8 @@ impl Scene {
         let seg_con: Vec<usize> =
             sky.constellations.iter().enumerate().flat_map(|(i, c)| std::iter::repeat_n(i, c.lines.len())).collect();
         let n = sky.constellations.len();
+        let zodiac = ZODIAC.iter().filter_map(|a| sky.constellations.iter().position(|c| c.abbr == *a)).collect();
+        let figures = Figures::new((0..sky.constellations.len()).map(|i| sky.figure_path(i)).collect());
         let mut s = Scene {
             renderer,
             text,
@@ -277,11 +298,15 @@ impl Scene {
             motion: None,
             last_input: Instant::now(),
             lines_on: false,
+            figures_on: false,
             ecliptic_on: false,
             ecliptic: 0.0,
             zh: true,
             exit: false,
             hovered: None,
+            tour_hover: false,
+            zodiac,
+            figures,
             texts: Texts { labels, chips: Vec::new(), probe, axes },
             glow: vec![0.0; n],
             probe: 0.0,
@@ -328,6 +353,7 @@ impl Scene {
         // compositors can repeat the position (a redraw, a re-enter): that is not input
         if self.cursor != Some(p) {
             self.touch();
+            self.tour_hover = true;
         }
         self.cursor = Some(p);
         if let Some(mut b) = self.ball {
@@ -422,6 +448,7 @@ impl Scene {
                 self.level();
             }
             Chip::Lines => self.lines_on = !self.lines_on,
+            Chip::Figures => self.figures_on = !self.figures_on,
             Chip::Ecliptic => self.ecliptic_on = !self.ecliptic_on,
             Chip::Lang => self.zh = !self.zh,
             Chip::Done => self.exit = true,
@@ -490,6 +517,7 @@ impl Scene {
         match chip {
             Chip::Nav => self.nav == Nav::Trackball,
             Chip::Lines => self.lines_on,
+            Chip::Figures => self.figures_on,
             Chip::Ecliptic => self.ecliptic_on,
             Chip::Lang => true,
             Chip::Done => false,
@@ -509,6 +537,8 @@ impl Scene {
                     (Chip::Nav, false) => "T  turntable".to_string(),
                     (Chip::Lines, true) => format!("C  {} 星座", on(self.lines_on)),
                     (Chip::Lines, false) => format!("C  {} Constellations", on(self.lines_on)),
+                    (Chip::Figures, true) => format!("F  {} 星座圖", on(self.figures_on)),
+                    (Chip::Figures, false) => format!("F  {} figures", on(self.figures_on)),
                     (Chip::Ecliptic, true) => format!("E  {} 黃道", on(self.ecliptic_on)),
                     (Chip::Ecliptic, false) => format!("E  {} ecliptic", on(self.ecliptic_on)),
                     (Chip::Lang, true) => "L  中文".to_string(),
@@ -542,6 +572,31 @@ impl Scene {
         }
     }
 
+    /// Which constellation's figure to show (F): the one nearest the cursor, or during
+    /// the tour, until the cursor moves, the zodiac sign passing the middle of the view.
+    fn figure_target(&self) -> Option<usize> {
+        if !self.figures_on {
+            return None;
+        }
+        if self.touring() && (!self.tour_hover || self.cursor.is_none()) {
+            let f = self.view.basis().2;
+            return self
+                .zodiac
+                .iter()
+                .map(|&i| (angle(f, self.sky.constellations[i].centre).to_degrees(), i))
+                .filter(|&(a, _)| a < ZODIAC_FIGURE_DEG)
+                .min_by(|a, b| a.0.total_cmp(&b.0))
+                .map(|(_, i)| i);
+        }
+        self.hovered
+    }
+
+    /// How visible each figure slot should be: only the one holding the target shows.
+    fn figure_alpha_target(&self, slot: usize) -> f32 {
+        let want = self.figure_target();
+        if want.is_some() && self.renderer.figure_id(slot) == want { 1.0 } else { 0.0 }
+    }
+
     fn ecliptic_target(&self) -> f32 {
         if self.ecliptic_on { 0.6 } else { 0.0 }
     }
@@ -569,6 +624,8 @@ impl Scene {
             || self.ecliptic != self.ecliptic_target()
             || (0..self.glow.len()).any(|i| self.glow[i] != self.glow_target(i))
             || self.probe != self.probe_target()
+            || (0..2).any(|k| self.renderer.figure_alpha(k) != self.figure_alpha_target(k))
+            || self.figures.loading()
     }
 
     /// The constellation whose figure passes closest to the cursor, if close enough.
@@ -605,6 +662,7 @@ impl Scene {
         if self.tour_due() {
             let lon0 = ecliptic_lon(self.view.basis().2);
             self.motion = Some(Motion::Tour { lon0, t0: now, fov: self.view.fov.max(TOUR_FOV) });
+            self.tour_hover = false;
         }
         if let Some(m) = self.motion {
             self.advance(m, dt as f64, now);
@@ -617,7 +675,13 @@ impl Scene {
             }
         };
 
-        self.hovered = if self.lines_on { self.nearest() } else { None };
+        self.hovered = if self.lines_on || self.figures_on { self.nearest() } else { None };
+        self.load_figure();
+        for k in 0..2 {
+            let mut alpha = self.renderer.figure_alpha(k);
+            ease(&mut alpha, self.figure_alpha_target(k), 4.0);
+            self.renderer.set_figure_alpha(k, alpha);
+        }
         for i in 0..self.glow.len() {
             let target = self.glow_target(i);
             ease(&mut self.glow[i], target, 7.0);
@@ -639,6 +703,27 @@ impl Scene {
         let n = self.seg_con.len();
         self.line_alpha[n..].fill(self.ecliptic);
         self.renderer.set_line_alpha(&self.line_alpha);
+    }
+
+    /// Make sure the target figure is in one of the two slots: a new one goes in the
+    /// slot that is less visible, so the other can finish fading out.
+    /// Have the target figure in a slot: from the cache at once, or once it has loaded
+    /// (drag mode loads in the background, see `load_figures_in_background`).
+    fn load_figure(&mut self) {
+        let Some(want) = self.figure_target() else { return };
+        if (0..2).any(|k| self.renderer.figure_id(k) == Some(want)) {
+            return;
+        }
+        let Some(mips) = self.figures.get(want) else { return };
+        let slot = if self.renderer.figure_alpha(0) <= self.renderer.figure_alpha(1) { 0 } else { 1 };
+        let c = &self.sky.constellations[want];
+        self.renderer.set_figure(slot, want, &mips, c.centre, c.half);
+    }
+
+    /// Load figures on a thread of their own from now on (drag mode); stills load
+    /// them on the spot so they come out the same every time.
+    pub fn load_figures_in_background(&mut self) {
+        self.figures.in_background();
     }
 
     /// Ease the view one step toward where `m` wants it.
@@ -917,7 +1002,7 @@ mod tests {
         // moving the mouse, keys and chips leave it running
         s.pointer_moved((100.0, 300.0));
         s.pointer_moved((140.0, 320.0));
-        for chip in [Chip::Lines, Chip::Ecliptic, Chip::Lang] {
+        for chip in [Chip::Lines, Chip::Figures, Chip::Ecliptic, Chip::Lang] {
             s.key_input();
             s.press_chip(chip);
         }
@@ -946,6 +1031,50 @@ mod tests {
         assert_eq!(s.view, held);
         s.update(Some(0.1));
         assert!(s.controls > 0.0, "the chips come back");
+    }
+
+    #[test]
+    fn figures_follow_the_cursor_or_the_zodiac() {
+        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let ori = s.sky.constellations.iter().position(|c| c.abbr == "Ori").unwrap();
+        let leo = s.sky.constellations.iter().position(|c| c.abbr == "Leo").unwrap();
+        let (ra, dec) = radec(s.sky.constellations[ori].centre);
+        s.view = View { ra, dec, fov: 90.0, roll: 0.0 };
+        s.pointer_moved(s.center);
+        s.update(Some(0.016));
+        assert_eq!(s.figure_target(), None, "F is off");
+
+        // case 1: the constellation under the cursor, and only that one
+        s.press_chip(Chip::Figures);
+        s.update(Some(0.016));
+        assert_eq!(s.figure_target(), Some(ori));
+        for _ in 0..30 {
+            s.update(Some(0.1));
+        }
+        let shown: Vec<f32> = (0..2).map(|k| s.renderer.figure_alpha(k)).filter(|&a| a > 0.0).collect();
+        assert_eq!(shown, vec![1.0], "one figure, fully shown");
+
+        // case 2: the tour starts with the cursor resting: the zodiac sign in the middle
+        s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
+        s.update(Some(0.016));
+        assert!(s.touring());
+        let (ra, dec) = radec(s.sky.constellations[leo].centre);
+        s.view = View { ra, dec, ..s.view };
+        assert_eq!(s.figure_target(), Some(leo));
+        // far from every sign (the ecliptic pole): none
+        let (ra, dec) = radec(crate::view::ecliptic_pole());
+        s.view = View { ra, dec, ..s.view };
+        assert_eq!(s.figure_target(), None);
+
+        // the cursor moves: the tour goes on, and the figures follow the cursor again
+        s.pointer_moved((s.center.0 + 40.0, s.center.1));
+        assert!(s.touring());
+        assert_eq!(s.figure_target(), s.hovered);
+        // it leaves the sky (onto a window): back to the zodiac
+        s.pointer_left();
+        let (ra, dec) = radec(s.sky.constellations[leo].centre);
+        s.view = View { ra, dec, ..s.view };
+        assert_eq!(s.figure_target(), Some(leo));
     }
 
     #[test]
