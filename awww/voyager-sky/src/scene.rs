@@ -496,22 +496,27 @@ impl Scene {
         }
     }
 
+    /// The chips' text, in the names' language: 繁體中文 or English.
     fn set_chip_text(&mut self) {
+        let on = |b: bool| if b { "✦" } else { "✧" };
         self.texts.chips = Chip::ALL
             .iter()
             .map(|chip| {
-                let s = match chip {
-                    Chip::Nav if self.nav == Nav::Trackball => "T  trackball",
-                    Chip::Nav => "T  turntable",
-                    Chip::Lines if self.lines_on => "C  ✦ lines",
-                    Chip::Lines => "C  ✧ lines",
-                    Chip::Ecliptic if self.ecliptic_on => "E  ✦ ecliptic",
-                    Chip::Ecliptic => "E  ✧ ecliptic",
-                    Chip::Lang if self.zh => "L  中文",
-                    Chip::Lang => "L  English",
-                    Chip::Done => "Esc  set as wallpaper",
+                let s = match (chip, self.zh) {
+                    (Chip::Nav, true) if self.nav == Nav::Trackball => "T  軌跡球".to_string(),
+                    (Chip::Nav, true) => "T  轉盤".to_string(),
+                    (Chip::Nav, false) if self.nav == Nav::Trackball => "T  trackball".to_string(),
+                    (Chip::Nav, false) => "T  turntable".to_string(),
+                    (Chip::Lines, true) => format!("C  {} 星座", on(self.lines_on)),
+                    (Chip::Lines, false) => format!("C  {} Constellations", on(self.lines_on)),
+                    (Chip::Ecliptic, true) => format!("E  {} 黃道", on(self.ecliptic_on)),
+                    (Chip::Ecliptic, false) => format!("E  {} ecliptic", on(self.ecliptic_on)),
+                    (Chip::Lang, true) => "L  中文".to_string(),
+                    (Chip::Lang, false) => "L  English".to_string(),
+                    (Chip::Done, true) => "Esc  設為桌布".to_string(),
+                    (Chip::Done, false) => "Esc  set as wallpaper".to_string(),
                 };
-                let (text, size) = make_text(&mut self.text, s, CHIP_PX);
+                let (text, size) = make_text(&mut self.text, &s, CHIP_PX);
                 ChipText { text, size }
             })
             .collect();
