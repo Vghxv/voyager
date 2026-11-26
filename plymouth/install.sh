@@ -67,6 +67,7 @@ check_deps "$SRC/deps"
 echo "Checking prerequisites…"
 check_prereqs
 
+require_lfs_files "$THEME_SRC"/*.png
 echo "Installing theme to $DEST…"
 rm -rf "$DEST"   # no leftovers from an earlier version end up in the initramfs
 install -d "$DEST"

@@ -20,6 +20,21 @@ red()    { printf '%s%s%s\n' "$C_RED" "$*" "$C_OFF"; }
 green()  { printf '%s%s%s\n' "$C_GREEN" "$*" "$C_OFF"; }
 yellow() { printf '%s%s%s\n' "$C_YELLOW" "$*" "$C_OFF"; }
 
+# require_lfs_files <file>...: stop if any image is still a Git LFS pointer (the repo
+# was cloned without git-lfs), so a text stub never gets installed as a picture.
+require_lfs_files() {
+  local f first bad=()
+  for f in "$@"; do     # a pointer is a short text file; its first line says so
+    first=""
+    [[ -f "$f" ]] && IFS= read -r first < "$f" 2>/dev/null
+    [[ "$first" == "version https://git-lfs"* ]] && bad+=("$f")
+  done
+  (( ${#bad[@]} )) || return 0
+  red "These images are Git LFS pointers, not pictures: ${bad[*]}"
+  echo "Install git-lfs, then fetch them: git lfs install && git lfs pull"
+  exit 1
+}
+
 require_root() { [[ $EUID -eq 0 ]] || { red "Run with sudo."; exit 1; }; }
 require_user() { [[ $EUID -ne 0 ]] || { red "Run as your normal user, not root."; exit 1; }; }
 
