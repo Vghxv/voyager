@@ -12,7 +12,8 @@
 //!
 //! F shows one constellation's figure at a time: the one nearest the cursor, or,
 //! while the tour runs and the cursor has not moved since it started, the zodiac sign
-//! passing the middle of the view.
+//! passing the middle of the view. That sign's lines and name light up too, whether
+//! the lines (C) are on or not.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -583,10 +584,43 @@ impl Scene {
     }
 
     fn glow_target(&self, i: usize) -> f32 {
-        match (self.lines_on, Some(i) == self.hovered) {
-            (false, _) => 0.0,
-            (true, true) => 1.0,
-            (true, false) => 0.5,
+        if Some(i) == self.lit() {
+            1.0
+        } else if self.lines_on {
+            0.5
+        } else {
+            0.0
+        }
+    }
+
+    /// During the tour, until the cursor moves (or while it is off the sky), the zodiac
+    /// leads: what is lit and shown follows the sign passing the middle of the view.
+    fn zodiac_leads(&self) -> bool {
+        self.touring() && (!self.tour_hover || self.cursor.is_none())
+    }
+
+    /// The zodiac sign whose centre is nearest the middle of the view, if within
+    /// ZODIAC_FIGURE_DEG of it.
+    fn zodiac_sign(&self) -> Option<usize> {
+        let f = self.view.basis().2;
+        self.zodiac
+            .iter()
+            .map(|&i| (angle(f, self.sky.constellations[i].centre).to_degrees(), i))
+            .filter(|&(a, _)| a < ZODIAC_FIGURE_DEG)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, i)| i)
+    }
+
+    /// The constellation whose lines and name are drawn fully lit: the zodiac sign
+    /// while it leads the tour (lines on or not), else the one under the cursor while
+    /// the lines are on.
+    fn lit(&self) -> Option<usize> {
+        if self.zodiac_leads() {
+            self.zodiac_sign()
+        } else if self.lines_on {
+            self.hovered
+        } else {
+            None
         }
     }
 
@@ -596,15 +630,8 @@ impl Scene {
         if !self.figures_on {
             return None;
         }
-        if self.touring() && (!self.tour_hover || self.cursor.is_none()) {
-            let f = self.view.basis().2;
-            return self
-                .zodiac
-                .iter()
-                .map(|&i| (angle(f, self.sky.constellations[i].centre).to_degrees(), i))
-                .filter(|&(a, _)| a < ZODIAC_FIGURE_DEG)
-                .min_by(|a, b| a.0.total_cmp(&b.0))
-                .map(|(_, i)| i);
+        if self.zodiac_leads() {
+            return self.zodiac_sign();
         }
         self.hovered
     }
@@ -727,11 +754,12 @@ impl Scene {
         ease(&mut self.equator, qt, 7.0);
 
         // the slow blue flicker: each constellation breathes on its own 6-10 s cycle
+        let lit = self.lit();
         for (j, &c) in self.seg_con.iter().enumerate() {
             let (g, ph) = (self.glow[c], self.phase[c]);
             let period = 6.0 + 4.0 * ph;
             let flicker = 0.75 + 0.25 * (t * std::f32::consts::TAU / period + ph * 40.0).sin();
-            self.line_alpha[j] = if Some(c) == self.hovered { g * 0.95 } else { g * 0.7 * flicker };
+            self.line_alpha[j] = if Some(c) == lit { g * 0.95 } else { g * 0.7 * flicker };
         }
         let n = self.seg_con.len();
         self.line_alpha[n..n + CIRCLE_SEGS].fill(self.ecliptic);
@@ -914,6 +942,7 @@ impl Scene {
         let sc = g.scale as f32;
         let mist = self.renderer.palette().mist;
         let pr = self.proj();
+        let lit = self.lit();
         let mut out = Vec::new();
         for (c, con) in self.sky.constellations.iter().enumerate() {
             let gl = self.glow[c];
@@ -931,7 +960,7 @@ impl Scene {
                 which: Which::Label(c),
                 left: (x - bw / 2.0) * sc,
                 top: (y - bh / 2.0) * sc,
-                colour: if Some(c) == self.hovered { rgba([1.0, 1.0, 1.0], gl) } else { rgba(mist, gl * 0.8) },
+                colour: if Some(c) == lit { rgba([1.0, 1.0, 1.0], gl) } else { rgba(mist, gl * 0.8) },
             });
         }
         // each probe's name, under it, fading in and out with it
@@ -1109,6 +1138,29 @@ mod tests {
         let (ra, dec) = radec(s.sky.constellations[leo].centre);
         s.view = View { ra, dec, ..s.view };
         assert_eq!(s.figure_target(), Some(leo));
+    }
+
+    #[test]
+    fn the_tour_lights_the_passing_sign() {
+        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let leo = s.sky.constellations.iter().position(|c| c.abbr == "Leo").unwrap();
+        s.pointer_moved(s.center);
+        s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
+        s.update(Some(0.016));
+        assert!(s.touring());
+        assert!(!s.lines_on);
+        let (ra, dec) = radec(s.sky.constellations[leo].centre);
+        s.view = View { ra, dec, ..s.view };
+        assert_eq!(s.lit(), Some(leo), "lit with the lines off");
+        assert_eq!(s.glow_target(leo), 1.0);
+        let other = (leo + 1) % s.glow.len();
+        assert_eq!(s.glow_target(other), 0.0);
+        s.press_chip(Chip::Lines);
+        assert_eq!(s.glow_target(other), 0.5);
+        // the cursor moves: the one under it is lit instead
+        s.pointer_moved((s.center.0 + 40.0, s.center.1));
+        s.update(Some(0.016));
+        assert_eq!(s.lit(), s.hovered);
     }
 
     #[test]
