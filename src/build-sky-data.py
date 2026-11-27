@@ -12,17 +12,25 @@ Sources (downloaded once into the cache, never into the repo):
 - Stellarium's "modern" sky culture: the 88 IAU constellations, their stick
   figures as Hipparcos numbers (CC BY-SA 4.0), and the Traditional Chinese names
   from Stellarium's zh_TW translation.
-- HYG database v4.1 (CC BY-SA 4.0): each figure star's position, V magnitude and
-  B-V colour index (from Hipparcos).
+- HYG database v4.1 (CC BY-SA 4.0): each star's position, V magnitude and
+  B-V colour index (from Hipparcos), and its Bayer/Flamsteed designation.
+- Roman (1987), CDS VI/42: the IAU constellation boundaries, via astropy's copy.
 - NASA SVS Deep Star Maps 2020 (starmap_2020_4k.exr): the whole sky in ICRF
   plate carree. A median filter removes its stars and leaves the diffuse
   Milky Way (and the Magellanic Clouds), in their true place.
 
 Writes:
 - constellations.json  {"stars": [[ra, dec, V, r, g, b]...],
-                        "constellations": [{abbr, en, zh, lines: [[i, j]...], label: [ra, dec]}...]}
-                        ra/dec in degrees (J2000), r/g/b 0-255 from B-V (voyager_art.bv_rgb);
-                        only stars that are part of a figure are listed.
+                        "constellations": [{abbr, en, zh, lines: [[i, j]...], label: [ra, dec],
+                                            members: [i...]}...]}
+                        ra/dec in degrees (J2000), r/g/b 0-255 from B-V (voyager_art.bv_rgb).
+                        The stars are the stick figures' stars and every star HYG gives a
+                        Bayer (Greek letter) or Flamsteed designation, brighter than FAINTEST.
+                        Each star belongs to exactly one constellation, the one whose IAU
+                        boundary holds it (Roman 1987), and is in that one's `members`, its
+                        own stick-figure stars first. Figures still borrow a few neighbours'
+                        stars in `lines` (Alpheratz, Elnath); the build lists them, and the
+                        stars named for one constellation that lie in another (rho Aql).
 - field.bin            faint background stars, 16 bytes each, little-endian:
                         f32 ra, f32 dec, u8 r, g, b, alpha, f32 size (px at 1080p).
                         Seeded and fixed on the sphere, denser toward the galactic plane.
@@ -54,6 +62,10 @@ SOURCES = {
     "zh_TW.po": f"{STELLARIUM}/po/stellarium-skycultures/zh_TW.po",
     "hyg.csv": "https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv",
     "starmap_2020_4k.exr": "https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/starmap_2020_4k.exr",
+    # Roman (1987), CDS VI/42: the IAU boundaries (Delporte 1930) as B1875 boxes. Astropy's copy,
+    # as the CDS host is not always reachable.
+    "roman87.dat": "https://raw.githubusercontent.com/astropy/astropy/main/"
+                   "astropy/coordinates/data/constellation_data_roman87.dat",
 }
 
 # Taiwan's names, used when Stellarium's zh_TW translation has none.
@@ -75,6 +87,7 @@ ZH_FALLBACK = {
     "Vel": "船帆座", "Vir": "室女座", "Vol": "飛魚座", "Vul": "狐狸座",
 }
 
+FAINTEST = 6.0               # only designated stars brighter than this are drawn (stick-figure stars always are)
 FIELD_STARS = 60000          # whole sky; a 100-degree view shows ~8000
 MILKY_WAY_SIZE = "2048x1024"
 
@@ -108,18 +121,20 @@ def zh_names(po_path):
 
 
 def hyg_stars(path):
-    """Hipparcos number -> (ra deg, dec deg, V, B-V or None)."""
-    stars = {}
+    """Hipparcos number -> (ra deg, dec deg, V, B-V or None), and the designated
+    (Bayer/Flamsteed) stars brighter than FAINTEST as (hip or None, star, the
+    constellation their designation names)."""
+    stars, designated = {}, []
     with open(path, newline="") as f:
         for row in csv.DictReader(f):
-            if not row["hip"]:
-                continue
-            hip = int(float(row["hip"]))
-            if hip in stars:
-                continue
             ci = float(row["ci"]) if row["ci"] else None
-            stars[hip] = (float(row["ra"]) * 15.0, float(row["dec"]), float(row["mag"]), ci)
-    return stars
+            star = (float(row["ra"]) * 15.0, float(row["dec"]), float(row["mag"]), ci)
+            hip = int(float(row["hip"])) if row["hip"] else None
+            if hip is not None:
+                stars.setdefault(hip, star)
+            if row["con"] and (row["bayer"] or row["flam"]) and star[2] < FAINTEST:
+                designated.append((hip, star, row["con"]))
+    return stars, designated
 
 
 def unit(ra, dec):
@@ -154,41 +169,99 @@ def largest_part(members, segs):
     return max(parts.values(), key=len)
 
 
+B1875 = (2405889.258550475 - 2451545.0) / 36525     # Julian centuries from J2000
+# IAU 1976 precession angles (Lieske 1977) from J2000 back to B1875, in radians
+ZETA, Z, THETA = (math.radians(x / 3600) for x in (
+    2306.2181 * B1875 + 0.30188 * B1875 ** 2 + 0.017998 * B1875 ** 3,
+    2306.2181 * B1875 + 1.09468 * B1875 ** 2 + 0.018203 * B1875 ** 3,
+    2004.3109 * B1875 - 0.42665 * B1875 ** 2 - 0.041833 * B1875 ** 3))
+
+
+def iau_boundaries(path):
+    """Roman (1987): rows of (RA low h, RA high h, Dec low deg, abbr), north to south.
+    The table rounds to 1e-4 h, up to 0.18 s of time: Delporte's edges are whole seconds
+    and whole arcminutes, so snap back to them (the Aql/Del edge at 20h08m30s is stored
+    as 20.1417 h, 1.7" east, which kept rho Aql in Aquila until 2028)."""
+    rows = []
+    for line in path.read_text().splitlines():
+        if line.strip() and not line.startswith("#"):
+            lo, hi, dec, abbr = line.split()
+            rows.append((round(float(lo) * 3600) / 3600, round(float(hi) * 3600) / 3600,
+                         round(float(dec) * 60) / 60, abbr))
+    return rows
+
+
+def iau_constellation(rows, ra, dec):
+    """The one constellation (IAU, 1930) a J2000 position lies in: precess it to B1875
+    (IAU 1976 precession, Lieske 1977), then take the first box below it (Roman 1987)."""
+    a, d = math.radians(ra) + ZETA, math.radians(dec)
+    x = math.cos(THETA) * math.cos(d) * math.cos(a) - math.sin(THETA) * math.sin(d)
+    y = math.cos(d) * math.sin(a)
+    w = math.sin(THETA) * math.cos(d) * math.cos(a) + math.cos(THETA) * math.sin(d)
+    ra_h = math.degrees(math.atan2(y, x) + Z) % 360 / 15
+    dec_b = math.degrees(math.asin(max(-1.0, min(1.0, w))))
+    return next(c for lo, hi, low, c in rows if dec_b >= low and lo <= ra_h < hi)
+
+
 def constellations(src):
     sky = json.loads(src["modern.json"].read_text())
     zh = zh_names(src["zh_TW.po"])
-    hyg = hyg_stars(src["hyg.csv"])
-    stars, index, out, missing = [], {}, [], []
+    hyg, designated = hyg_stars(src["hyg.csv"])
+    stars, index, out, missing, figure_stars = [], {}, [], [], {}
 
-    def star(hip):
-        if hip not in index:
-            if hip not in hyg:
-                missing.append(hip)
-                return None
-            ra, dec, v, ci = hyg[hip]
-            index[hip] = len(stars)
+    def add(key, ra, dec, v, ci):
+        if key not in index:
+            index[key] = len(stars)
             stars.append([round(ra, 5), round(dec, 5), round(v, 2),
                           *hex_rgb(bv_rgb(ci) if ci is not None else "#FFFFFF")])
-        return index[hip]
+        return index[key]
+
+    def star(hip):
+        if hip not in index and hip not in hyg:
+            missing.append(hip)
+            return None
+        return add(hip, *hyg[hip])
 
     for c in sky["constellations"]:
         abbr = c["id"].split()[-1]
         en = c["common_name"]["native"]
-        segs, members = set(), set()
+        segs, used = set(), set()
         for line in c["lines"]:
             ids = [star(h) for h in line if isinstance(h, int)]
             for a, b in zip(ids, ids[1:]):
                 if a is not None and b is not None and a != b:
                     segs.add((min(a, b), max(a, b)))
-                    members.update((a, b))
-        v = [sum(unit(*stars[i][:2])[k] for i in largest_part(members, segs)) for k in range(3)]
+                    used.update((a, b))
+        figure_stars[abbr] = used
+        v = [sum(unit(*stars[i][:2])[k] for i in largest_part(used, segs)) for k in range(3)]
         out.append({"abbr": abbr, "en": en,
                     "zh": zh.get(en) or zh.get(c["common_name"]["english"]) or ZH_FALLBACK[abbr],
                     "lines": sorted([list(s) for s in segs]),
                     "label": [round(t, 3) for t in radec(v)]})
     if missing:
         raise SystemExit(f"figure stars missing from HYG: {sorted(set(missing))}")
-    return {"stars": stars, "constellations": out}
+
+    # Every designated star, after all the figure stars so their indices stay put. A star
+    # may lie across the border from the constellation its designation names (rho Aql moved
+    # into Delphinus in 1992), and the stick figures borrow neighbours' stars (Alpheratz closes
+    # the Square of Pegasus): each star belongs to the one constellation whose IAU boundary
+    # holds it.
+    bounds = iau_boundaries(src["roman87.dat"])
+    named = {}      # star -> the constellations its designation or a figure names it for
+    for con in out:
+        for i in figure_stars[con["abbr"]]:
+            named.setdefault(i, set()).add(con["abbr"])
+    for hip, s, con in designated:
+        named.setdefault(star(hip) if hip is not None else add(("hyg", s), *s), set()).add(con)
+    home = [iau_constellation(bounds, *s[:2]) for s in stars]
+    inside = {}
+    for i, h in enumerate(home):
+        inside.setdefault(h, set()).add(i)
+    for con in out:
+        own_lines, members = figure_stars[con["abbr"]], inside.get(con["abbr"], set())
+        con["members"] = sorted(own_lines & members) + sorted(members - own_lines)
+    moved = [(stars[i][:3], sorted(named.get(i, ())), h) for i, h in enumerate(home) if named.get(i) != {h}]
+    return {"stars": stars, "constellations": out}, moved
 
 
 def field(seed):
@@ -229,9 +302,12 @@ def main():
     a = ap.parse_args()
 
     src = fetch(Path(a.cache))
+    data, moved = constellations(src)
+    print(f"{len(moved)} stars lie in another constellation than the one their name or figure gives (IAU boundaries):")
+    for s, was, now in moved:
+        print(f"  ra {s[0]:9.4f} dec {s[1]:8.4f} V {s[2]:5.2f}: in {now}, named for {', '.join(was)}")
     OUT.mkdir(parents=True, exist_ok=True)
 
-    data = constellations(src)
     text = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     text = re.sub(r'\],\[', "],\n[", text)              # one star / segment list per line: readable diffs
     (OUT / "constellations.json").write_text(text + "\n", encoding="utf-8")

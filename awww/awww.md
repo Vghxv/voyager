@@ -6,7 +6,7 @@ The desktop wallpaper is the real sky, centered on where **Voyager 1** actually 
 
 What the sky shows:
 
-- **Constellation stars only.** Only the ~700 stars that make up the 88 constellation figures are drawn, each at its catalogue brightness (V magnitude) and true colour (B-V index → temperature → blackbody colour). That's why Antares, Arcturus and Betelgeuse look orange and Rigel and Vega blue-white.
+- **Constellation stars only.** Every star with a Greek (Bayer) letter or a Flamsteed number in the HYG catalogue (α Ori, 47 Ori…), the ones brighter than magnitude 6 (about 2,740, near the naked-eye limit under a dark sky; the three fainter stars a stick figure uses are kept too), each at its catalogue brightness (V magnitude) and true colour (B-V index → temperature → blackbody colour). That's why Antares, Arcturus and Betelgeuse look orange and Rigel and Vega blue-white. Stars fainter than magnitude 4.5 fade by their true brightness, so the stick-figure stars still stand out. Each star belongs to one constellation only, the one whose IAU boundary holds it: ρ Aquilae, which proper motion carried into Delphinus in the 1990s, is in Delphinus, and the stars a stick figure borrows from a neighbour (Alpheratz in the Square of Pegasus, Elnath in Auriga) stay in the constellation that holds them.
 - **The Milky Way**, from NASA's all-sky star map with the stars filtered out, in its true place: the bright band with its dark rifts, about 27° to Voyager's left. The Magellanic Clouds show up in the southern sky.
 - **Tiny faint stars**, thickest toward the Milky Way.
 - **The probe** (the voyager logo), drawn on Voyager 1's position whenever that part of the sky is in view.
@@ -106,7 +106,7 @@ Everything the sky draws is in [`awww/sky/`](sky/), built once and committed:
 | File | What | Made by |
 |---|---|---|
 | `voyager1.json` | Voyager 1's RA/Dec (ICRF), distance, galactic l/b | `src/query-horizons.sh` (JPL Horizons API, observer Taipei) |
-| `constellations.json` | 88 figures, their stars (position, V, colour) and names in English and 繁體中文 | `src/build-sky-data.py` |
+| `constellations.json` | 88 figures: their stick-figure lines, `members` (every designated star inside the constellation's IAU boundary; no star is in two), the stars (position, V, colour) and names in English and 繁體中文 | `src/build-sky-data.py` (HYG and the IAU boundaries of Roman 1987; it prints the stars that lie in another constellation than their name or figure gives) |
 | `field.bin` | 60,000 faint background stars, seeded | `src/build-sky-data.py` |
 | `milkyway.png` | the diffuse Milky Way, equirectangular | `src/build-sky-data.py` |
 | `probe.png` | the probe | `src/build-sky-data.py` (from `src/logo.svg`) |

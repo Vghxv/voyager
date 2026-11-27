@@ -198,6 +198,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_star_is_in_one_constellation() {
+        // `members` (in the data, not read by the renderer) lists each constellation's
+        // stars by IAU boundary, its own stick-figure stars first. No star is in two: a
+        // figure may borrow a neighbour's star (Alpheratz in the Square of Pegasus), but
+        // that star stays a member of the one constellation that holds it.
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../sky");
+        let raw: serde_json::Value = serde_json::from_slice(&read(&dir.join("constellations.json")).unwrap()).unwrap();
+        let n = raw["stars"].as_array().unwrap().len();
+        assert!(n > 2500, "only {n} stars");
+        let mut owner: Vec<Option<&str>> = vec![None; n];
+        for c in raw["constellations"].as_array().unwrap() {
+            let abbr = c["abbr"].as_str().unwrap();
+            for v in c["members"].as_array().unwrap() {
+                let i = v.as_u64().unwrap() as usize;
+                assert!(i < n, "{abbr}");
+                assert!(owner[i].is_none(), "star {i} in both {} and {abbr}", owner[i].unwrap());
+                owner[i] = Some(abbr);
+            }
+        }
+        assert!(owner.iter().all(Option::is_some), "a star in no constellation");
+        let borrowed = raw["constellations"].as_array().unwrap().iter().map(|c| {
+            let abbr = c["abbr"].as_str().unwrap();
+            let mut ends: Vec<usize> = c["lines"].as_array().unwrap().iter()
+                .flat_map(|l| l.as_array().unwrap().iter().map(|i| i.as_u64().unwrap() as usize)).collect();
+            ends.sort_unstable();
+            ends.dedup();
+            ends.iter().filter(|&&i| owner[i] != Some(abbr)).count()
+        }).sum::<usize>();
+        assert!(borrowed < 12, "{borrowed} borrowed figure stars");
+    }
+
+    #[test]
     fn every_constellation_has_its_figure() {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../sky");
         let sky = SkyData::load(&dir).unwrap();
