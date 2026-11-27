@@ -1,0 +1,19 @@
+# voyager — drag mode's listener: hold the left button on empty desktop to turn the sky
+[Unit]
+Description=voyager-sky drag-mode listener
+PartOf=graphical-session.target
+Requires=graphical-session.target
+After=graphical-session.target awww.service
+Wants=awww.service
+ConditionEnvironment=WAYLAND_DISPLAY
+
+[Service]
+Type=simple
+# stops cleanly on SIGTERM; a second listen exits with "already listening"
+ExecStart=%h/.config/hypr/voyager/voyager-sky listen
+Restart=on-failure
+RestartSec=2
+Slice=session.slice
+
+[Install]
+WantedBy=graphical-session.target

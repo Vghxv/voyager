@@ -39,4 +39,10 @@ else fail "$UNIT is not running" "systemctl --user restart $UNIT   (why: journal
 if awww query >/dev/null 2>&1; then pass "awww answers"
 else fail "awww-daemon does not answer" "systemctl --user restart $UNIT"; fi
 
+LISTEN_UNIT=voyager-sky.service
+if systemctl --user is-enabled -q "$LISTEN_UNIT" 2>/dev/null; then pass "$LISTEN_UNIT is enabled"
+else fail "$LISTEN_UNIT is not enabled, so drag mode's long-press does nothing" "$FIX"; fi
+if systemctl --user is-active -q "$LISTEN_UNIT"; then pass "$LISTEN_UNIT is running"
+else fail "$LISTEN_UNIT is not running" "systemctl --user restart $LISTEN_UNIT   (why: journalctl --user -u $LISTEN_UNIT -n 20)"; fi
+
 run_checks

@@ -7,6 +7,7 @@ use bytemuck::{Pod, Zeroable};
 use glyphon::{Cache, FontSystem, SwashCache, TextArea, TextAtlas, TextRenderer, Viewport};
 use wgpu::util::DeviceExt;
 
+use crate::asterisms;
 use crate::data::{Palette, SkyData};
 use crate::view::{ecliptic_point, equator_point, Proj};
 
@@ -67,7 +68,8 @@ fn star_style() -> [f32; 2] {
 
 /// The ecliptic (drag mode, E) and then the celestial equator (Q) are drawn as this many
 /// 2° segments each, after the constellation lines; the gaps the line shader leaves at
-/// each end make them dashed.
+/// each end make them dashed. The asterisms' outlines (S) come last, dashed the same way
+/// (see `asterisms::segments`).
 pub const CIRCLE_SEGS: usize = 180;
 
 /// The probe's width at 1080p, in pixels.
@@ -468,6 +470,8 @@ impl Renderer {
         };
         line_inst.extend(circle(ecliptic_point, indigo));
         line_inst.extend(circle(equator_point, rgba8(pal.teal)));
+        let amber = rgba8(pal.amber);
+        line_inst.extend(asterisms::segments().into_iter().map(|(a, b, _)| LineInst { a: v3(a), b: v3(b), col: amber }));
         let line_buf = vbuf("lines", bytemuck::cast_slice(&line_inst));
         let line_alpha = vbuf("line alpha", bytemuck::cast_slice(&vec![0f32; line_inst.len()]));
         let shape_buf = vbuf("shapes", bytemuck::cast_slice(&[Shape::zeroed(); MAX_SHAPES]));
@@ -547,8 +551,8 @@ impl Renderer {
         Target { uniform, bind, text }
     }
 
-    /// One alpha per line segment, in constellation order, then the ecliptic's and the
-    /// celestial equator's (drag mode).
+    /// One alpha per line segment, in constellation order, then the ecliptic's, the
+    /// celestial equator's and the asterisms' (drag mode).
     pub fn set_line_alpha(&self, alpha: &[f32]) {
         debug_assert_eq!(alpha.len(), self.n_lines as usize);
         self.queue.write_buffer(&self.line_alpha, 0, bytemuck::cast_slice(alpha));

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Install the wallpaper: build voyager-sky, run awww as a systemd user service and
 # show the sky (your last chosen view, or Voyager 1 in the middle the first time).
-# Drag mode needs `voyager-sky listen` started with Hyprland; that line in
-# hyprland.lua is yours to add (the end of this script shows it).
+# Drag mode's `voyager-sky listen` runs as a second user service, started with the
+# graphical session and restarted here whenever the binary changes.
 #
 #   ./awww/install.sh            install / update (keeps the view you chose in drag mode)
-#   ./awww/install.sh --restore  stop awww and put your previous unit back (or remove voyager's)
+#   ./awww/install.sh --restore  stop awww and put your previous unit back (or remove voyager's),
+#                                and stop and remove the voyager-sky listener
 #
 # Docs: awww/awww.md
 
@@ -17,10 +18,15 @@ source "$SRC/../lib/common.sh"
 
 UNIT=awww.service
 UNIT_FILE="$SYSTEMD_USER/$UNIT"
+LISTEN_UNIT=voyager-sky.service
+LISTEN_FILE="$SYSTEMD_USER/$LISTEN_UNIT"
 SKY_CMD="$HOME/.config/scripts/voyager-sky"
+HYPR_CONF="$HOME/.config/hypr/hyprland.lua"
 
 restore() {
-  pkill -x voyager-sky 2>/dev/null && green "Stopped voyager-sky (listen and drag mode)" || true
+  if systemctl --user disable --now "$LISTEN_UNIT" 2>/dev/null; then green "Stopped and disabled $LISTEN_UNIT"; fi
+  if [[ -f "$LISTEN_FILE" ]]; then rm -f "$LISTEN_FILE"; green "Removed $LISTEN_FILE"; fi
+  pkill -x voyager-sky 2>/dev/null && green "Stopped voyager-sky (drag mode)" || true
   if systemctl --user disable --now "$UNIT" 2>/dev/null; then green "Stopped and disabled $UNIT"; fi
   if latest_backup "$UNIT_FILE" >/dev/null; then
     restore_latest "$UNIT_FILE"
@@ -31,7 +37,7 @@ restore() {
   fi
   systemctl --user daemon-reload
   if [[ -L "$SKY_CMD" ]]; then rm -f "$SKY_CMD"; green "Removed $SKY_CMD"; fi
-  echo "The wallpaper files stay in $HYPR_VOYAGER. Remove the voyager-sky lines (listen, any toggle keybind) from hyprland.lua by hand."
+  echo "The wallpaper files stay in $HYPR_VOYAGER. Remove any voyager-sky toggle keybind from hyprland.lua by hand."
 }
 
 parse_option --restore -- "$@"
@@ -54,7 +60,8 @@ echo "Building voyager-sky (the first build takes a few minutes)..."
 cargo build --release --locked --quiet --manifest-path "$SRC/voyager-sky/Cargo.toml"
 
 # a running listen or drag mode would keep the old binary (and drag mode would write
-# over the new wallpaper); listen starts again with your next login
+# over the new wallpaper): stop both; the listener service starts again at the end
+systemctl --user stop "$LISTEN_UNIT" 2>/dev/null || true
 pkill -x voyager-sky 2>/dev/null && sleep 1 || true
 
 require_lfs_files "$SRC"/sky/*.png "$SRC"/sky/figures/*.png
@@ -84,9 +91,18 @@ awww query >/dev/null 2>&1 || { red "awww-daemon did not come up — see: journa
 "$HYPR_VOYAGER/voyager-sky" apply
 green "Showing $HYPR_VOYAGER/wallpaper.png"
 
+# drag mode's listener, as a user service beside awww: on at every login, restarted now
+install -D -m 644 "$SRC/$LISTEN_UNIT" "$LISTEN_FILE"
+systemctl --user daemon-reload
+systemctl --user enable -q "$LISTEN_UNIT"
+systemctl --user restart "$LISTEN_UNIT"
+green "Started $LISTEN_UNIT (drag mode: hold the left button on empty desktop)"
+
+# a listen started by Hyprland too would race the service at login: one of them exits
+if [[ -f "$HYPR_CONF" ]] && grep -n 'voyager-sky listen' "$HYPR_CONF" | grep -v '^[0-9]*:\s*--'; then
+  red "$HYPR_CONF still starts voyager-sky listen (lines above): remove it, $LISTEN_UNIT starts it now."
+fi
+
 echo
-echo "Drag mode: hold the left button on empty desktop. Start the listener with Hyprland, in hyprland.lua:"
-echo "  hl.on(\"hyprland.start\", function() hl.exec_cmd(os.getenv(\"HOME\") .. \"/.config/scripts/voyager-sky listen\") end)"
-echo "Start it now: setsid -f $SKY_CMD listen"
-echo "Or from the keyboard: bind a key to \"$SKY_CMD toggle\" (Esc or toggle again sets the wallpaper)"
+echo "From the keyboard: bind a key to \"$SKY_CMD toggle\" (Esc or toggle again sets the wallpaper)"
 echo "Undo:        ./awww/install.sh --restore"

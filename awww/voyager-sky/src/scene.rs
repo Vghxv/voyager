@@ -12,13 +12,20 @@
 //!
 //! F shows one constellation's figure at a time: the one nearest the cursor, or,
 //! while the tour runs and the cursor has not moved since it started, the zodiac sign
-//! passing the middle of the view.
+//! passing the middle of the view. That sign's lines and name light up too, whether
+//! the lines (C) are on or not.
+//!
+//! With C or S on, the asterisms' bright stars and Polaris show their names while the
+//! cursor is near them. S outlines the four seasonal asterisms (Spring and Summer
+//! Triangles, the Great Square of Pegasus, the Winter Triangle) in dashed amber, with
+//! their names.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
 
 use glyphon::{Attrs, Buffer, Color, Family, Metrics, Shaping, TextArea, TextBounds};
 
+use crate::asterisms::{self, ASTERISMS, STARS};
 use crate::data::SkyData;
 use crate::figures::Figures;
 use crate::render::{Frame, Renderer, Shape, Target, TextCtx, CIRCLE_SEGS, PROBE_PX};
@@ -34,6 +41,10 @@ const HOVER_PX: f64 = 120.0;
 const ZODIAC_FIGURE_DEG: f64 = 15.0;
 /// The twelve signs the tour passes, by constellation abbreviation.
 const ZODIAC: [&str; 12] = ["Ari", "Tau", "Gem", "Cnc", "Leo", "Vir", "Lib", "Sco", "Sgr", "Cap", "Aqr", "Psc"];
+/// With C or S on, a named star shows its name when the cursor is this close (logical px).
+const STAR_HOVER_PX: f64 = 60.0;
+/// A star's name sits this far right of the star (logical px).
+const STAR_NAME_GAP: f32 = 9.0;
 /// A probe appears when the cursor is this close to its Voyager.
 const PROBE_HOVER_PX: f64 = 150.0;
 /// Label and chip text size, logical pixels.
@@ -124,6 +135,8 @@ pub enum Chip {
     Nav,
     /// C: constellation lines and names on/off
     Lines,
+    /// S: the seasonal asterisms on/off
+    Stars,
     /// F: constellation figures on/off
     Figures,
     /// E: the ecliptic on/off
@@ -137,8 +150,16 @@ pub enum Chip {
 }
 
 impl Chip {
-    const ALL: [Chip; 7] =
-        [Chip::Nav, Chip::Lines, Chip::Figures, Chip::Ecliptic, Chip::Equator, Chip::Lang, Chip::Done];
+    const ALL: [Chip; 8] = [
+        Chip::Nav,
+        Chip::Lines,
+        Chip::Stars,
+        Chip::Figures,
+        Chip::Ecliptic,
+        Chip::Equator,
+        Chip::Lang,
+        Chip::Done,
+    ];
 }
 
 struct ChipText {
@@ -160,6 +181,10 @@ enum Which {
     /// 0 = Voyager 1, 1 = Voyager 2
     Probe(usize),
     Axis(usize),
+    /// a named star, by index in asterisms::STARS
+    Star(usize),
+    /// an asterism's name, by index in asterisms::ASTERISMS
+    Asterism(usize),
 }
 
 /// Every piece of text drag mode can show, shaped once.
@@ -170,6 +195,8 @@ struct Texts {
     probes: Vec<Label>,
     /// X, Y, Z
     axes: Vec<ChipText>,
+    stars: Vec<Label>,
+    asterisms: Vec<Label>,
 }
 
 /// The view moving on its own, eased every frame toward a target.
@@ -227,6 +254,7 @@ pub struct Scene {
     last_input: Instant,
     pub lines_on: bool,
     pub figures_on: bool,
+    pub stars_on: bool,
     pub ecliptic_on: bool,
     pub equator_on: bool,
     pub zh: bool,
@@ -240,9 +268,14 @@ pub struct Scene {
     figures: Figures,
 
     texts: Texts,
-    /// how visible the ecliptic and the celestial equator are (0 hidden)
+    /// how visible the ecliptic, the celestial equator and the asterisms are (0 hidden)
     ecliptic: f32,
     equator: f32,
+    asterism: f32,
+    /// per named star: how visible its name is
+    star_name: Vec<f32>,
+    /// the named stars, in asterisms::STARS order
+    star_pos: Vec<V3>,
     /// per constellation: how lit its lines and name are (0 hidden, 0.5 shown, 1 hovered)
     glow: Vec<f32>,
     /// how visible each Voyager's probe is
@@ -286,6 +319,8 @@ impl Scene {
         };
         let labels = sky.constellations.iter().map(|c| label(&c.en, &c.zh)).collect();
         let probes = PROBE_NAMES.iter().map(|[en, zh]| label(en, zh)).collect();
+        let star_labels = STARS.iter().map(|st| label(st.en, st.zh)).collect();
+        let asterism_labels = ASTERISMS.iter().map(|a| label(a.en, a.zh)).collect();
         let axes = ["X", "Y", "Z"]
             .iter()
             .map(|s| {
@@ -311,6 +346,10 @@ impl Scene {
             last_input: Instant::now(),
             lines_on: false,
             figures_on: false,
+            stars_on: false,
+            asterism: 0.0,
+            star_name: vec![0.0; STARS.len()],
+            star_pos: (0..STARS.len()).map(asterisms::star_pos).collect(),
             ecliptic_on: false,
             ecliptic: 0.0,
             equator_on: false,
@@ -321,11 +360,11 @@ impl Scene {
             tour_hover: false,
             zodiac,
             figures,
-            texts: Texts { labels, chips: Vec::new(), probes, axes },
+            texts: Texts { labels, chips: Vec::new(), probes, axes, stars: star_labels, asterisms: asterism_labels },
             glow: vec![0.0; n],
             probe: [0.0; 2],
             controls: 1.0,
-            line_alpha: vec![0.0; seg_con.len() + 2 * CIRCLE_SEGS],
+            line_alpha: vec![0.0; seg_con.len() + 2 * CIRCLE_SEGS + asterisms::segments().len()],
             seg_con,
             phase: (0..n).map(|i| (i as f32 * 0.618_034).fract()).collect(),
             sky,
@@ -463,6 +502,7 @@ impl Scene {
             }
             Chip::Lines => self.lines_on = !self.lines_on,
             Chip::Figures => self.figures_on = !self.figures_on,
+            Chip::Stars => self.stars_on = !self.stars_on,
             Chip::Ecliptic => self.ecliptic_on = !self.ecliptic_on,
             Chip::Equator => self.equator_on = !self.equator_on,
             Chip::Lang => self.zh = !self.zh,
@@ -533,6 +573,7 @@ impl Scene {
             Chip::Nav => self.nav == Nav::Trackball,
             Chip::Lines => self.lines_on,
             Chip::Figures => self.figures_on,
+            Chip::Stars => self.stars_on,
             Chip::Ecliptic => self.ecliptic_on,
             Chip::Equator => self.equator_on,
             Chip::Lang => true,
@@ -555,6 +596,8 @@ impl Scene {
                     (Chip::Lines, false) => format!("C  {} Constellations", on(self.lines_on)),
                     (Chip::Figures, true) => format!("F  {} 星座圖", on(self.figures_on)),
                     (Chip::Figures, false) => format!("F  {} figures", on(self.figures_on)),
+                    (Chip::Stars, true) => format!("S  {} 星群", on(self.stars_on)),
+                    (Chip::Stars, false) => format!("S  {} asterisms", on(self.stars_on)),
                     (Chip::Ecliptic, true) => format!("E  {} 黃道", on(self.ecliptic_on)),
                     (Chip::Ecliptic, false) => format!("E  {} ecliptic", on(self.ecliptic_on)),
                     (Chip::Equator, true) => format!("Q  {} 天赤道", on(self.equator_on)),
@@ -582,11 +625,58 @@ impl Scene {
         }
     }
 
+    /// A named star's name shows with C or S on while the cursor is near the star.
+    fn star_name_target(&self, i: usize) -> f32 {
+        let Some(c) = self.cursor else { return 0.0 };
+        if !self.lines_on && !self.stars_on {
+            return 0.0;
+        }
+        let (x, y, z) = self.proj().project(self.star_pos[i]);
+        if z > -0.3 && (x - c.0).hypot(y - c.1) < STAR_HOVER_PX { 1.0 } else { 0.0 }
+    }
+
+    fn asterism_target(&self) -> f32 {
+        if self.stars_on { 0.7 } else { 0.0 }
+    }
+
     fn glow_target(&self, i: usize) -> f32 {
-        match (self.lines_on, Some(i) == self.hovered) {
-            (false, _) => 0.0,
-            (true, true) => 1.0,
-            (true, false) => 0.5,
+        if Some(i) == self.lit() {
+            1.0
+        } else if self.lines_on {
+            0.5
+        } else {
+            0.0
+        }
+    }
+
+    /// During the tour, until the cursor moves (or while it is off the sky), the zodiac
+    /// leads: what is lit and shown follows the sign passing the middle of the view.
+    fn zodiac_leads(&self) -> bool {
+        self.touring() && (!self.tour_hover || self.cursor.is_none())
+    }
+
+    /// The zodiac sign whose centre is nearest the middle of the view, if within
+    /// ZODIAC_FIGURE_DEG of it.
+    fn zodiac_sign(&self) -> Option<usize> {
+        let f = self.view.basis().2;
+        self.zodiac
+            .iter()
+            .map(|&i| (angle(f, self.sky.constellations[i].centre).to_degrees(), i))
+            .filter(|&(a, _)| a < ZODIAC_FIGURE_DEG)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, i)| i)
+    }
+
+    /// The constellation whose lines and name are drawn fully lit: the zodiac sign
+    /// while it leads the tour (lines on or not), else the one under the cursor while
+    /// the lines are on.
+    fn lit(&self) -> Option<usize> {
+        if self.zodiac_leads() {
+            self.zodiac_sign()
+        } else if self.lines_on {
+            self.hovered
+        } else {
+            None
         }
     }
 
@@ -596,15 +686,8 @@ impl Scene {
         if !self.figures_on {
             return None;
         }
-        if self.touring() && (!self.tour_hover || self.cursor.is_none()) {
-            let f = self.view.basis().2;
-            return self
-                .zodiac
-                .iter()
-                .map(|&i| (angle(f, self.sky.constellations[i].centre).to_degrees(), i))
-                .filter(|&(a, _)| a < ZODIAC_FIGURE_DEG)
-                .min_by(|a, b| a.0.total_cmp(&b.0))
-                .map(|(_, i)| i);
+        if self.zodiac_leads() {
+            return self.zodiac_sign();
         }
         self.hovered
     }
@@ -645,6 +728,8 @@ impl Scene {
             || self.tour_due()
             || self.ecliptic != self.ecliptic_target()
             || self.equator != self.equator_target()
+            || self.asterism != self.asterism_target()
+            || (0..self.star_name.len()).any(|i| self.star_name[i] != self.star_name_target(i))
             || (0..self.glow.len()).any(|i| self.glow[i] != self.glow_target(i))
             || (0..2).any(|k| self.probe[k] != self.probe_target(k))
             || (0..2).any(|k| self.renderer.figure_alpha(k) != self.figure_alpha_target(k))
@@ -725,17 +810,25 @@ impl Scene {
         ease(&mut self.ecliptic, et, 7.0);
         let qt = self.equator_target();
         ease(&mut self.equator, qt, 7.0);
+        let at = self.asterism_target();
+        ease(&mut self.asterism, at, 7.0);
+        for i in 0..self.star_name.len() {
+            let target = self.star_name_target(i);
+            ease(&mut self.star_name[i], target, 7.0);
+        }
 
         // the slow blue flicker: each constellation breathes on its own 6-10 s cycle
+        let lit = self.lit();
         for (j, &c) in self.seg_con.iter().enumerate() {
             let (g, ph) = (self.glow[c], self.phase[c]);
             let period = 6.0 + 4.0 * ph;
             let flicker = 0.75 + 0.25 * (t * std::f32::consts::TAU / period + ph * 40.0).sin();
-            self.line_alpha[j] = if Some(c) == self.hovered { g * 0.95 } else { g * 0.7 * flicker };
+            self.line_alpha[j] = if Some(c) == lit { g * 0.95 } else { g * 0.7 * flicker };
         }
         let n = self.seg_con.len();
         self.line_alpha[n..n + CIRCLE_SEGS].fill(self.ecliptic);
-        self.line_alpha[n + CIRCLE_SEGS..].fill(self.equator);
+        self.line_alpha[n + CIRCLE_SEGS..n + 2 * CIRCLE_SEGS].fill(self.equator);
+        self.line_alpha[n + 2 * CIRCLE_SEGS..].fill(self.asterism);
         self.renderer.set_line_alpha(&self.line_alpha);
     }
 
@@ -914,6 +1007,7 @@ impl Scene {
         let sc = g.scale as f32;
         let mist = self.renderer.palette().mist;
         let pr = self.proj();
+        let lit = self.lit();
         let mut out = Vec::new();
         for (c, con) in self.sky.constellations.iter().enumerate() {
             let gl = self.glow[c];
@@ -931,8 +1025,42 @@ impl Scene {
                 which: Which::Label(c),
                 left: (x - bw / 2.0) * sc,
                 top: (y - bh / 2.0) * sc,
-                colour: if Some(c) == self.hovered { rgba([1.0, 1.0, 1.0], gl) } else { rgba(mist, gl * 0.8) },
+                colour: if Some(c) == lit { rgba([1.0, 1.0, 1.0], gl) } else { rgba(mist, gl * 0.8) },
             });
+        }
+        // the asterisms' names, in amber like their outlines, in the middle of each
+        let amber = self.renderer.palette().amber;
+        if self.asterism > 0.01 {
+            for (k, a) in ASTERISMS.iter().enumerate() {
+                let (x, y, z) = pr.project(asterisms::label_pos(a));
+                let (x, y) = ((x - g.origin.0) as f32, (y - g.origin.1) as f32);
+                if z < 0.0 || x < -300.0 || y < -50.0 || x > g.size.0 as f32 + 300.0 || y > g.size.1 as f32 + 50.0 {
+                    continue;
+                }
+                let lab = &self.texts.asterisms[k];
+                let (bw, bh) = if self.zh { lab.zh_size } else { lab.en_size };
+                out.push(Spec {
+                    which: Which::Asterism(k),
+                    left: (x - bw / 2.0) * sc,
+                    top: (y - bh / 2.0) * sc,
+                    colour: rgba(amber, self.asterism * 1.2),
+                });
+            }
+        }
+        // a named star's name, just right of it, while the cursor is near (C or S on)
+        for i in (0..STARS.len()).filter(|&i| self.star_name[i] > 0.01) {
+            let (x, y, z) = pr.project(self.star_pos[i]);
+            if z > -0.3 {
+                let (x, y) = ((x - g.origin.0) as f32, (y - g.origin.1) as f32);
+                let lab = &self.texts.stars[i];
+                let (_, bh) = if self.zh { lab.zh_size } else { lab.en_size };
+                out.push(Spec {
+                    which: Which::Star(i),
+                    left: (x + STAR_NAME_GAP) * sc,
+                    top: (y - bh / 2.0) * sc,
+                    colour: rgba([1.0, 1.0, 1.0], self.star_name[i] * 0.95),
+                });
+            }
         }
         // each probe's name, under it, fading in and out with it
         for k in (0..2).filter(|&k| self.probe[k] > 0.01) {
@@ -996,6 +1124,10 @@ fn areas<'a>(t: &'a Texts, zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'
                 Which::Probe(k) if zh => &t.probes[k].zh,
                 Which::Probe(k) => &t.probes[k].en,
                 Which::Axis(k) => &t.axes[k].text,
+                Which::Star(i) if zh => &t.stars[i].zh,
+                Which::Star(i) => &t.stars[i].en,
+                Which::Asterism(k) if zh => &t.asterisms[k].zh,
+                Which::Asterism(k) => &t.asterisms[k].en,
             },
             left: s.left,
             top: s.top,
@@ -1036,7 +1168,7 @@ mod tests {
         // moving the mouse, keys and chips leave it running
         s.pointer_moved((100.0, 300.0));
         s.pointer_moved((140.0, 320.0));
-        for chip in [Chip::Lines, Chip::Figures, Chip::Ecliptic, Chip::Equator, Chip::Lang] {
+        for chip in [Chip::Lines, Chip::Stars, Chip::Figures, Chip::Ecliptic, Chip::Equator, Chip::Lang] {
             s.key_input();
             s.press_chip(chip);
         }
@@ -1109,6 +1241,64 @@ mod tests {
         let (ra, dec) = radec(s.sky.constellations[leo].centre);
         s.view = View { ra, dec, ..s.view };
         assert_eq!(s.figure_target(), Some(leo));
+    }
+
+    #[test]
+    fn the_tour_lights_the_passing_sign() {
+        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let leo = s.sky.constellations.iter().position(|c| c.abbr == "Leo").unwrap();
+        s.pointer_moved(s.center);
+        s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
+        s.update(Some(0.016));
+        assert!(s.touring());
+        assert!(!s.lines_on);
+        let (ra, dec) = radec(s.sky.constellations[leo].centre);
+        s.view = View { ra, dec, ..s.view };
+        assert_eq!(s.lit(), Some(leo), "lit with the lines off");
+        assert_eq!(s.glow_target(leo), 1.0);
+        let other = (leo + 1) % s.glow.len();
+        assert_eq!(s.glow_target(other), 0.0);
+        s.press_chip(Chip::Lines);
+        assert_eq!(s.glow_target(other), 0.5);
+        // the cursor moves: the one under it is lit instead
+        s.pointer_moved((s.center.0 + 40.0, s.center.1));
+        s.update(Some(0.016));
+        assert_eq!(s.lit(), s.hovered);
+    }
+
+    #[test]
+    fn star_names_show_near_the_cursor_with_c_or_s_on() {
+        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let polaris = STARS.iter().position(|st| st.en == "Polaris").unwrap();
+        let vega = STARS.iter().position(|st| st.en == "Vega").unwrap();
+        s.view = View { ra: 37.955, dec: 89.264, fov: 90.0, roll: 0.0 };
+        s.pointer_moved((s.center.0 + 20.0, s.center.1));
+        assert_eq!(s.star_name_target(polaris), 0.0, "C and S are off");
+        s.press_chip(Chip::Stars);
+        assert_eq!(s.star_name_target(polaris), 1.0, "S alone");
+        s.press_chip(Chip::Stars);
+        s.press_chip(Chip::Lines);
+        assert_eq!(s.star_name_target(polaris), 1.0, "C alone");
+        assert_eq!(s.star_name_target(vega), 0.0, "Vega is far from the cursor");
+        s.pointer_moved((s.center.0 + 300.0, s.center.1));
+        assert_eq!(s.star_name_target(polaris), 0.0);
+    }
+
+    #[test]
+    fn s_shows_the_asterisms() {
+        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let n = s.seg_con.len() + 2 * CIRCLE_SEGS;
+        s.press_chip(Chip::Stars);
+        for _ in 0..30 {
+            s.update(Some(0.1));
+        }
+        assert!(s.line_alpha[n..].iter().all(|&a| a > 0.5));
+        assert!(s.line_alpha[..n].iter().all(|&a| a == 0.0), "C, E and Q stay off");
+        s.press_chip(Chip::Stars);
+        for _ in 0..30 {
+            s.update(Some(0.1));
+        }
+        assert!(s.line_alpha[n..].iter().all(|&a| a == 0.0));
     }
 
     #[test]
