@@ -99,6 +99,17 @@ voyager-sky export --overlay --figures --view 83,2,90 --out orion.png # ... with
 
 The saved view is in `~/.config/hypr/voyager/view.json` (`ra`, `dec`, `fov`, and `roll`, the tilt in degrees; 0 is north up). Delete it and run `voyager-sky apply` to put Voyager 1 back in the middle.
 
+**How the stars glow.** `~/.config/hypr/voyager/stars.json` sets the look of the constellation stars, for example `{"style": "photo", "glow": 1.0}`:
+
+| `style` | Look |
+|---|---|
+| `classic` | each star in a round halo, up to about 60 px across at 1080p for Sirius |
+| `soft` | the same idea at about half the size, with a smooth edge |
+| `photo` (default, with `glow` 1.5) | a sharp core and faint wings that fade out like a lens's, as strong as the star's real brightness: only the brightest dozen glow |
+| `eye` | almost no glow: a slightly bigger core and a 1–2 px bloom |
+
+`glow` scales the halo (1 = as designed, 0 = none, up to 4; 1.5 if left out). It works in every style; in `soft` and `classic` it changes the size a lot, in `photo` it changes mostly how far the brightest stars' wings reach. After editing the file, run `voyager-sky apply` for the wallpaper and restart `voyager-sky listen` for drag mode. To compare without touching the file: `VOYAGER_SKY_STARS=photo,1.5 voyager-sky export --out try.png` (the variable wins over the file).
+
 ## Data
 
 Everything the sky draws is in [`awww/sky/`](sky/), built once and committed:

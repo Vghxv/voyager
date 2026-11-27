@@ -23,6 +23,48 @@ fn milky_way() -> [f32; 3] {
         })
         .unwrap_or(MILKY_WAY)
 }
+/// How the constellation stars are drawn: a style (sky.wgsl star_vs) and the strength
+/// of their glow. ~/.config/hypr/voyager/stars.json ({"style": "photo", "glow": 1.0}),
+/// or VOYAGER_SKY_STARS=photo,1.0 for trying them out; photo at 1.5 without either.
+const STAR_STYLES: [&str; 4] = ["classic", "soft", "photo", "eye"];
+
+#[derive(serde::Deserialize)]
+#[serde(default)]
+struct StarStyle {
+    style: String,
+    glow: f32,
+}
+
+impl Default for StarStyle {
+    fn default() -> Self {
+        StarStyle { style: "photo".into(), glow: 1.5 }
+    }
+}
+
+impl StarStyle {
+    /// [style index, glow] for the shader, if the style is one of STAR_STYLES.
+    fn uniform(&self) -> Option<[f32; 2]> {
+        let i = STAR_STYLES.iter().position(|s| *s == self.style.trim())?;
+        Some([i as f32, self.glow.clamp(0.0, 4.0)])
+    }
+}
+
+fn star_style() -> [f32; 2] {
+    if let Ok(s) = std::env::var("VOYAGER_SKY_STARS") {
+        let (style, glow) = s.split_once(',').unwrap_or((&s, ""));
+        let try_it = StarStyle { style: style.into(), glow: glow.trim().parse().unwrap_or(StarStyle::default().glow) };
+        if let Some(v) = try_it.uniform() {
+            return v;
+        }
+        eprintln!("voyager-sky: VOYAGER_SKY_STARS={s}: expected one of {} and a strength", STAR_STYLES.join("/"));
+    }
+    std::fs::read(crate::wallpaper::out_dir().join("stars.json"))
+        .ok()
+        .and_then(|b| serde_json::from_slice::<StarStyle>(&b).ok())
+        .and_then(|s| s.uniform())
+        .unwrap_or_else(|| StarStyle::default().uniform().expect("the default is a style"))
+}
+
 /// The ecliptic is drawn (drag mode, E) as this many 2° segments after the
 /// constellation lines; the gaps the line shader leaves at each end make it dashed.
 pub const ECLIPTIC_SEGS: usize = 180;
@@ -47,6 +89,7 @@ struct Uniforms {
     line_col: [f32; 4],
     voyager: [f32; 4],
     probe: [f32; 4],
+    stars: [f32; 4],
 }
 
 #[repr(C)]
@@ -196,6 +239,7 @@ pub struct Renderer {
     figures: [Option<FigureSlot>; 2],
     palette: Palette,
     milky_way: [f32; 3],
+    star_style: [f32; 2],
     voyager: [f32; 3],
 }
 
@@ -454,6 +498,7 @@ impl Renderer {
             figures: [None, None],
             palette: Palette::get(),
             milky_way: milky_way(),
+            star_style: star_style(),
             voyager: v3(sky.voyager),
         }
     }
@@ -567,6 +612,7 @@ impl Renderer {
             line_col: v4(pal.indigo, 1.0),
             voyager: v4(self.voyager, fr.probe_alpha),
             probe: [PROBE_PX * fr.u, mw_curve, mw_colour, 0.0],
+            stars: [self.star_style[0], self.star_style[1], 0.0, 0.0],
         }
     }
 
