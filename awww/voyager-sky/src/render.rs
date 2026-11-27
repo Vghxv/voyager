@@ -90,6 +90,7 @@ struct Uniforms {
     voyager: [f32; 4],
     probe: [f32; 4],
     stars: [f32; 4],
+    voyager2: [f32; 4],
 }
 
 #[repr(C)]
@@ -156,7 +157,8 @@ pub struct Frame {
     pub u: f32,
     pub size: (u32, u32),
     pub time: f32,
-    pub probe_alpha: f32,
+    /// Voyager 1's and Voyager 2's
+    pub probe_alpha: [f32; 2],
     /// draw the constellation lines and the chips (drag mode only)
     pub overlay: bool,
 }
@@ -241,7 +243,7 @@ pub struct Renderer {
     palette: Palette,
     milky_way: [f32; 3],
     star_style: [f32; 2],
-    voyager: [f32; 3],
+    voyagers: [[f32; 3]; 2],
 }
 
 fn v3(p: [f64; 3]) -> [f32; 3] {
@@ -513,7 +515,7 @@ impl Renderer {
             palette: pal,
             milky_way: milky_way(),
             star_style: star_style(),
-            voyager: v3(sky.voyager),
+            voyagers: sky.voyagers.map(v3),
         }
     }
 
@@ -624,9 +626,10 @@ impl Renderer {
             mw_strength,
             top: v4(pal.top, 1.0),
             bottom: v4(pal.bottom, 1.0),
-            voyager: v4(self.voyager, fr.probe_alpha),
+            voyager: v4(self.voyagers[0], fr.probe_alpha[0]),
             probe: [PROBE_PX * fr.u, mw_curve, mw_colour, 0.0],
             stars: [self.star_style[0], self.star_style[1], 0.0, 0.0],
+            voyager2: v4(self.voyagers[1], fr.probe_alpha[1]),
         }
     }
 
@@ -683,9 +686,10 @@ impl Renderer {
             pass.set_pipeline(&self.stars);
             pass.set_vertex_buffer(0, self.star_buf.slice(..));
             pass.draw(0..6, 0..self.n_stars);
-            if fr.probe_alpha > 0.0 {
+            if fr.probe_alpha.iter().any(|&a| a > 0.0) {
+                // one instance per Voyager; a hidden one is moved off screen
                 pass.set_pipeline(&self.probe);
-                pass.draw(0..6, 0..1);
+                pass.draw(0..6, 0..2);
             }
             if fr.overlay && self.n_shapes > 0 {
                 pass.set_pipeline(&self.shapes);

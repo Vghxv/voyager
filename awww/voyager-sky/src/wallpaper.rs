@@ -17,7 +17,7 @@ pub fn out_dir() -> PathBuf {
 
 /// Centred on Voyager 1.
 pub fn default_view(sky: &SkyData) -> View {
-    let (ra, dec) = radec(sky.voyager);
+    let (ra, dec) = radec(sky.voyagers[0]);
     View { ra, dec, fov: DEFAULT_FOV, roll: 0.0 }
 }
 
@@ -42,7 +42,7 @@ pub fn still_frame(view: &View, (w, h): (u32, u32), probe: bool) -> Frame {
     let u = (w as f64).min(h as f64 * 16.0 / 9.0) / view::REF_WIDTH;
     let mut proj = Proj::new(view, (w as f64 / 2.0, h as f64 / 2.0));
     proj.scale *= u;
-    Frame { proj, u: u as f32, size: (w, h), time: 0.0, probe_alpha: if probe { 1.0 } else { 0.0 }, overlay: false }
+    Frame { proj, u: u as f32, size: (w, h), time: 0.0, probe_alpha: [if probe { 1.0 } else { 0.0 }; 2], overlay: false }
 }
 
 /// wallpaper.png (probe included) and lock.png (without) for `view`, save the view,

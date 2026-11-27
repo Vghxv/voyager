@@ -21,6 +21,7 @@ struct U {
     voyager: vec4f,       // xyz on the sphere, w = probe opacity
     probe: vec4f,         // x = probe size in px, y = Milky Way tone curve, z = its saturation
     stars: vec4f,         // x = star style (0 classic, 1 soft, 2 photo, 3 eye), y = glow strength
+    voyager2: vec4f,      // Voyager 2, like voyager
 };
 
 @group(0) @binding(0) var<uniform> uni: U;
@@ -217,25 +218,30 @@ struct StarOut {
 
 // --- 4. the probe ----------------------------------------------------------------------
 
+// Instance 0 is Voyager 1, instance 1 Voyager 2.
+
 struct ProbeOut {
     @builtin(position) pos: vec4f,
     @location(0) uv: vec2f,
+    @location(1) alpha: f32,
 };
 
-@vertex fn probe_vs(@builtin(vertex_index) i: u32) -> ProbeOut {
-    let q = project(uni.voyager.xyz);
+@vertex fn probe_vs(@builtin(vertex_index) i: u32, @builtin(instance_index) k: u32) -> ProbeOut {
+    let v = select(uni.voyager, uni.voyager2, k == 1u);
+    let q = project(v.xyz);
     let c = corner(i);
     var out: ProbeOut;
     out.uv = c * 0.5 + 0.5;
     out.uv.y = 1.0 - out.uv.y;
-    let visible = q.z > -0.9 && uni.voyager.w > 0.0;
+    out.alpha = v.w;
+    let visible = q.z > -0.9 && v.w > 0.0;
     out.pos = select(OFFSCREEN, to_clip(q.xy + vec2f(c.x, -c.y) * uni.probe.x * 0.5), visible);
     return out;
 }
 
 @fragment fn probe_fs(in: ProbeOut) -> @location(0) vec4f {
     let c = textureSample(probe_tex, lin_samp, in.uv);
-    return vec4f(c.rgb, c.a * uni.voyager.w);
+    return vec4f(c.rgb, c.a * in.alpha);
 }
 
 // --- 5. constellation lines (drag mode) ---------------------------------------------
