@@ -136,7 +136,7 @@ Voyager 1 is so far away that it sits at the same point of the sky from anywhere
 
 Sources:
 
-- constellation stick figures and Chinese names from [Stellarium](https://github.com/Stellarium/stellarium)'s modern sky culture and its zh_TW translation (CC BY-SA 4.0)
+- constellation stick figures from [Stellarium](https://github.com/Stellarium/stellarium)'s modern sky culture (CC BY-SA 4.0); the Chinese names are Taiwan's, listed in `src/build-sky-data.py`
 - constellation drawings by Johan Meuris from the same sky culture (Free Art License 1.3)
 - star positions, magnitudes and colours from the [HYG database](https://github.com/astronexus/HYG-Database) v4.1 (CC BY-SA 4.0, from Hipparcos)
 - the Milky Way from NASA/Goddard Scientific Visualization Studio's [Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851)

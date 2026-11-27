@@ -12,7 +12,6 @@ STELLARIUM = "https://raw.githubusercontent.com/Stellarium/stellarium/master"
 MODERN = f"{STELLARIUM}/skycultures/modern"      # Stellarium's "modern" sky culture
 SOURCES = {
     "modern.json": f"{MODERN}/index.json",
-    "zh_TW.po": f"{STELLARIUM}/po/stellarium-skycultures/zh_TW.po",
     "hyg.csv": "https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv",
     "starmap_2020_4k.exr": "https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/starmap_2020_4k.exr",
     # Roman (1987), CDS VI/42: the IAU boundaries (Delporte 1930) as B1875 boxes. Astropy's copy,

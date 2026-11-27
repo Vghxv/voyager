@@ -9,9 +9,9 @@ Run once; the results are committed. Voyager's own position comes from
 src/query-horizons.sh (awww/sky/voyager1.json).
 
 Sources (src/sky_sources.py; downloaded once into the cache, never into the repo):
-- Stellarium's "modern" sky culture: the 88 IAU constellations, their stick
-  figures as Hipparcos numbers (CC BY-SA 4.0), and the Traditional Chinese names
-  from Stellarium's zh_TW translation.
+- Stellarium's "modern" sky culture: the 88 IAU constellations and their stick
+  figures as Hipparcos numbers (CC BY-SA 4.0). The Traditional Chinese names are
+  Taiwan's, in ZH below.
 - HYG database v4.1 (CC BY-SA 4.0): each star's position, V magnitude and
   B-V colour index (from Hipparcos), and its Bayer/Flamsteed designation.
 - Roman (1987), CDS VI/42: the IAU constellation boundaries, via astropy's copy.
@@ -54,8 +54,8 @@ from voyager_art import ROOT, LOGO, bv_rgb, eq2gal, field_bv, magick, rsvg, star
 from sky_sources import SOURCES, cache_arg, fetch, hyg_stars  # noqa: E402
 
 OUT = ROOT / "awww" / "sky"
-# Taiwan's names, used when Stellarium's zh_TW translation has none.
-ZH_FALLBACK = {
+# Each constellation's Traditional Chinese name, as Taiwan writes it.
+ZH = {
     "And": "仙女座", "Ant": "唧筒座", "Aps": "天燕座", "Aqr": "寶瓶座", "Aql": "天鷹座", "Ara": "天壇座",
     "Ari": "白羊座", "Aur": "御夫座", "Boo": "牧夫座", "Cae": "雕具座", "Cam": "鹿豹座", "Cnc": "巨蟹座",
     "CVn": "獵犬座", "CMa": "大犬座", "CMi": "小犬座", "Cap": "摩羯座", "Car": "船底座", "Cas": "仙后座",
@@ -76,22 +76,6 @@ ZH_FALLBACK = {
 FAINTEST = 6.0               # only designated stars brighter than this are drawn (stick-figure stars always are)
 FIELD_STARS = 60000          # whole sky; a 100-degree view shows ~8000
 MILKY_WAY_SIZE = "2048x1024"
-
-
-def zh_names(po_path):
-    """msgid -> msgstr for the constellation names in Stellarium's zh_TW.po."""
-    names, ctx, msgid = {}, None, None
-    for line in po_path.read_text(encoding="utf-8").splitlines():
-        if line.startswith("msgctxt "):
-            ctx = line[9:-1]
-        elif line.startswith("msgid "):
-            msgid = line[7:-1]
-        elif line.startswith("msgstr ") and msgid:
-            value = line[8:-1]
-            if value and (ctx is None or "constellation" in ctx):
-                names.setdefault(msgid, value)
-            ctx, msgid = None, None
-    return names
 
 
 def radec(v):
@@ -157,7 +141,6 @@ def iau_constellation(rows, ra, dec):
 
 def constellations(src):
     sky = json.loads(src["modern.json"].read_text())
-    zh = zh_names(src["zh_TW.po"])
     hyg, designated = hyg_stars(src["hyg.csv"], FAINTEST)
     stars, index, out, missing, figure_stars = [], {}, [], [], {}
 
@@ -187,7 +170,7 @@ def constellations(src):
         figure_stars[abbr] = used
         v = [sum(unit(*stars[i][:2])[k] for i in largest_part(used, segs)) for k in range(3)]
         out.append({"abbr": abbr, "en": en,
-                    "zh": zh.get(en) or zh.get(c["common_name"]["english"]) or ZH_FALLBACK[abbr],
+                    "zh": ZH[abbr],
                     "lines": sorted([list(s) for s in segs]),
                     "label": [round(t, 3) for t in radec(v)]})
     if missing:
