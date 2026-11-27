@@ -14,6 +14,8 @@ WARP_SEEN   = 0.6;    # speed at which the warp stars are fully visible
 BLUE_AT     = 3;      # speed at which the sky is fully blue-shifted
 RED_AT      = 1.5;    # reverse speed at which it is fully red-shifted
 ROT_SIGN    = 1;      # set to -1 if streaks point the wrong way
+CORE_FADE   = 0.25;   # stars dim inside this radius (fraction of screen height)
+CORE_VANISH = 0.08;   # ...and vanish inside this one while pulled back
 
 # Polaris's top-left corner in sky.png, as fractions of its size.
 # Written by src/gen-plymouth.py: do not edit by hand.
@@ -29,6 +31,8 @@ W  = Window.GetWidth();
 H  = Window.GetHeight();
 cx = W / 2;
 cy = H / 2;
+core_fade_r   = CORE_FADE * H;
+core_vanish_r = CORE_VANISH * H;
 DT = 0.02;            # refresh runs ~50 times per second
 t  = 0;
 
@@ -227,13 +231,19 @@ fun refresh_callback() {
     global.star[i].y += dy * global.speed * global.DT;
     x = global.star[i].x;
     y = global.star[i].y;
+    r = Math.Sqrt((x - global.cx) * (x - global.cx) + (y - global.cy) * (y - global.cy));
 
+    # off screen, or pulled back into the core: respawn somewhere random,
+    # so backing off never piles the stars up in the middle
     if (x < -20 || x > global.W + 20 || y < -20 || y > global.H + 20 ||
-        (global.speed < 0 && Math.Abs(dx) < 3 && Math.Abs(dy) < 3)) {
+        (global.speed < 0 && r < global.core_vanish_r)) {
       place_star(i);
       x = global.star[i].x;
       y = global.star[i].y;
+      r = Math.Sqrt((x - global.cx) * (x - global.cx) + (y - global.cy) * (y - global.cy));
     }
+    # dim towards the core: gone by the time a star reaches the vanish radius
+    core = clamp01((r - global.core_vanish_r) / (global.core_fade_r - global.core_vanish_r));
     if (global.star[i].fade < 1) {
       global.star[i].fade += 0.04;
     }
@@ -247,7 +257,7 @@ fun refresh_callback() {
       }
     }
 
-    global.star[i].sprite.SetOpacity(global.star[i].peak * seen * global.star[i].fade);
+    global.star[i].sprite.SetOpacity(global.star[i].peak * seen * global.star[i].fade * core);
 
     if (fast != 0) {
       global.star[i].sprite.SetPosition(x - global.star[i].sw2, y - global.star[i].sh2, 0);
