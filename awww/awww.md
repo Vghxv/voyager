@@ -10,7 +10,7 @@ What the sky shows:
 - **One constellation per star.** Each star belongs to the constellation whose IAU boundary holds it (Roman 1987). So ρ Aquilae, which its proper motion carried into Delphinus in the 1990s, is in Delphinus, and the stars a stick figure borrows from a neighbour (Alpheratz in the Square of Pegasus, Elnath in Auriga) stay in the constellation that holds them.
 - **The Milky Way**, from NASA's all-sky star map with the stars filtered out, in its true place: the bright band with its dark rifts, about 27° to Voyager's left. The Magellanic Clouds show up in the southern sky.
 - **Tiny faint stars**, thickest toward the Milky Way.
-- **The probe** (the voyager logo), drawn on Voyager 1's position whenever that part of the sky is in view.
+- **The probes** (the voyager logo), one on Voyager 1's position (in Ophiuchus) and one on Voyager 2's (in Pavo, 145 AU out, deep in the southern sky), each drawn whenever its part of the sky is in view.
 - No galaxies or nebulae: they're too dim to see.
 
 The view is drawn north up, with east to the left, as you see the sky from inside the sphere.
@@ -63,7 +63,7 @@ While drag mode is on, the live sky sits on the desktop behind your windows, so 
 | `Q`, or the **equator** chip | Shows or hides the celestial equator (Dec 0°, Earth's equator on the sky) as a dashed teal line; it runs through Orion's belt |
 | `L`, or the **中文 / English** chip | Switches the names between Traditional Chinese and English |
 | Move the cursor near a constellation | Its lines and name light up |
-| Move the cursor near Voyager 1 | The probe fades in, with its name (航海家1號 / Voyager 1) under it |
+| Move the cursor near Voyager 1 or Voyager 2 | That probe fades in, with its name (航海家1號 / Voyager 1, 航海家2號 / Voyager 2) under it |
 | `Esc`, or the **set as wallpaper** chip | Ends drag mode and makes the view the wallpaper (with `listen`, it goes back to waiting) |
 
 Drag mode takes the keyboard only while the cursor is on the sky (empty desktop). Move the cursor onto a window and typing goes to the window as usual.
@@ -78,7 +78,7 @@ Drag mode takes the keyboard only while the cursor is on the sky (empty desktop)
 
 **More than one monitor.** In drag mode the monitors form one wide sky, laid out like your monitors: drag across the seam and the sky keeps going. The monitor you start drag mode on (where you held the button, or where the cursor is for `toggle`) keeps showing exactly your wallpaper, and the others extend it. When you leave, the view on **that starting monitor** becomes the wallpaper, wherever the cursor is by then, and every monitor shows it.
 
-**What drag mode leaves on the wallpaper.** The lines, names, figures and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes the probe if Voyager 1 is in view. `lock.png`, written next to it, is the same view without the probe.
+**What drag mode leaves on the wallpaper.** The lines, names, figures and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes a probe for each Voyager in view. `lock.png`, written next to it, is the same view without the probes.
 
 **Cost.** Drag mode draws frames only while something moves: a drag, a fade, a snap, the zodiac tour, or the flickering lines while they're on. It sets up the GPU when it opens and frees it when you leave the mode, so `listen` holds no GPU memory while it waits. Figures are decoded on a thread of their own and the last eight are kept, so moving between neighbouring constellations doesn't hold up a frame. The wallpaper itself is a still image, so it uses nothing once shown.
 
@@ -119,7 +119,7 @@ Everything the sky draws is in [`awww/sky/`](sky/), built once and committed:
 
 | File | What | Made by |
 |---|---|---|
-| `voyager1.json` | Voyager 1's RA/Dec (ICRF), distance, galactic l/b | `src/sky/query-horizons.sh` (JPL Horizons API, observer Taipei) |
+| `voyager1.json`, `voyager2.json` | each Voyager's RA/Dec (ICRF), distance, galactic l/b | `src/sky/query-horizons.sh` (JPL Horizons API, observer Taipei) |
 | `constellations.json` | 88 figures: their stick-figure lines, `members` (every designated star inside the constellation's IAU boundary; no star is in two), the stars (position, V, colour) and names in English and 繁體中文 (Taiwan's, from `src/sky/tables/constellations`) | `src/sky/build-sky-data.py` (HYG and the IAU boundaries of Roman 1987; it prints the stars that lie in another constellation than their name or figure gives) |
 | `field.bin` | 60,000 faint background stars, seeded | `src/sky/build-sky-data.py` |
 | `milkyway.png` | the diffuse Milky Way, equirectangular | `src/sky/build-sky-data.py` |
@@ -140,7 +140,7 @@ src/sky/install-stellarium-figures.py      # figures/ and frames.json (reads con
 
 Both scripts download their sources once (about 70 MB, listed in `src/sky/tables/sources`) into `~/.cache/voyager-sky`; pass `--cache DIR` to keep them elsewhere. `build-sky-data.py` needs `curl`, `magick` (ImageMagick with OpenEXR) and `rsvg-convert`; `install-stellarium-figures.py` needs [uv](https://docs.astral.sh/uv/), which fetches numpy and Pillow for it. The results are byte-for-byte the same on every run. The images in this repo (these figures included) are stored with Git LFS.
 
-Voyager 1 is so far away that it sits at the same point of the sky from anywhere on Earth (within 0.05″). It moves about 0.3° a year, so the query doesn't need re-running. If you ever want a fresh position, run `src/sky/query-horizons.sh`, then `./awww/install.sh`.
+Both Voyagers are so far away that each sits at the same point of the sky from anywhere on Earth (within 0.05″). They move about 0.3° a year, so the query doesn't need re-running. If you ever want fresh positions, run `src/sky/query-horizons.sh`, then `./awww/install.sh`.
 
 Sources:
 
@@ -148,7 +148,7 @@ Sources:
 - constellation drawings by Johan Meuris from the same sky culture (Free Art License 1.3)
 - star positions, magnitudes and colours from the [HYG database](https://github.com/astronexus/HYG-Database) v4.1 (CC BY-SA 4.0, from Hipparcos)
 - the Milky Way from NASA/Goddard Scientific Visualization Studio's [Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851)
-- Voyager 1's position from NASA/JPL Horizons
+- the Voyagers' positions from NASA/JPL Horizons
 
 ## If it breaks
 

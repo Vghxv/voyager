@@ -84,7 +84,8 @@ pub struct SkyData {
     pub field: Vec<FieldStar>,
     pub milky_way: Image,
     pub probe: Image,
-    pub voyager: V3,
+    /// Voyager 1 and Voyager 2, in that order
+    pub voyagers: [V3; 2],
 }
 
 fn read(path: &Path) -> Result<Vec<u8>, String> {
@@ -141,8 +142,12 @@ impl SkyData {
             })
             .collect();
 
-        let v: VoyagerFile = serde_json::from_slice(&read(&dir.join("voyager1.json"))?)
-            .map_err(|e| format!("voyager1.json: {e}"))?;
+        let voyager = |n: u32| -> Result<V3, String> {
+            let file = format!("voyager{n}.json");
+            let v: VoyagerFile =
+                serde_json::from_slice(&read(&dir.join(&file))?).map_err(|e| format!("{file}: {e}"))?;
+            Ok(unit(v.ra, v.dec))
+        };
 
         Ok(SkyData {
             dir: dir.to_path_buf(),
@@ -151,7 +156,7 @@ impl SkyData {
             field,
             milky_way: png(&dir.join("milkyway.png"))?,
             probe: png(&dir.join("probe.png"))?,
-            voyager: unit(v.ra, v.dec),
+            voyagers: [voyager(1)?, voyager(2)?],
         })
     }
 }

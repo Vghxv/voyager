@@ -7,7 +7,7 @@
 
 Run once; the results are committed. Then src/sky/install-stellarium-figures.py
 makes the figures from the new constellations.json. Voyager's own position
-comes from src/sky/query-horizons.sh (awww/sky/voyager1.json).
+comes from src/sky/query-horizons.sh (awww/sky/voyager1.json, voyager2.json).
 
 Sources (src/sky/tables/sources; downloaded once into the cache, never into the repo):
 - Stellarium's "modern" sky culture: the 88 IAU constellations and their stick

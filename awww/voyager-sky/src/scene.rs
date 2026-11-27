@@ -34,14 +34,14 @@ const HOVER_PX: f64 = 120.0;
 const ZODIAC_FIGURE_DEG: f64 = 15.0;
 /// The twelve signs the tour passes, by constellation abbreviation.
 const ZODIAC: [&str; 12] = ["Ari", "Tau", "Gem", "Cnc", "Leo", "Vir", "Lib", "Sco", "Sgr", "Cap", "Aqr", "Psc"];
-/// The probe appears when the cursor is this close to Voyager.
+/// A probe appears when the cursor is this close to its Voyager.
 const PROBE_HOVER_PX: f64 = 150.0;
 /// Label and chip text size, logical pixels.
 const LABEL_PX: f32 = 14.0;
 const CHIP_PX: f32 = 13.0;
 const FONT: &str = "Noto Sans CJK TC";
-/// The probe's name, in English and 繁體中文.
-const PROBE_NAME: [&str; 2] = ["Voyager 1", "航海家1號"];
+/// The probes' names (Voyager 1, Voyager 2), in English and 繁體中文.
+const PROBE_NAMES: [[&str; 2]; 2] = [["Voyager 1", "航海家1號"], ["Voyager 2", "航海家2號"]];
 
 /// A press that moves less than this before letting go is a click.
 const CLICK_SLOP_PX: f64 = 6.0;
@@ -152,7 +152,8 @@ struct Spec {
 enum Which {
     Label(usize),
     Chip(usize),
-    Probe,
+    /// 0 = Voyager 1, 1 = Voyager 2
+    Probe(usize),
     Axis(usize),
 }
 
@@ -161,7 +162,7 @@ struct Texts {
     labels: Vec<Label>,
     /// in Chip::ALL order
     chips: Vec<ChipText>,
-    probe: Label,
+    probes: Vec<Label>,
     /// X, Y, Z
     axes: Vec<ChipText>,
 }
@@ -239,7 +240,8 @@ pub struct Scene {
     equator: f32,
     /// per constellation: how lit its lines and name are (0 hidden, 0.5 shown, 1 hovered)
     glow: Vec<f32>,
-    probe: f32,
+    /// how visible each Voyager's probe is
+    probe: [f32; 2],
     /// how visible the chips and the navigation ball are: they fade out for the tour
     controls: f32,
     /// line segment -> constellation, and a flicker phase per constellation
@@ -278,7 +280,7 @@ impl Scene {
             Label { zh, en, zh_size, en_size }
         };
         let labels = sky.constellations.iter().map(|c| label(&c.en, &c.zh)).collect();
-        let probe = label(PROBE_NAME[0], PROBE_NAME[1]);
+        let probes = PROBE_NAMES.iter().map(|[en, zh]| label(en, zh)).collect();
         let axes = ["X", "Y", "Z"]
             .iter()
             .map(|s| {
@@ -314,9 +316,9 @@ impl Scene {
             tour_hover: false,
             zodiac,
             figures,
-            texts: Texts { labels, chips: Vec::new(), probe, axes },
+            texts: Texts { labels, chips: Vec::new(), probes, axes },
             glow: vec![0.0; n],
-            probe: 0.0,
+            probe: [0.0; 2],
             controls: 1.0,
             line_alpha: vec![0.0; seg_con.len() + 2 * CIRCLE_SEGS],
             seg_con,
@@ -565,9 +567,9 @@ impl Scene {
 
     // --- animation -------------------------------------------------------------------
 
-    fn probe_target(&self) -> f32 {
+    fn probe_target(&self, k: usize) -> f32 {
         let Some(c) = self.cursor else { return 0.0 };
-        let (x, y, z) = self.proj().project(self.sky.voyager);
+        let (x, y, z) = self.proj().project(self.sky.voyagers[k]);
         if z > -0.9 && (x - c.0).hypot(y - c.1) < PROBE_HOVER_PX {
             1.0
         } else {
@@ -639,7 +641,7 @@ impl Scene {
             || self.ecliptic != self.ecliptic_target()
             || self.equator != self.equator_target()
             || (0..self.glow.len()).any(|i| self.glow[i] != self.glow_target(i))
-            || self.probe != self.probe_target()
+            || (0..2).any(|k| self.probe[k] != self.probe_target(k))
             || (0..2).any(|k| self.renderer.figure_alpha(k) != self.figure_alpha_target(k))
             || self.figures.loading()
     }
@@ -704,8 +706,10 @@ impl Scene {
         }
         let ct = self.controls_target();
         ease(&mut self.controls, ct, 4.0);
-        let pt = self.probe_target();
-        ease(&mut self.probe, pt, 5.0);
+        for k in 0..2 {
+            let pt = self.probe_target(k);
+            ease(&mut self.probe[k], pt, 5.0);
+        }
         let et = self.ecliptic_target();
         ease(&mut self.ecliptic, et, 7.0);
         let qt = self.equator_target();
@@ -919,18 +923,18 @@ impl Scene {
                 colour: if Some(c) == self.hovered { rgba([1.0, 1.0, 1.0], gl) } else { rgba(mist, gl * 0.8) },
             });
         }
-        // the probe's name, under it, fading in and out with it
-        if self.probe > 0.01 {
-            let (x, y, z) = pr.project(self.sky.voyager);
+        // each probe's name, under it, fading in and out with it
+        for k in (0..2).filter(|&k| self.probe[k] > 0.01) {
+            let (x, y, z) = pr.project(self.sky.voyagers[k]);
             if z > -0.9 {
                 let (x, y) = ((x - g.origin.0) as f32, (y - g.origin.1) as f32);
-                let lab = &self.texts.probe;
+                let lab = &self.texts.probes[k];
                 let (bw, _) = if self.zh { lab.zh_size } else { lab.en_size };
                 out.push(Spec {
-                    which: Which::Probe,
+                    which: Which::Probe(k),
                     left: (x - bw / 2.0) * sc,
                     top: (y + PROBE_PX / 2.0 + 4.0) * sc,
-                    colour: rgba(mist, self.probe),
+                    colour: rgba(mist, self.probe[k]),
                 });
             }
         }
@@ -978,8 +982,8 @@ fn areas<'a>(t: &'a Texts, zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'
                 Which::Label(c) if zh => &t.labels[c].zh,
                 Which::Label(c) => &t.labels[c].en,
                 Which::Chip(k) => &t.chips[k].text,
-                Which::Probe if zh => &t.probe.zh,
-                Which::Probe => &t.probe.en,
+                Which::Probe(k) if zh => &t.probes[k].zh,
+                Which::Probe(k) => &t.probes[k].en,
                 Which::Axis(k) => &t.axes[k].text,
             },
             left: s.left,

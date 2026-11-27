@@ -8,7 +8,7 @@ A deep-space theme for an Arch + Hyprland desktop: a probe drifting through a st
 |---|---|---|---|
 | [Plymouth](plymouth/plymouth.md) | Animated disk-unlock screen in the voyager sky: stars warp, blue-shift and signal rings pulse as you type | `sudo ./plymouth/install.sh` | [see docs](plymouth/plymouth.md#remove) |
 | [hyprlock](hyprlock/hyprlock.md) | Lock screen over the same sky as the wallpaper, with ✦ password dots | `./hyprlock/install.sh` (after the wallpaper) | `--restore` |
-| [Wallpaper](awww/awww.md) | The real sky around Voyager 1's true position, with every constellation star at its true brightness and color and the Milky Way. In drag mode you turn the sky (lines, names in 中文/English) and set the view you like | `./awww/install.sh` | `--restore` |
+| [Wallpaper](awww/awww.md) | The real sky around Voyager 1's true position, with every constellation star at its true brightness and color and the Milky Way; Voyager 2 is drawn at its true position too. In drag mode you turn the sky (lines, names in 中文/English) and set the view you like | `./awww/install.sh` | `--restore` |
 | [eww](eww/eww.md) | Top bar on every monitor: workspaces, clock, wifi, volume, brightness, webcam, battery, tray | `./eww/install.sh` | — (one-way copy) |
 | [dunst](dunst/dunst.md) | Notifications styled like the bar | `./dunst/install.sh` | `--restore` |
 

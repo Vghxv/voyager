@@ -1,0 +1,13 @@
+{
+  "name": "Voyager 2",
+  "horizons_id": -32,
+  "date_utc": "2026-Nov-25 00:00:00.000",
+  "observer": "Taipei, Taiwan (121.5654,25.0330,0.01, E-lon deg, lat deg, alt km)",
+  "ra": 302.53899,
+  "dec": -59.53380,
+  "frame": "ICRF astrometric (J2000)",
+  "distance_au": 145.071562274341,
+  "galactic_l": 337.636633,
+  "galactic_b": -33.020654,
+  "source": "JPL Horizons API, https://ssd.jpl.nasa.gov/horizons/"
+}

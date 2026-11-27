@@ -18,7 +18,7 @@
 //! E the ecliptic, Q the celestial equator, L switches their language (中/EN),
 //! Esc ends it. Left alone 5 s in Trackball, it tours the zodiac along the ecliptic.
 //! On exit, the view on the monitor drag mode started on becomes wallpaper.png (with the
-//! probe if Voyager is in it) and lock.png (without), and awww shows it.
+//! probe for each Voyager in it) and lock.png (without), and awww shows it.
 //!
 //! Docs: awww/awww.md in the voyager repo.
 
