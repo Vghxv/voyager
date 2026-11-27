@@ -119,32 +119,32 @@ Everything the sky draws is in [`awww/sky/`](sky/), built once and committed:
 
 | File | What | Made by |
 |---|---|---|
-| `voyager1.json` | Voyager 1's RA/Dec (ICRF), distance, galactic l/b | `src/query-horizons.sh` (JPL Horizons API, observer Taipei) |
-| `constellations.json` | 88 figures: their stick-figure lines, `members` (every designated star inside the constellation's IAU boundary; no star is in two), the stars (position, V, colour) and names in English and 繁體中文 (Taiwan's, from the script's `ZH` table) | `src/build-sky-data.py` (HYG and the IAU boundaries of Roman 1987; it prints the stars that lie in another constellation than their name or figure gives) |
-| `field.bin` | 60,000 faint background stars, seeded | `src/build-sky-data.py` |
-| `milkyway.png` | the diffuse Milky Way, equirectangular | `src/build-sky-data.py` |
-| `probe.png` | the probe | `src/build-sky-data.py` (from `src/logo.svg`) |
-| `figures/<Name>.png`, `figures/frames.json` | the 88 constellation figures (F), one per constellation, named by its full English name in `constellations.json` in ASCII with `_` for spaces (`Orion.png`, `Canes_Venatici.png`, `Bootes.png`), and `frames.json`, where each one sits (file, centre, half-width); Free Art License 1.3 (`figures/LICENSE.md`) | Stellarium's modern illustrations by Johan Meuris, mapped into place: `src/install-stellarium-figures.py` |
+| `voyager1.json` | Voyager 1's RA/Dec (ICRF), distance, galactic l/b | `src/sky/query-horizons.sh` (JPL Horizons API, observer Taipei) |
+| `constellations.json` | 88 figures: their stick-figure lines, `members` (every designated star inside the constellation's IAU boundary; no star is in two), the stars (position, V, colour) and names in English and 繁體中文 (Taiwan's, from the script's `ZH` table) | `src/sky/build-sky-data.py` (HYG and the IAU boundaries of Roman 1987; it prints the stars that lie in another constellation than their name or figure gives) |
+| `field.bin` | 60,000 faint background stars, seeded | `src/sky/build-sky-data.py` |
+| `milkyway.png` | the diffuse Milky Way, equirectangular | `src/sky/build-sky-data.py` |
+| `probe.png` | the probe | `src/sky/build-sky-data.py` (from `src/art/logo.svg`) |
+| `figures/<Name>.png`, `figures/frames.json` | the 88 constellation figures (F), one per constellation, named by its full English name in `constellations.json` in ASCII with `_` for spaces (`Orion.png`, `Canes_Venatici.png`, `Bootes.png`), and `frames.json`, where each one sits (file, centre, half-width); Free Art License 1.3 (`figures/LICENSE.md`) | Stellarium's modern illustrations by Johan Meuris, mapped into place: `src/sky/install-stellarium-figures.py` |
 
-**How a figure sits on the sky.** Each figure is a 1024×1024 RGBA image of the gnomonic (tangent-plane) projection around its constellation, colours as drawn, transparent elsewhere. Its middle is `c`, the normalised mean of the unit vectors of the stars in the constellation's lines. East is left and north is up: east is the direction of increasing RA at `c`. From the middle to each edge is the figure's `half` in tangent units: wide enough for its whole drawing, and at least `1.4 × R` (`FIGURE_MARGIN`), where `R` is how far the farthest of those stars lies from `c` on the plane. `src/install-stellarium-figures.py` works this out once and writes it to `figures/frames.json` with the images; `awww/voyager-sky/src/data.rs` reads it and `figure_fs` in `awww/voyager-sky/src/sky.wgsl` draws by it.
+**How a figure sits on the sky.** Each figure is a 1024×1024 RGBA image of the gnomonic (tangent-plane) projection around its constellation, colours as drawn, transparent elsewhere. Its middle is `c`, the normalised mean of the unit vectors of the stars in the constellation's lines. East is left and north is up: east is the direction of increasing RA at `c`. From the middle to each edge is the figure's `half` in tangent units: wide enough for its whole drawing, and at least `1.4 × R` (`FIGURE_MARGIN`), where `R` is how far the farthest of those stars lies from `c` on the plane. `src/sky/install-stellarium-figures.py` works this out once and writes it to `figures/frames.json` with the images; `awww/voyager-sky/src/data.rs` reads it and `figure_fs` in `awww/voyager-sky/src/sky.wgsl` draws by it.
 
-**Making the figures.** `src/install-stellarium-figures.py` downloads the illustrations of Stellarium's modern sky culture (the same sky culture the stick figures come from) into `~/.cache/voyager-sky/illustrations/`. The artist drew each one over the real stars, and the sky culture's `index.json` pins it to the sky by three anchor stars: image `(x, y, 1)` maps linearly onto the anchors' unit vectors, then onto the sphere, as Stellarium does. The script maps each drawing into the frame above, tints its grey to the constellation's colour with brightness as transparency (at 55%, more for the darker colours so all look as strong; the stars still show through) and writes `figures/` and `frames.json`. Argo Navis is one drawing, used for Carina, Puppis and Vela; Ophiuchus's drawing holds the serpent and is used for Serpens. Eight drawings are only 128 px (Antlia, Sextans…), so they look soft up close.
+**Making the figures.** `src/sky/install-stellarium-figures.py` downloads the illustrations of Stellarium's modern sky culture (the same sky culture the stick figures come from) into `~/.cache/voyager-sky/illustrations/`. The artist drew each one over the real stars, and the sky culture's `index.json` pins it to the sky by three anchor stars: image `(x, y, 1)` maps linearly onto the anchors' unit vectors, then onto the sphere, as Stellarium does. The script maps each drawing into the frame above, tints its grey to the constellation's colour with brightness as transparency (at 55%, more for the darker colours so all look as strong; the stars still show through) and writes `figures/` and `frames.json`. Argo Navis is one drawing, used for Carina, Puppis and Vela; Ophiuchus's drawing holds the serpent and is used for Serpens. Eight drawings are only 128 px (Antlia, Sextans…), so they look soft up close.
 
 **Rebuilding the data.** You only need this after changing one of the scripts:
 
 ```bash
-src/build-sky-data.py                  # constellations.json, field.bin, milkyway.png, probe.png
-src/install-stellarium-figures.py      # figures/ and frames.json (reads constellations.json, so run it second)
+src/sky/build-sky-data.py                  # constellations.json, field.bin, milkyway.png, probe.png
+src/sky/install-stellarium-figures.py      # figures/ and frames.json (reads constellations.json, so run it second)
 ./awww/install.sh                      # install the new data and re-render the wallpaper
 ```
 
-Both scripts download their sources once (about 70 MB, listed in `src/sky_sources.py`) into `~/.cache/voyager-sky`; pass `--cache DIR` to keep them elsewhere. `build-sky-data.py` needs `curl`, `magick` (ImageMagick with OpenEXR) and `rsvg-convert`; `install-stellarium-figures.py` needs [uv](https://docs.astral.sh/uv/), which fetches numpy and Pillow for it. The results are byte-for-byte the same on every run. The images in this repo (these figures included) are stored with Git LFS.
+Both scripts download their sources once (about 70 MB, listed in `src/sky/sky_sources.py`) into `~/.cache/voyager-sky`; pass `--cache DIR` to keep them elsewhere. `build-sky-data.py` needs `curl`, `magick` (ImageMagick with OpenEXR) and `rsvg-convert`; `install-stellarium-figures.py` needs [uv](https://docs.astral.sh/uv/), which fetches numpy and Pillow for it. The results are byte-for-byte the same on every run. The images in this repo (these figures included) are stored with Git LFS.
 
-Voyager 1 is so far away that it sits at the same point of the sky from anywhere on Earth (within 0.05″). It moves about 0.3° a year, so the query doesn't need re-running. If you ever want a fresh position, run `src/query-horizons.sh`, then `./awww/install.sh`.
+Voyager 1 is so far away that it sits at the same point of the sky from anywhere on Earth (within 0.05″). It moves about 0.3° a year, so the query doesn't need re-running. If you ever want a fresh position, run `src/sky/query-horizons.sh`, then `./awww/install.sh`.
 
 Sources:
 
-- constellation stick figures from [Stellarium](https://github.com/Stellarium/stellarium)'s modern sky culture (CC BY-SA 4.0); the Chinese names are Taiwan's, listed in `src/build-sky-data.py`
+- constellation stick figures from [Stellarium](https://github.com/Stellarium/stellarium)'s modern sky culture (CC BY-SA 4.0); the Chinese names are Taiwan's, listed in `src/sky/build-sky-data.py`
 - constellation drawings by Johan Meuris from the same sky culture (Free Art License 1.3)
 - star positions, magnitudes and colours from the [HYG database](https://github.com/astronexus/HYG-Database) v4.1 (CC BY-SA 4.0, from Hipparcos)
 - the Milky Way from NASA/Goddard Scientific Visualization Studio's [Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851)

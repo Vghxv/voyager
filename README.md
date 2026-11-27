@@ -61,7 +61,7 @@ awww/        wallpaper: voyager-sky (Rust, drag mode + renderer), sky data, syst
 eww/         the bar
 dunst/       notifications
 lib/         helpers shared by the scripts, voyager-theme
-src/         SVG artwork, the Plymouth generators, and the scripts that build awww/sky
+src/         the Plymouth generators; art/ the SVG artwork, sky/ the scripts that build awww/sky
 docs/        preview.gif, recorded by src/gen-plymouth-preview.py
 doctor.sh    runs every check.sh
 ```

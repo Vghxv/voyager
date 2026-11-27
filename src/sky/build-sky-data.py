@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Build the sky data the drag-mode wallpaper (awww/voyager-sky) draws.
 
-    src/build-sky-data.py                  # -> awww/sky/{constellations.json,field.bin,milkyway.png,probe.png}
-    src/build-sky-data.py --seed 42        # different faint background stars
-    src/build-sky-data.py --cache DIR      # where downloads are kept (default ~/.cache/voyager-sky)
+    src/sky/build-sky-data.py                  # -> awww/sky/{constellations.json,field.bin,milkyway.png,probe.png}
+    src/sky/build-sky-data.py --seed 42        # different faint background stars
+    src/sky/build-sky-data.py --cache DIR      # where downloads are kept (default ~/.cache/voyager-sky)
 
-Run once; the results are committed. Then src/install-stellarium-figures.py
+Run once; the results are committed. Then src/sky/install-stellarium-figures.py
 makes the figures from the new constellations.json. Voyager's own position
-comes from src/query-horizons.sh (awww/sky/voyager1.json).
+comes from src/sky/query-horizons.sh (awww/sky/voyager1.json).
 
-Sources (src/sky_sources.py; downloaded once into the cache, never into the repo):
+Sources (src/sky/sky_sources.py; downloaded once into the cache, never into the repo):
 - Stellarium's "modern" sky culture: the 88 IAU constellations and their stick
   figures as Hipparcos numbers (CC BY-SA 4.0). The Traditional Chinese names are
   Taiwan's, in ZH below.
@@ -37,7 +37,7 @@ Writes:
                         Seeded and fixed on the sphere, denser toward the galactic plane.
 - milkyway.png         2048x1024 8-bit RGB, RA 0 at the centre increasing to the left
                         (as the SVS map), Dec +90 at the top; value = sqrt(linear / max).
-- probe.png            src/logo.svg at 256 px.
+- probe.png            src/art/logo.svg at 256 px.
 
 Needs: python3, curl, magick (ImageMagick with OpenEXR), rsvg-convert.
 """
@@ -49,8 +49,10 @@ import random
 import re
 import struct
 import sys
+from pathlib import Path
 
-sys.dont_write_bytecode = True          # no src/__pycache__
+sys.dont_write_bytecode = True          # no __pycache__ in src/
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # voyager_art, in src/
 from voyager_art import ROOT, LOGO, bv_rgb, eq2gal, field_bv, magick, rsvg, star_density, unit  # noqa: E402
 from sky_sources import SOURCES, cache_arg, fetch, hyg_stars  # noqa: E402
 

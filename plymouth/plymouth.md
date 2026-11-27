@@ -93,7 +93,7 @@ sudo ./plymouth/install.sh --remove
 
 - **Motion:** the tunables at the top of `voyager/voyager.script` (warp stars, burst per key, warp speed, when the sky fully blue- or red-shifts), each explained there. If streaks point sideways instead of outward, set `ROT_SIGN = -1`.
 - **Text:** search the script for `Image.Text("voyager"` and `Image.Text("type your passphrase`.
-- **Images:** every PNG in `voyager/` is rendered by `src/gen-plymouth.py`: the artwork from the SVGs in `src/`, and the sky (`sky.png`, `polaris.png`, `blueshift.png`, `redshift.png`) from `src/voyager_sky.py`. Edit, run it, then `--apply`. If you move the probe's dish, update `dish_x` / `dish_y` in the script.
+- **Images:** every PNG in `voyager/` is rendered by `src/gen-plymouth.py`: the artwork from the SVGs in `src/art/`, and the sky (`sky.png`, `polaris.png`, `blueshift.png`, `redshift.png`) from `src/voyager_sky.py`. Edit, run it, then `--apply`. If you move the probe's dish, update `dish_x` / `dish_y` in the script.
 - **Screen size:** the sky is 1920×1080 and is scaled to cover the screen. For a sharper one on a bigger screen: `src/gen-plymouth.py --size auto` (or `--size 2560x1440`), then `--apply`. The sky adds about 2 MB to the initramfs.
 - **Shift strength:** `SHIFT_FRACTION`, `BLUE_SHIFT`, `RED_SHIFT` and `SHIFT_SAT` in `src/voyager_sky.py`.
 - **Fallback background:** `Window.SetBackgroundTopColor` / `BottomColor` in the script (RGB, 0–1), seen only if `sky.png` is missing.

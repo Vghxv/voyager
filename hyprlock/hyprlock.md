@@ -16,7 +16,7 @@ Your current `~/.config/hypr/hyprlock.conf` is backed up first. `./hyprlock/inst
 ## Adjust
 
 - **One monitor only:** every monitor shows the full lock screen. To show the widgets on one screen, set `monitor = <name>` in each widget block of `hyprlock.conf` (names: `hyprctl monitors | grep ^Monitor`).
-- **The probe image:** `probe.png` is `src/logo.svg` at 400 px. After changing the logo: `rsvg-convert -w 400 -h 400 src/logo.svg -o hyprlock/probe.png`.
+- **The probe image:** `probe.png` is `src/art/logo.svg` at 400 px. After changing the logo: `rsvg-convert -w 400 -h 400 src/art/logo.svg -o hyprlock/probe.png`.
 
 ## If it breaks
 

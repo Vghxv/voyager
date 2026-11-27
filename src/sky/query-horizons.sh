@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Ask JPL Horizons where Voyager 1 is in the sky and save it for the wallpaper.
 #
-#   src/query-horizons.sh                 # now, seen from Taipei -> awww/sky/voyager1.json
-#   src/query-horizons.sh 2027-06-01      # at another date (UTC midnight)
+#   src/sky/query-horizons.sh                 # now, seen from Taipei -> awww/sky/voyager1.json
+#   src/sky/query-horizons.sh 2027-06-01      # at another date (UTC midnight)
 #
 # Voyager 1 is ~173 AU away: from anywhere on Earth it sits at the same point of the
 # sky to within 0.05", and it drifts only ~0.3 deg a year (Earth's own orbit, seen
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-ROOT="$(dirname "$(dirname "$(readlink -f "$0")")")"
+ROOT="$(readlink -f "$(dirname "$0")/../..")"
 OUT="$ROOT/awww/sky/voyager1.json"
 
 # observer: Taipei (east longitude, latitude in degrees, altitude in km)

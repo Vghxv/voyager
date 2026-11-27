@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the Plymouth theme images: the artwork SVGs in src/ and the voyager sky.
+"""Render the Plymouth theme images: the artwork SVGs in src/art/ and the voyager sky.
 
     src/gen-plymouth.py                 # 1920x1080 -> plymouth/voyager/*.png
     src/gen-plymouth.py --size auto     # match your largest monitor (sharpest)
@@ -75,7 +75,7 @@ def main():
     out = Path(a.out_dir)
     out.mkdir(parents=True, exist_ok=True)
     for name in ASSETS:
-        svg = ROOT / "src" / f"{name}.svg"
+        svg = ROOT / "src" / "art" / f"{name}.svg"
         m = re.search(r'<svg[^>]*\bwidth="(\d+)"[^>]*\bheight="(\d+)"', svg.read_text())
         if not m:
             raise SystemExit(f"{svg}: no width/height on <svg>")

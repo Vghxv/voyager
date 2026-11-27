@@ -1,5 +1,5 @@
-//! The sky data in awww/sky (written by src/build-sky-data.py, src/query-horizons.sh and,
-//! for figures/, src/install-stellarium-figures.py), and the palette.
+//! The sky data in awww/sky (written by src/sky/build-sky-data.py, src/sky/query-horizons.sh and,
+//! for figures/, src/sky/install-stellarium-figures.py), and the palette.
 
 use std::path::{Path, PathBuf};
 
@@ -22,7 +22,7 @@ struct ConstellationRaw {
     label: [f64; 2],
 }
 
-/// A figure's placement in figures/frames.json (src/install-stellarium-figures.py).
+/// A figure's placement in figures/frames.json (src/sky/install-stellarium-figures.py).
 #[derive(Deserialize)]
 struct FrameRaw {
     file: String,
@@ -52,7 +52,7 @@ pub struct Constellation {
     /// Its figure: figures/<figure>, a square of the gnomonic tangent plane at `centre`
     /// (the normalised mean of its line stars), east to the left and north up, reaching
     /// `half` tangent units from the middle to each edge. All three come from
-    /// figures/frames.json, written with the images by src/install-stellarium-figures.py.
+    /// figures/frames.json, written with the images by src/sky/install-stellarium-figures.py.
     pub figure: String,
     pub centre: V3,
     pub half: f64,

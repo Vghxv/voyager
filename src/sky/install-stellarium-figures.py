@@ -4,10 +4,10 @@
 # ///
 """Drag mode's constellation figures from Stellarium's modern illustrations.
 
-    src/install-stellarium-figures.py           # -> awww/sky/figures/{Name}.png and frames.json
-    src/install-stellarium-figures.py --cache DIR   # where downloads are kept (default ~/.cache/voyager-sky)
+    src/sky/install-stellarium-figures.py           # -> awww/sky/figures/{Name}.png and frames.json
+    src/sky/install-stellarium-figures.py --cache DIR   # where downloads are kept (default ~/.cache/voyager-sky)
 
-Stellarium's modern sky culture (the same one src/build-sky-data.py takes the
+Stellarium's modern sky culture (the same one src/sky/build-sky-data.py takes the
 stick figures from) ships a drawing for each constellation by Johan Meuris
 (Free Art License 1.3), drawn over the real stars. Its index.json pins each
 image to the sky by three anchor stars: image (x, y, 1) maps linearly to the
@@ -15,7 +15,7 @@ anchors' unit vectors, then onto the sphere. This maps each drawing into the
 frame drag mode draws figures in (a square of the tangent plane at the
 mean of the line stars, east left, north up), tints its grey to the
 constellation's colour with the brightness as transparency, and writes a
-1024 x 1024 RGBA PNG per constellation. Run it after src/build-sky-data.py:
+1024 x 1024 RGBA PNG per constellation. Run it after src/sky/build-sky-data.py:
 the frames come from the stick figures in awww/sky/constellations.json.
 
 frames.json is where drag mode (awww/voyager-sky/src/data.rs) reads each
@@ -25,7 +25,7 @@ least FIGURE_MARGIN x the farthest line star. Argo Navis is one drawing
 (Carina's), shown for Puppis and Vela too; Ophiuchus's drawing holds the
 serpent and is shown for Serpens.
 
-Downloads (src/sky_sources.py) are kept in the same cache as build-sky-data.py's:
+Downloads (src/sky/sky_sources.py) are kept in the same cache as build-sky-data.py's:
 the sky culture's index, HYG, and the drawings in illustrations/ (about 3 MB, once).
 
 Needs: uv (which fetches numpy and Pillow, per the header above), curl.
@@ -40,10 +40,10 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-sys.dont_write_bytecode = True          # no src/__pycache__
+sys.dont_write_bytecode = True          # no src/sky/__pycache__
 from sky_sources import MODERN, cache_arg, fetch, hyg_stars  # noqa: E402
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 SHARED = {"Pup": "Car", "Vel": "Car", "Ser": "Oph"}      # drawings that hold more than one constellation
 LIT = 0.05              # grey above this is drawing, not background
 PAD = 1.03              # frame half-width over the drawing's farthest lit pixel
