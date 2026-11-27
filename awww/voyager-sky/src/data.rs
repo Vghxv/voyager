@@ -1,4 +1,5 @@
-//! The sky data src/build-sky-data.py and src/query-horizons.sh wrote, and the palette.
+//! The sky data in awww/sky (written by src/build-sky-data.py, src/query-horizons.sh and,
+//! for figures/, src/install-stellarium-figures.py), and the palette.
 
 use std::path::{Path, PathBuf};
 

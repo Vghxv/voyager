@@ -6,7 +6,8 @@ The desktop wallpaper is the real sky, centered on where **Voyager 1** actually 
 
 What the sky shows:
 
-- **Constellation stars only.** Every star with a Greek (Bayer) letter or a Flamsteed number in the HYG catalogue (α Ori, 47 Ori…), the ones brighter than magnitude 6 (about 2,740, near the naked-eye limit under a dark sky; the three fainter stars a stick figure uses are kept too), each at its catalogue brightness (V magnitude) and true colour (B-V index → temperature → blackbody colour). That's why Antares, Arcturus and Betelgeuse look orange and Rigel and Vega blue-white. Stars fainter than magnitude 4.5 fade by their true brightness, so the stick-figure stars still stand out. Each star belongs to one constellation only, the one whose IAU boundary holds it: ρ Aquilae, which proper motion carried into Delphinus in the 1990s, is in Delphinus, and the stars a stick figure borrows from a neighbour (Alpheratz in the Square of Pegasus, Elnath in Auriga) stay in the constellation that holds them.
+- **Constellation stars only.** Every star the HYG catalogue gives a Greek (Bayer) letter or a Flamsteed number (α Ori, 47 Ori…) and that is brighter than magnitude 6, about the naked-eye limit under a dark sky: 2,739 stars in all, counting the three fainter ones a stick figure needs. Each is drawn at its catalogue brightness (V magnitude) and true colour (B-V index → temperature → blackbody colour), which is why Antares, Arcturus and Betelgeuse look orange and Rigel and Vega blue-white. Stars fainter than magnitude 4.5 fade by their true brightness, so the stick-figure stars still stand out.
+- **One constellation per star.** Each star belongs to the constellation whose IAU boundary holds it (Roman 1987). So ρ Aquilae, which its proper motion carried into Delphinus in the 1990s, is in Delphinus, and the stars a stick figure borrows from a neighbour (Alpheratz in the Square of Pegasus, Elnath in Auriga) stay in the constellation that holds them.
 - **The Milky Way**, from NASA's all-sky star map with the stars filtered out, in its true place: the bright band with its dark rifts, about 27° to Voyager's left. The Magellanic Clouds show up in the southern sky.
 - **Tiny faint stars**, thickest toward the Milky Way.
 - **The probe** (the voyager logo), drawn on Voyager 1's position whenever that part of the sky is in view.
@@ -73,13 +74,13 @@ Drag mode takes the keyboard only while the cursor is on the sky (empty desktop)
 
 **The XYZ ball.** The axes are equatorial: **Z** points to the north celestial pole (near Polaris), **X** to RA 0h (the vernal equinox, in Pisces) and **Y** to RA 6h (near Orion). The axis nearest the middle of the view is drawn on top. The negative axes are the small hollow knobs.
 
-**Zodiac tour.** In Trackball, if you leave drag mode alone for 5 seconds (no mouse, no keys), the sky starts moving on its own. It zooms out to at least 120°, moves to the nearest point of the ecliptic, then glides east through the twelve zodiac signs at one sign every 15 seconds. All of this happens at once, and the sky keeps whatever tilt it has. Only taking hold of the sky stops it: a click or drag on the sky or on the XYZ ball, and the view stays where it is. Moving the mouse, `C`, `F`, `E`, `L` and their chips leave it running. Scrolling zooms the tour, which carries on at the new size. Switching to Turntable (`T`) also ends it, because the tour never runs in Turntable. While it runs, the chips and the XYZ ball fade out, and a click anywhere (even where they were) takes hold of the sky; they come back when the tour stops. Once stopped, it starts again after another 5 seconds of no input.
+**Zodiac tour.** In Trackball, if you leave drag mode alone for 5 seconds (no mouse, no keys), the sky starts moving on its own. It zooms out to at least 120°, moves to the nearest point of the ecliptic, then glides east through the twelve zodiac signs at one sign every 15 seconds. All of this happens at once, and the sky keeps whatever tilt it has. Only taking hold of the sky stops it: a click or drag on the sky or on the XYZ ball, and the view stays where it is. Moving the mouse, `C`, `F`, `E`, `Q`, `L` and their chips leave it running. Scrolling zooms the tour, which carries on at the new size. Switching to Turntable (`T`) also ends it, because the tour never runs in Turntable. While it runs, the chips and the XYZ ball fade out, and a click anywhere (even where they were) takes hold of the sky; they come back when the tour stops. Once stopped, it starts again after another 5 seconds of no input.
 
 **More than one monitor.** In drag mode the monitors form one wide sky, laid out like your monitors: drag across the seam and the sky keeps going. The monitor you start drag mode on (where you held the button, or where the cursor is for `toggle`) keeps showing exactly your wallpaper, and the others extend it. When you leave, the view on **that starting monitor** becomes the wallpaper, wherever the cursor is by then, and every monitor shows it.
 
 **What drag mode leaves on the wallpaper.** The lines, names, figures and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes the probe if Voyager 1 is in view. `lock.png`, written next to it, is the same view without the probe.
 
-**Cost.** Drag mode draws frames only while something moves: a drag, a fade, a snap, the zodiac tour, or the flickering lines while they're on. It sets up the GPU when it opens and frees it when you leave the mode, so `listen` holds no GPU memory while it waits. The wallpaper itself is a still image, so it uses nothing once shown.
+**Cost.** Drag mode draws frames only while something moves: a drag, a fade, a snap, the zodiac tour, or the flickering lines while they're on. It sets up the GPU when it opens and frees it when you leave the mode, so `listen` holds no GPU memory while it waits. Figures are decoded on a thread of their own and the last eight are kept, so moving between neighbouring constellations doesn't hold up a frame. The wallpaper itself is a still image, so it uses nothing once shown.
 
 ## Commands
 
@@ -119,24 +120,31 @@ Everything the sky draws is in [`awww/sky/`](sky/), built once and committed:
 | File | What | Made by |
 |---|---|---|
 | `voyager1.json` | Voyager 1's RA/Dec (ICRF), distance, galactic l/b | `src/query-horizons.sh` (JPL Horizons API, observer Taipei) |
-| `constellations.json` | 88 figures: their stick-figure lines, `members` (every designated star inside the constellation's IAU boundary; no star is in two), the stars (position, V, colour) and names in English and 繁體中文 | `src/build-sky-data.py` (HYG and the IAU boundaries of Roman 1987; it prints the stars that lie in another constellation than their name or figure gives) |
+| `constellations.json` | 88 figures: their stick-figure lines, `members` (every designated star inside the constellation's IAU boundary; no star is in two), the stars (position, V, colour) and names in English and 繁體中文 (Taiwan's, from the script's `ZH` table) | `src/build-sky-data.py` (HYG and the IAU boundaries of Roman 1987; it prints the stars that lie in another constellation than their name or figure gives) |
 | `field.bin` | 60,000 faint background stars, seeded | `src/build-sky-data.py` |
 | `milkyway.png` | the diffuse Milky Way, equirectangular | `src/build-sky-data.py` |
 | `probe.png` | the probe | `src/build-sky-data.py` (from `src/logo.svg`) |
 | `figures/<Name>.png`, `figures/frames.json` | the 88 constellation figures (F), one per constellation, named by its full English name in `constellations.json` in ASCII with `_` for spaces (`Orion.png`, `Canes_Venatici.png`, `Bootes.png`), and `frames.json`, where each one sits (file, centre, half-width); Free Art License 1.3 (`figures/LICENSE.md`) | Stellarium's modern illustrations by Johan Meuris, mapped into place: `src/install-stellarium-figures.py` |
 
-**How a figure sits on the sky.** Each figure is a 1024×1024 RGBA image of the gnomonic (tangent-plane) projection around its constellation, colours as drawn, transparent elsewhere. Its middle is `c`, the normalised mean of the unit vectors of the stars in the constellation's lines. East is left and north is up: east is the direction of increasing RA at `c`. From the middle to each edge is the figure's `half` in tangent units: wide enough for its whole drawing, and at least `1.4 × R` (`FIGURE_MARGIN`), where `R` is how far the farthest of those stars lies from `c` on the plane. `src/install-stellarium-figures.py` works this out once and writes it to `figures/frames.json` with the images; `src/data.rs` reads it and `figure_fs` in `src/sky.wgsl` draws by it.
+**How a figure sits on the sky.** Each figure is a 1024×1024 RGBA image of the gnomonic (tangent-plane) projection around its constellation, colours as drawn, transparent elsewhere. Its middle is `c`, the normalised mean of the unit vectors of the stars in the constellation's lines. East is left and north is up: east is the direction of increasing RA at `c`. From the middle to each edge is the figure's `half` in tangent units: wide enough for its whole drawing, and at least `1.4 × R` (`FIGURE_MARGIN`), where `R` is how far the farthest of those stars lies from `c` on the plane. `src/install-stellarium-figures.py` works this out once and writes it to `figures/frames.json` with the images; `awww/voyager-sky/src/data.rs` reads it and `figure_fs` in `awww/voyager-sky/src/sky.wgsl` draws by it.
 
 **Making the figures.** `src/install-stellarium-figures.py` downloads the illustrations of Stellarium's modern sky culture (the same sky culture the stick figures come from) into `~/.cache/voyager-sky/illustrations/`. The artist drew each one over the real stars, and the sky culture's `index.json` pins it to the sky by three anchor stars: image `(x, y, 1)` maps linearly onto the anchors' unit vectors, then onto the sphere, as Stellarium does. The script maps each drawing into the frame above, tints its grey to the constellation's colour with brightness as transparency (at 55%, more for the darker colours so all look as strong; the stars still show through) and writes `figures/` and `frames.json`. Argo Navis is one drawing, used for Carina, Puppis and Vela; Ophiuchus's drawing holds the serpent and is used for Serpens. Eight drawings are only 128 px (Antlia, Sextans…), so they look soft up close.
 
+**Rebuilding the data.** You only need this after changing one of the scripts:
 
-The images in this repo (these figures included) are stored with Git LFS.
+```bash
+src/build-sky-data.py                  # constellations.json, field.bin, milkyway.png, probe.png
+src/install-stellarium-figures.py      # figures/ and frames.json (reads constellations.json, so run it second)
+./awww/install.sh                      # install the new data and re-render the wallpaper
+```
+
+Both scripts download their sources once (about 70 MB, listed in `src/sky_sources.py`) into `~/.cache/voyager-sky`; pass `--cache DIR` to keep them elsewhere. `build-sky-data.py` needs `curl`, `magick` (ImageMagick with OpenEXR) and `rsvg-convert`; `install-stellarium-figures.py` needs [uv](https://docs.astral.sh/uv/), which fetches numpy and Pillow for it. The results are byte-for-byte the same on every run. The images in this repo (these figures included) are stored with Git LFS.
 
 Voyager 1 is so far away that it sits at the same point of the sky from anywhere on Earth (within 0.05″). It moves about 0.3° a year, so the query doesn't need re-running. If you ever want a fresh position, run `src/query-horizons.sh`, then `./awww/install.sh`.
 
 Sources:
 
-- constellation stick figures and Chinese names from [Stellarium](https://github.com/Stellarium/stellarium)'s modern sky culture and its zh_TW translation (CC BY-SA 4.0)
+- constellation stick figures from [Stellarium](https://github.com/Stellarium/stellarium)'s modern sky culture (CC BY-SA 4.0); the Chinese names are Taiwan's, listed in `src/build-sky-data.py`
 - constellation drawings by Johan Meuris from the same sky culture (Free Art License 1.3)
 - star positions, magnitudes and colours from the [HYG database](https://github.com/astronexus/HYG-Database) v4.1 (CC BY-SA 4.0, from Hipparcos)
 - the Milky Way from NASA/Goddard Scientific Visualization Studio's [Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851)

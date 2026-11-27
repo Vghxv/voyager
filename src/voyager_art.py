@@ -1,10 +1,11 @@
 """Shared building blocks for the voyager image generators.
 
-Imported by the generators and by voyager_sky.py: paths, the palette, rendering,
+Imported by gen-plymouth.py, build-sky-data.py and voyager_sky.py: paths, the palette, rendering,
 the --size / --seed options, and the sky maths every sky uses (star colour from
-B-V, galactic coordinates, background-star mix and density). Not a script.
+B-V, unit vectors, galactic coordinates, background-star mix and density). Not a script.
 """
 
+import json
 import math
 import subprocess
 import tempfile
@@ -26,7 +27,6 @@ def read_palette():
 
 PALETTE = read_palette()
 BG_TOP, BG_BOTTOM = PALETTE["navy"], PALETTE["void"]   # Plymouth Window.SetBackground*Color
-INDIGO, TEAL, MIST = PALETTE["indigo"], PALETTE["teal"], PALETTE["mist"]
 
 
 def magick(*args):
@@ -68,7 +68,6 @@ def parse_size(size):
         except ValueError:
             raise SystemExit(f"--size {size!r}: expected WxH (e.g. 2560x1440) or auto")
         return w, h
-    import json
     try:
         mons = json.loads(subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True,
                                          text=True, check=True).stdout)
@@ -119,6 +118,12 @@ def field_bv(rng):
     return 1.2
 
 
+def unit(ra, dec):
+    """RA, Dec (degrees) -> unit vector (x toward RA 0, z toward the north pole)."""
+    ra, dec = math.radians(ra), math.radians(dec)
+    return math.cos(dec) * math.cos(ra), math.cos(dec) * math.sin(ra), math.sin(dec)
+
+
 def eq2gal(ra, dec):
     """Equatorial (RA, Dec) -> galactic (l, b), degrees."""
     an, dn, ln = (math.radians(t) for t in NGP)
@@ -127,6 +132,16 @@ def eq2gal(ra, dec):
     l = ln - math.atan2(math.cos(d) * math.sin(a - an),
                         math.sin(d) * math.cos(dn) - math.cos(d) * math.sin(dn) * math.cos(a - an))
     return math.degrees(l) % 360, math.degrees(b)
+
+
+def gal2eq(l, b):
+    """Galactic (l, b) -> equatorial (RA, Dec), degrees."""
+    an, dn, ln = (math.radians(t) for t in NGP)
+    l, b = math.radians(l), math.radians(b)
+    d = math.asin(math.sin(dn) * math.sin(b) + math.cos(dn) * math.cos(b) * math.cos(ln - l))
+    a = an + math.atan2(math.cos(b) * math.sin(ln - l),
+                        math.cos(dn) * math.sin(b) - math.sin(dn) * math.cos(b) * math.cos(ln - l))
+    return math.degrees(a) % 360, math.degrees(d)
 
 
 def star_density(l, b):

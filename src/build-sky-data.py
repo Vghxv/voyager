@@ -5,13 +5,14 @@
     src/build-sky-data.py --seed 42        # different faint background stars
     src/build-sky-data.py --cache DIR      # where downloads are kept (default ~/.cache/voyager-sky)
 
-Run once; the results are committed. Voyager's own position comes from
-src/query-horizons.sh (awww/sky/voyager1.json).
+Run once; the results are committed. Then src/install-stellarium-figures.py
+makes the figures from the new constellations.json. Voyager's own position
+comes from src/query-horizons.sh (awww/sky/voyager1.json).
 
-Sources (downloaded once into the cache, never into the repo):
-- Stellarium's "modern" sky culture: the 88 IAU constellations, their stick
-  figures as Hipparcos numbers (CC BY-SA 4.0), and the Traditional Chinese names
-  from Stellarium's zh_TW translation.
+Sources (src/sky_sources.py; downloaded once into the cache, never into the repo):
+- Stellarium's "modern" sky culture: the 88 IAU constellations and their stick
+  figures as Hipparcos numbers (CC BY-SA 4.0). The Traditional Chinese names are
+  Taiwan's, in ZH below.
 - HYG database v4.1 (CC BY-SA 4.0): each star's position, V magnitude and
   B-V colour index (from Hipparcos), and its Bayer/Flamsteed designation.
 - Roman (1987), CDS VI/42: the IAU constellation boundaries, via astropy's copy.
@@ -42,34 +43,20 @@ Needs: python3, curl, magick (ImageMagick with OpenEXR), rsvg-convert.
 """
 
 import argparse
-import csv
 import json
 import math
 import random
 import re
 import struct
-import subprocess
 import sys
-from pathlib import Path
 
 sys.dont_write_bytecode = True          # no src/__pycache__
-from voyager_art import ROOT, LOGO, bv_rgb, eq2gal, field_bv, magick, rsvg, star_density  # noqa: E402
+from voyager_art import ROOT, LOGO, bv_rgb, eq2gal, field_bv, magick, rsvg, star_density, unit  # noqa: E402
+from sky_sources import SOURCES, cache_arg, fetch, hyg_stars  # noqa: E402
 
 OUT = ROOT / "awww" / "sky"
-STELLARIUM = "https://raw.githubusercontent.com/Stellarium/stellarium/master"
-SOURCES = {
-    "modern.json": f"{STELLARIUM}/skycultures/modern/index.json",
-    "zh_TW.po": f"{STELLARIUM}/po/stellarium-skycultures/zh_TW.po",
-    "hyg.csv": "https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv",
-    "starmap_2020_4k.exr": "https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/starmap_2020_4k.exr",
-    # Roman (1987), CDS VI/42: the IAU boundaries (Delporte 1930) as B1875 boxes. Astropy's copy,
-    # as the CDS host is not always reachable.
-    "roman87.dat": "https://raw.githubusercontent.com/astropy/astropy/main/"
-                   "astropy/coordinates/data/constellation_data_roman87.dat",
-}
-
-# Taiwan's names, used when Stellarium's zh_TW translation has none.
-ZH_FALLBACK = {
+# Each constellation's Traditional Chinese name, as Taiwan writes it.
+ZH = {
     "And": "仙女座", "Ant": "唧筒座", "Aps": "天燕座", "Aqr": "寶瓶座", "Aql": "天鷹座", "Ara": "天壇座",
     "Ari": "白羊座", "Aur": "御夫座", "Boo": "牧夫座", "Cae": "雕具座", "Cam": "鹿豹座", "Cnc": "巨蟹座",
     "CVn": "獵犬座", "CMa": "大犬座", "CMi": "小犬座", "Cap": "摩羯座", "Car": "船底座", "Cas": "仙后座",
@@ -90,56 +77,6 @@ ZH_FALLBACK = {
 FAINTEST = 6.0               # only designated stars brighter than this are drawn (stick-figure stars always are)
 FIELD_STARS = 60000          # whole sky; a 100-degree view shows ~8000
 MILKY_WAY_SIZE = "2048x1024"
-
-
-def fetch(cache):
-    cache.mkdir(parents=True, exist_ok=True)
-    for name, url in SOURCES.items():
-        path = cache / name
-        if not path.exists():
-            print(f"downloading {url}")
-            part = path.with_suffix(path.suffix + ".part")
-            subprocess.run(["curl", "-sSfL", "-o", str(part), url], check=True)
-            part.rename(path)
-    return {name: cache / name for name in SOURCES}
-
-
-def zh_names(po_path):
-    """msgid -> msgstr for the constellation names in Stellarium's zh_TW.po."""
-    names, ctx, msgid = {}, None, None
-    for line in po_path.read_text(encoding="utf-8").splitlines():
-        if line.startswith("msgctxt "):
-            ctx = line[9:-1]
-        elif line.startswith("msgid "):
-            msgid = line[7:-1]
-        elif line.startswith("msgstr ") and msgid:
-            value = line[8:-1]
-            if value and (ctx is None or "constellation" in ctx):
-                names.setdefault(msgid, value)
-            ctx, msgid = None, None
-    return names
-
-
-def hyg_stars(path):
-    """Hipparcos number -> (ra deg, dec deg, V, B-V or None), and the designated
-    (Bayer/Flamsteed) stars brighter than FAINTEST as (hip or None, star, the
-    constellation their designation names)."""
-    stars, designated = {}, []
-    with open(path, newline="") as f:
-        for row in csv.DictReader(f):
-            ci = float(row["ci"]) if row["ci"] else None
-            star = (float(row["ra"]) * 15.0, float(row["dec"]), float(row["mag"]), ci)
-            hip = int(float(row["hip"])) if row["hip"] else None
-            if hip is not None:
-                stars.setdefault(hip, star)
-            if row["con"] and (row["bayer"] or row["flam"]) and star[2] < FAINTEST:
-                designated.append((hip, star, row["con"]))
-    return stars, designated
-
-
-def unit(ra, dec):
-    ra, dec = math.radians(ra), math.radians(dec)
-    return math.cos(dec) * math.cos(ra), math.cos(dec) * math.sin(ra), math.sin(dec)
 
 
 def radec(v):
@@ -205,8 +142,7 @@ def iau_constellation(rows, ra, dec):
 
 def constellations(src):
     sky = json.loads(src["modern.json"].read_text())
-    zh = zh_names(src["zh_TW.po"])
-    hyg, designated = hyg_stars(src["hyg.csv"])
+    hyg, designated = hyg_stars(src["hyg.csv"], FAINTEST)
     stars, index, out, missing, figure_stars = [], {}, [], [], {}
 
     def add(key, ra, dec, v, ci):
@@ -235,7 +171,7 @@ def constellations(src):
         figure_stars[abbr] = used
         v = [sum(unit(*stars[i][:2])[k] for i in largest_part(used, segs)) for k in range(3)]
         out.append({"abbr": abbr, "en": en,
-                    "zh": zh.get(en) or zh.get(c["common_name"]["english"]) or ZH_FALLBACK[abbr],
+                    "zh": ZH[abbr],
                     "lines": sorted([list(s) for s in segs]),
                     "label": [round(t, 3) for t in radec(v)]})
     if missing:
@@ -298,10 +234,10 @@ def milky_way(exr, out):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seed", type=int, default=1977, help="faint background stars seed (default 1977)")
-    ap.add_argument("--cache", default=str(Path.home() / ".cache" / "voyager-sky"), help="download cache")
+    cache_arg(ap)
     a = ap.parse_args()
 
-    src = fetch(Path(a.cache))
+    src = fetch(a.cache, SOURCES)
     data, moved = constellations(src)
     print(f"{len(moved)} stars lie in another constellation than the one their name or figure gives (IAU boundaries):")
     for s, was, now in moved:
