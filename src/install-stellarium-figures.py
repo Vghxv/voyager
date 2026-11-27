@@ -5,6 +5,7 @@
 """Drag mode's constellation figures from Stellarium's modern illustrations.
 
     src/install-stellarium-figures.py           # -> awww/sky/figures/{Name}.png and frames.json
+    src/install-stellarium-figures.py --cache DIR   # where downloads are kept (default ~/.cache/voyager-sky)
 
 Stellarium's modern sky culture (the same one src/build-sky-data.py takes the
 stick figures from) ships a drawing for each constellation by Johan Meuris
@@ -22,22 +23,23 @@ vector) and half-width in tangent units, as wide as the drawing needs and at
 least FIGURE_MARGIN x the farthest line star. Argo Navis is one drawing (Carina's), shown for Puppis and Vela too;
 Ophiuchus's drawing holds the serpent and is shown for Serpens.
 
-Downloads go to ~/.cache/voyager-sky/illustrations (about 3 MB, once); the
-sky culture's index and HYG come from build-sky-data.py's cache.
+Downloads (src/sky_sources.py) are kept in the same cache as build-sky-data.py's:
+the sky culture's index, HYG, and the drawings in illustrations/ (about 3 MB, once).
 """
 
-import csv
+import argparse
 import json
-import subprocess
+import sys
 import unicodedata
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
+sys.dont_write_bytecode = True          # no src/__pycache__
+from sky_sources import MODERN, cache_arg, fetch, hyg_stars  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
-CACHE = Path.home() / ".cache" / "voyager-sky"
-STELLARIUM = "https://raw.githubusercontent.com/Stellarium/stellarium/master"
 SHARED = {"Pup": "Car", "Vel": "Car", "Ser": "Oph"}      # drawings that hold more than one constellation
 LIT = 0.05              # grey above this is drawing, not background
 PAD = 1.03              # frame half-width over the drawing's farthest lit pixel
@@ -125,27 +127,6 @@ def figure_name(en):
     return unicodedata.normalize("NFKD", en).encode("ascii", "ignore").decode().replace(" ", "_")
 
 
-def download(files):
-    d = CACHE / "illustrations"
-    d.mkdir(parents=True, exist_ok=True)
-    for f in sorted(set(files)):
-        path = d / Path(f).name
-        if not path.exists():
-            part = path.with_suffix(".part")
-            subprocess.run(["curl", "-sSfL", "-o", str(part), f"{STELLARIUM}/skycultures/modern/{f}"], check=True)
-            part.rename(path)
-    return d
-
-
-def hyg_positions(hips):
-    pos = {}
-    with open(CACHE / "hyg.csv", newline="") as f:
-        for row in csv.DictReader(f):
-            if row["hip"] and int(float(row["hip"])) in hips:
-                pos[int(float(row["hip"]))] = (float(row["ra"]) * 15, float(row["dec"]))
-    return pos
-
-
 def sky_map(image, pos, width):
     """3x3 M with sky ~ M (x, y, 1), x and y in pixels of the image as stored (Stellarium's anchors)."""
     sx = width / image["size"][0]
@@ -177,18 +158,24 @@ def warp(grey, m, c, e, n, half):
 
 
 def main():
-    mod = json.loads((CACHE / "modern.json").read_text())
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    cache_arg(ap)
+    args = ap.parse_args()
+
+    got = fetch(args.cache, ["modern.json", "hyg.csv"])
+    mod = json.loads(got["modern.json"].read_text())
     images = {c["id"].split()[-1]: c["image"] for c in mod["constellations"] if "image" in c}
+    drawings = {f"illustrations/{Path(i['file']).name}": f"{MODERN}/{i['file']}" for i in images.values()}
+    art = fetch(args.cache, sorted(drawings), drawings)
+    pos = {hip: s[:2] for hip, s in hyg_stars(got["hyg.csv"])[0].items()}
     sky = json.loads(SKY.read_text())
-    art = download(i["file"] for i in images.values())
-    pos = hyg_positions({k["hip"] for i in images.values() for k in i["anchors"]})
     OUT.mkdir(parents=True, exist_ok=True)
     frames, ratios, greys = {}, [], {}
     for con in sky["constellations"]:
         abbr = con["abbr"]
         image = images[SHARED.get(abbr, abbr)]
         if image["file"] not in greys:      # Argo and Ophiuchus serve more than one constellation
-            src = Image.open(art / Path(image["file"]).name).convert("L")
+            src = Image.open(art[f"illustrations/{Path(image['file']).name}"]).convert("L")
             if src.width < SIZE:            # 128-512 px drawings: smooth edges before the warp enlarges them
                 src = src.resize((SIZE, SIZE * src.height // src.width), Image.LANCZOS)
             greys[image["file"]] = np.asarray(src, np.float32) / 255
