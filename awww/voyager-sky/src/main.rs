@@ -4,7 +4,7 @@
 //!   voyager-sky toggle      start drag mode, or end it (and make the view the wallpaper)
 //!   voyager-sky run         start drag mode in the foreground
 //!   voyager-sky export [--view RA,DEC[,FOV[,ROLL]]] [--size WxH] [--out FILE] [--no-probe]
-//!   voyager-sky export --overlay [--cursor X,Y] [--english] [--ecliptic] [--equator] [--figures]   a drag-mode screenshot
+//!   voyager-sky export --overlay [--cursor X,Y] [--english] [--ecliptic] [--equator] [--figures] [--stars]   a drag-mode screenshot
 //!   voyager-sky apply       render wallpaper.png + lock.png from the saved view, show them
 //!
 //! listen keeps an invisible surface under your windows on every monitor. Holding the
@@ -14,15 +14,16 @@
 //! Drag mode puts the live sky on the desktop layer of every monitor, behind your
 //! windows, as one canvas across them: drag to turn the sky, scroll to zoom, or use the
 //! XYZ ball bottom right. T switches Turntable/Trackball, R levels the sky, C toggles the
-//! constellation lines and names, F the figure of the constellation under the cursor,
-//! E the ecliptic, Q the celestial equator, L switches their language (中/EN),
-//! Esc ends it. Left alone 5 s in Trackball, it tours the zodiac along the ecliptic.
+//! constellation lines and names (and the names of bright stars near the cursor), S the
+//! seasonal asterisms, F the figure of the constellation under the cursor, E the
+//! ecliptic, Q the celestial equator, L switches their language (中/EN), Esc ends it. Left alone 5 s in Trackball, it tours the zodiac along the ecliptic.
 //! On exit, the view on the monitor drag mode started on becomes wallpaper.png (with the
 //! probe for each Voyager in it) and lock.png (without), and awww shows it.
 //!
 //! Docs: awww/awww.md in the voyager repo.
 
 mod app;
+mod asterisms;
 mod data;
 mod figures;
 mod hypr;
@@ -97,6 +98,7 @@ struct Args {
     ecliptic: bool,
     equator: bool,
     figures: bool,
+    stars: bool,
 }
 
 fn args() -> Result<Args, String> {
@@ -116,6 +118,7 @@ fn args() -> Result<Args, String> {
             "--ecliptic" => a.ecliptic = true,
             "--equator" => a.equator = true,
             "--figures" => a.figures = true,
+            "--stars" => a.stars = true,
             "-V" | "--version" => a.cmd = Some(Cmd::Version),
             "-h" | "--help" => a.cmd = Some(Cmd::Help),
             c if !c.starts_with('-') && a.cmd.is_none() => a.cmd = Some(Cmd::parse(c)?),
@@ -127,11 +130,11 @@ fn args() -> Result<Args, String> {
 
 fn usage() -> &'static str {
     "usage: voyager-sky listen | toggle | run | apply | export [--view RA,DEC[,FOV[,ROLL]]] [--size WxH] [--out FILE] [--no-probe]\n\
-     \x20      export --overlay [--cursor X,Y] [--english] [--ecliptic] [--equator] [--figures]   preview drag mode: lines and names on\n\
+     \x20      export --overlay [--cursor X,Y] [--english] [--ecliptic] [--equator] [--figures] [--stars]   preview drag mode: lines and names on\n\
      \x20      [--data DIR]   sky data folder (default: sky/ next to the binary)\n\
      listen: hold the left button on empty desktop to start drag mode\n\
      drag mode: drag to turn the sky, scroll to zoom, XYZ ball to orbit or snap to an axis,\n\
-     \x20          T turntable/trackball, R level, C lines + names, F figures, E ecliptic, Q equator, L 中/EN, Esc to end"
+     \x20          T turntable/trackball, R level, C lines + names, S asterisms, F figures, E ecliptic, Q equator, L 中/EN, Esc to end"
 }
 
 fn parse_size(s: &str) -> Result<(u32, u32), String> {
@@ -186,7 +189,7 @@ fn render_still(cmd: Cmd, a: Args) -> Result<(), String> {
     } else if a.overlay {
         let cursor = a.cursor.as_deref().map(parse_cursor).transpose()?;
         let mut sc = Scene::new(r, sky, view);
-        for (on, chip) in [(a.figures, Chip::Figures), (a.ecliptic, Chip::Ecliptic), (a.equator, Chip::Equator)] {
+        for (on, chip) in [(a.figures, Chip::Figures), (a.stars, Chip::Stars), (a.ecliptic, Chip::Ecliptic), (a.equator, Chip::Equator)] {
             if on {
                 sc.press_chip(chip);
             }

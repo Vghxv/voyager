@@ -58,11 +58,13 @@ While drag mode is on, the live sky sits on the desktop behind your windows, so 
 | Click an axis on the **XYZ ball** (bottom right, above the chips) | Turns smoothly to look along that axis; click it again for the opposite one |
 | Drag the **XYZ ball** | Turns the sky the way you drag |
 | `C`, or the **lines** chip | Shows or hides the constellation lines, which flicker slowly in blue, and their names |
+| `S`, or the **asterisms** chip | Shows or hides the four seasonal asterisms as dashed amber outlines, each with its name: Spring Triangle 春季大三角 (Denebola, Arcturus, Spica), Summer Triangle 夏季大三角 (Vega, Altair, Deneb), Great Square of Pegasus 秋季四邊形 (Markab, Scheat, Alpheratz, Algenib), Winter Triangle 冬季大三角 (Betelgeuse, Sirius, Procyon) |
 | `F`, or the **figures** chip | Shows or hides the constellation figures: one drawing at a time, on its stars (see below) |
 | `E`, or the **ecliptic** chip | Shows or hides the ecliptic, the Sun's path through the zodiac, as a dashed line |
 | `Q`, or the **equator** chip | Shows or hides the celestial equator (Dec 0°, Earth's equator on the sky) as a dashed teal line; it runs through Orion's belt |
 | `L`, or the **中文 / English** chip | Switches the names between Traditional Chinese and English |
 | Move the cursor near a constellation | Its lines and name light up |
+| Move the cursor near one of the asterisms' stars, or Polaris, with `C` or `S` on | The star's name (e.g. 織女星 / Vega) shows next to it |
 | Move the cursor near Voyager 1 or Voyager 2 | That probe fades in, with its name (航海家1號 / Voyager 1, 航海家2號 / Voyager 2) under it |
 | `Esc`, or the **set as wallpaper** chip | Ends drag mode and makes the view the wallpaper (with `listen`, it goes back to waiting) |
 
@@ -74,11 +76,11 @@ Drag mode takes the keyboard only while the cursor is on the sky (empty desktop)
 
 **The XYZ ball.** The axes are equatorial: **Z** points to the north celestial pole (near Polaris), **X** to RA 0h (the vernal equinox, in Pisces) and **Y** to RA 6h (near Orion). The axis nearest the middle of the view is drawn on top. The negative axes are the small hollow knobs.
 
-**Zodiac tour.** In Trackball, if you leave drag mode alone for 5 seconds (no mouse, no keys), the sky starts moving on its own. It zooms out to at least 120°, moves to the nearest point of the ecliptic, then glides east through the twelve zodiac signs at one sign every 15 seconds. While the cursor rests, the sign passing the middle of the view (within 15°) lights up its lines and name, with `C` on or off, and dims again between signs; moving the mouse on the sky hands the highlight back to the constellation under the cursor. All of this happens at once, and the sky keeps whatever tilt it has. Only taking hold of the sky stops it: a click or drag on the sky or on the XYZ ball, and the view stays where it is. Moving the mouse, `C`, `F`, `E`, `Q`, `L` and their chips leave it running. Scrolling zooms the tour, which carries on at the new size. Switching to Turntable (`T`) also ends it, because the tour never runs in Turntable. While it runs, the chips and the XYZ ball fade out, and a click anywhere (even where they were) takes hold of the sky; they come back when the tour stops. Once stopped, it starts again after another 5 seconds of no input.
+**Zodiac tour.** In Trackball, if you leave drag mode alone for 5 seconds (no mouse, no keys), the sky starts moving on its own. It zooms out to at least 120°, moves to the nearest point of the ecliptic, then glides east through the twelve zodiac signs at one sign every 15 seconds. While the cursor rests, the sign passing the middle of the view (within 15°) lights up its lines and name, with `C` on or off, and dims again between signs; moving the mouse on the sky hands the highlight back to the constellation under the cursor. All of this happens at once, and the sky keeps whatever tilt it has. Only taking hold of the sky stops it: a click or drag on the sky or on the XYZ ball, and the view stays where it is. Moving the mouse, `C`, `S`, `F`, `E`, `Q`, `L` and their chips leave it running. Scrolling zooms the tour, which carries on at the new size. Switching to Turntable (`T`) also ends it, because the tour never runs in Turntable. While it runs, the chips and the XYZ ball fade out, and a click anywhere (even where they were) takes hold of the sky; they come back when the tour stops. Once stopped, it starts again after another 5 seconds of no input.
 
 **More than one monitor.** In drag mode the monitors form one wide sky, laid out like your monitors: drag across the seam and the sky keeps going. The monitor you start drag mode on (where you held the button, or where the cursor is for `toggle`) keeps showing exactly your wallpaper, and the others extend it. When you leave, the view on **that starting monitor** becomes the wallpaper, wherever the cursor is by then, and every monitor shows it.
 
-**What drag mode leaves on the wallpaper.** The lines, names, figures and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes a probe for each Voyager in view. `lock.png`, written next to it, is the same view without the probes.
+**What drag mode leaves on the wallpaper.** The lines, asterisms, names, figures and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes a probe for each Voyager in view. `lock.png`, written next to it, is the same view without the probes.
 
 **Cost.** Drag mode draws frames only while something moves: a drag, a fade, a snap, the zodiac tour, or the flickering lines while they're on. The flicker is slow, so when it is all that moves it is drawn at 12 frames a second instead of every frame. It sets up the GPU when it opens and frees it when you leave the mode, so `listen` holds no GPU memory while it waits. Figures are decoded on a thread of their own and the last eight are kept, so moving between neighbouring constellations doesn't hold up a frame. The wallpaper itself is a still image, so it uses nothing once shown.
 
@@ -95,6 +97,7 @@ voyager-sky export --overlay --cursor 960,540 --out preview.png      # what drag
 voyager-sky export --overlay --english --out preview-en.png          # ... with the names in English
 voyager-sky export --overlay --ecliptic --out preview-ecl.png        # ... with the ecliptic
 voyager-sky export --overlay --equator --out preview-eq.png          # ... with the celestial equator
+voyager-sky export --overlay --stars --view 279,39,100 --out summer.png # ... with the asterisms (cursor on Vega: its name)
 voyager-sky export --overlay --figures --view 83,2,90 --out orion.png # ... with the figure under the cursor (Orion)
 ```
 

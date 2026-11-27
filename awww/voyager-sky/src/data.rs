@@ -168,7 +168,7 @@ impl SkyData {
     }
 }
 
-/// lib/palette, compiled in: navy, void, indigo, teal, mist, ink as 0..1 RGB.
+/// lib/palette, compiled in: navy, void, indigo, teal, mist, ink, amber as 0..1 RGB.
 pub struct Palette {
     pub top: [f32; 3],
     pub bottom: [f32; 3],
@@ -176,6 +176,7 @@ pub struct Palette {
     pub teal: [f32; 3],
     pub mist: [f32; 3],
     pub ink: [f32; 3],
+    pub amber: [f32; 3],
 }
 
 impl Palette {
@@ -197,6 +198,7 @@ impl Palette {
             teal: colour("teal"),
             mist: colour("mist"),
             ink: colour("ink"),
+            amber: colour("amber"),
         }
     }
 }
