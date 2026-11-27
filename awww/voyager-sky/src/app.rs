@@ -19,7 +19,7 @@
 //!
 //! Frames are paced by Wayland frame callbacks and drawn only while something
 //! changes: a drag, a fade (names, figures, the probe), a snap, the zodiac tour, or the
-//! slow flicker of the constellation lines.
+//! slow flicker of the constellation lines, which on its own is drawn at 12 fps.
 
 use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
@@ -242,7 +242,7 @@ impl Drag {
 
     /// Draw every screen that needs it and is ready.
     fn tick(&mut self, qh: &QueueHandle<App>) {
-        if self.scene.animating() {
+        if self.scene.animating() || self.scene.flicker_due_in() == Some(Duration::ZERO) {
             self.mark_dirty();
         }
         let ready: Vec<usize> = (0..self.screens.len())
@@ -296,7 +296,7 @@ impl App {
     fn step(&mut self, event_loop: &mut EventLoop<'static, App>) -> Result<(), String> {
         let wait = match (&self.drag, &self.press) {
             (Some(d), _) if d.scene.animating() => Duration::from_millis(8),
-            (Some(_), _) => Duration::from_millis(250),
+            (Some(d), _) => d.scene.flicker_due_in().map_or(Duration::from_millis(250), |t| t.min(Duration::from_millis(250))),
             (None, Some(p)) => LONG_PRESS.saturating_sub(p.since.elapsed()),
             (None, None) => Duration::from_secs(1),
         };

@@ -70,3 +70,24 @@ A few things are kept in step by hand, because they change rarely:
 
 - **Palette** (navy `#14141F`, mist `#D9D9F2`, indigo `#8B8FF0`, teal `#5EEAD4`, red `#FF3355`, and a few shades): defined in [`lib/palette`](lib/palette), which also lists every file that keeps a copy (eww, dunst, hyprlock, the Plymouth script, the SVGs). `src/voyager_art.py` and `awww/voyager-sky` (compiled in) read it directly; `./doctor.sh` checks the copies still match.
 - **dunst `offset`**: its `50` leaves room for the eww bar's height.
+
+## Power use
+
+The wallpaper is a still image, and `voyager-sky listen` waiting for a long-press uses no CPU or GPU. [Drag mode](awww/awww.md#drag-mode) costs power only while it draws, which it does whenever something on the sky moves. Measured on an i5-1135G7 (Iris Xe), one 1920×1080 60 Hz screen, on AC. Each figure is the average over 3 minutes after the sky settled:
+
+| Drag mode | What keeps it drawing | Package power | Over drag mode off | iGPU time | CPU time |
+|---|---|---|---|---|---|
+| Off (`listen` waiting) | nothing | 1.7 W | — | 0 % | 0 % |
+| On, Turntable, toggles off | nothing | 1.6 W | ~0 | 0 % | 0 % |
+| On, Turntable, lines on (`C`) | the lines' flicker, at 12 fps | 2.2 W | +0.5 W | 4 % | 1 % |
+| On, Trackball, toggles off | the zodiac tour | 3.3 W | +1.6 W | 19 % | 5 % |
+| On, Trackball, `C` `F` `E` `Q` on | the tour, every overlay | 3.5 W | +1.7 W | 24 % | 9 % |
+
+Package power is the CPU and iGPU together (RAPL), not the screen or the rest of the laptop. The iGPU and CPU columns are the share of time `voyager-sky` used them.
+
+- **Drawing is what costs, not drag mode being open.** Turning the lines, figures, ecliptic and equator on adds only about 0.2 W to a sky that is already redrawing.
+- **The zodiac tour draws every frame.** In Trackball it starts 5 s after you stop touching drag mode, so drag mode left open in Trackball soon costs about +1.6 W.
+- **The flicker is cheap on its own.** It is drawn at 12 fps when nothing else moves. Before that it was drawn every frame: 3.3 W, iGPU 19 %.
+- **To leave drag mode open cheaply**, use Turntable (`T`) with the lines off.
+
+A second monitor will cost more, since drag mode draws on every screen; it has not been measured. The tour rows were measured before the 12 fps change; the tour still draws every frame.
