@@ -53,7 +53,7 @@ import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True          # no src/__pycache__
-from voyager_art import ROOT, LOGO, bv_rgb, eq2gal, field_bv, magick, rsvg, star_density  # noqa: E402
+from voyager_art import ROOT, LOGO, bv_rgb, eq2gal, field_bv, magick, rsvg, star_density, unit  # noqa: E402
 
 OUT = ROOT / "awww" / "sky"
 STELLARIUM = "https://raw.githubusercontent.com/Stellarium/stellarium/master"
@@ -135,11 +135,6 @@ def hyg_stars(path):
             if row["con"] and (row["bayer"] or row["flam"]) and star[2] < FAINTEST:
                 designated.append((hip, star, row["con"]))
     return stars, designated
-
-
-def unit(ra, dec):
-    ra, dec = math.radians(ra), math.radians(dec)
-    return math.cos(dec) * math.cos(ra), math.cos(dec) * math.sin(ra), math.sin(dec)
 
 
 def radec(v):

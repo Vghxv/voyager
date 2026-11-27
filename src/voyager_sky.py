@@ -30,8 +30,8 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 
-from voyager_art import (BG_TOP, BG_BOTTOM, NGP, bv_rgb, eq2gal, field_bv, magick,
-                         render, star_density)
+from voyager_art import (BG_TOP, BG_BOTTOM, bv_rgb, eq2gal, field_bv, gal2eq, magick,
+                         render, star_density, unit)
 
 # --- catalogue ---------------------------------------------------------------------
 
@@ -122,7 +122,7 @@ class Sky:
     def __init__(self, w, h):
         self.w, self.h = w, h
         stars = [c for c in CONSTELLATIONS if c[5] is not None]
-        v = [_unit(r, d) for *_, r, d in stars]
+        v = [unit(r, d) for *_, r, d in stars]
         c = [sum(p[i] for p in v) for i in range(3)]
         self.ra0 = math.atan2(c[1], c[0])
         self.de0 = math.asin(c[2] / math.sqrt(sum(t * t for t in c)))
@@ -177,21 +177,6 @@ class Sky:
         ex, ey = self.screen(ra + 0.05 / math.cos(math.radians(dec)), dec)
         n, e = math.hypot(nx - x, ny - y), math.hypot(ex - x, ey - y)
         return ((nx - x) / n, (ny - y) / n), ((ex - x) / e, (ey - y) / e)
-
-
-def _unit(ra, dec):
-    ra, dec = math.radians(ra), math.radians(dec)
-    return math.cos(dec) * math.cos(ra), math.cos(dec) * math.sin(ra), math.sin(dec)
-
-
-def gal2eq(l, b):
-    """Galactic (l, b) -> equatorial (RA, Dec), degrees."""
-    an, dn, ln = (math.radians(t) for t in NGP)
-    l, b = math.radians(l), math.radians(b)
-    d = math.asin(math.sin(dn) * math.sin(b) + math.cos(dn) * math.cos(b) * math.cos(ln - l))
-    a = an + math.atan2(math.cos(b) * math.sin(ln - l),
-                        math.cos(dn) * math.sin(b) - math.sin(dn) * math.cos(b) * math.cos(ln - l))
-    return math.degrees(a) % 360, math.degrees(d)
 
 
 # --- sky model ---------------------------------------------------------------------
