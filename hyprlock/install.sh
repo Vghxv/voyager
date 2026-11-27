@@ -21,6 +21,7 @@ if [[ "$OPT" == --restore ]]; then restore_latest "$CONF"; exit; fi
 
 check_deps "$SRC/deps"
 
+require_lfs_files "$SRC"/probe.png
 mkdir -p "$HYPR_VOYAGER"
 rm -f "$HYPR_VOYAGER"/stars-*.png "$HYPR_VOYAGER"/next-frame.sh   # the old twinkle frames
 install -m 644 "$SRC"/probe.png "$HYPR_VOYAGER"/

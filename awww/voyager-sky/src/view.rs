@@ -232,6 +232,12 @@ pub fn ecliptic_point(lon: f64) -> V3 {
     [c, s * ce, s * se]
 }
 
+/// The point on the celestial equator at right ascension `ra` (degrees).
+pub fn equator_point(ra: f64) -> V3 {
+    let (s, c) = ra.to_radians().sin_cos();
+    [c, s, 0.0]
+}
+
 /// The ecliptic north pole (in Draco), equatorial.
 #[cfg(test)]
 pub fn ecliptic_pole() -> V3 {
@@ -347,6 +353,14 @@ mod tests {
         // already there: nothing turns, so easing toward it changes nothing
         let (same, left) = ease_basis(t, turn_basis_to(t, f), 0.5);
         assert!(left < 1e-12 && angle(same.1, t.1) < 1e-12);
+    }
+
+    #[test]
+    fn equator() {
+        for ra in [0.0, 83.0, 200.0, 359.0] {
+            let (r, d) = radec(equator_point(ra));
+            assert!((r - ra).abs() < 1e-9 && d.abs() < 1e-9, "{ra}: {r} {d}");
+        }
     }
 
     #[test]

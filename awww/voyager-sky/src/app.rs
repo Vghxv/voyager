@@ -18,8 +18,8 @@
 //! typing goes to the window as usual.
 //!
 //! Frames are paced by Wayland frame callbacks and drawn only while something
-//! changes: a drag, a fade, a snap, the zodiac tour, or the slow flicker of the
-//! constellation lines.
+//! changes: a drag, a fade (names, figures, the probe), a snap, the zodiac tour, or the
+//! slow flicker of the constellation lines.
 
 use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
@@ -428,7 +428,8 @@ impl App {
         // Vulkan on Wayland offers B8G8R8A8_UNORM; checked against each surface below
         let format = wgpu::TextureFormat::Bgra8Unorm;
         let view = wallpaper::load_view(&sky);
-        let scene = Scene::new(Renderer::new(&gpu, format, &sky), sky, view);
+        let mut scene = Scene::new(Renderer::new(&gpu, format, &sky), sky, view);
+        scene.load_figures_in_background();
         let mut d = Drag { screens: Vec::new(), scene, format, present_mode: wgpu::PresentMode::Fifo, gpu };
 
         let display = RawDisplayHandle::Wayland(WaylandDisplayHandle::new(
@@ -691,7 +692,9 @@ impl KeyboardHandler for App {
             Keysym::t | Keysym::T => d.scene.press_chip(Chip::Nav),
             Keysym::r | Keysym::R => d.scene.level(),
             Keysym::c | Keysym::C => d.scene.press_chip(Chip::Lines),
+            Keysym::f | Keysym::F => d.scene.press_chip(Chip::Figures),
             Keysym::e | Keysym::E => d.scene.press_chip(Chip::Ecliptic),
+            Keysym::q | Keysym::Q => d.scene.press_chip(Chip::Equator),
             Keysym::l | Keysym::L => d.scene.press_chip(Chip::Lang),
             Keysym::Escape => d.scene.exit = true,
             _ => return,

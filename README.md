@@ -12,6 +12,10 @@ A deep-space theme for an Arch + Hyprland desktop: a probe drifting through a st
 | [eww](eww/eww.md) | Top bar on every monitor: workspaces, clock, wifi, volume, brightness, webcam, battery, tray | `./eww/install.sh` | — (one-way copy) |
 | [dunst](dunst/dunst.md) | Notifications styled like the bar | `./dunst/install.sh` | `--restore` |
 
+The images are stored with [Git LFS](https://git-lfs.com/): install it (`sudo pacman -S git-lfs`, then `git lfs install`) before cloning, or run `git lfs pull` in a clone made without it. The installers stop if an image is still an LFS pointer.
+
+The constellation drawings in `awww/sky/figures/` are Johan Meuris's art from Stellarium, under the Free Art License 1.3 (see its `LICENSE.md`); everything else is MIT.
+
 Each component installs on its own; pick the ones you want. Installers that replace a config file back it up first. Plymouth needs some boot setup first: read its [prerequisites](plymouth/plymouth.md#prerequisites).
 
 ## When something breaks

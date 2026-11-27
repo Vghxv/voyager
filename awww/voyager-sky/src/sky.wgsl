@@ -18,9 +18,9 @@ struct U {
     mw_strength: f32,     // Milky Way brightness
     top: vec4f,           // gradient colours
     bottom: vec4f,
-    line_col: vec4f,
     voyager: vec4f,       // xyz on the sphere, w = probe opacity
     probe: vec4f,         // x = probe size in px, y = Milky Way tone curve, z = its saturation
+    stars: vec4f,         // x = star style (0 classic, 1 soft, 2 photo, 3 eye), y = glow strength
 };
 
 @group(0) @binding(0) var<uniform> uni: U;
@@ -138,20 +138,51 @@ struct StarOut {
     @builtin(position) pos: vec4f,
     @location(0) off: vec2f,
     @location(1) col: vec3f,
-    @location(2) radii: vec2f, // core, halo
+    @location(2) radii: vec2f, // core, how far the glow reaches (the quad's half-size)
+    @location(3) dim: f32,
+    @location(4) glow: vec2f,  // peak opacity of the glow, its width
 };
 
+// Star styles (uni.stars.x; glow strength uni.stars.y, 1 = as designed; default photo at 1.5):
+// 0 classic  the old halo: a flat disc out to 15 px + more for bright stars
+// 1 soft     the same idea, smaller (about half) and with a smooth Gaussian edge
+// 2 photo    a sharp core and wings that fall off like a lens spreads light
+//            (Moffat, ~1/r^2.4 in brightness), as strong as the star's true flux:
+//            only the brightest dozen show wings, and the wings have no edge
+// 3 eye      almost no glow: a slightly larger core and a 1-2 px bloom
 @vertex fn star_vs(@builtin(vertex_index) i: u32, s: StarIn) -> StarOut {
     let q = project(s.pos);
     var f = pow(10.0, -0.2 * (s.mag - 1.8));                // 1 at mag 1.8
     if (f > 1.0) { f = 1.0 + 0.5 * log(f); }                 // Sirius & co. don't take over
-    let core = (0.7 + 1.9 * f) * uni.u;
-    let halo = (3.5 + 15.0 * f) * uni.u;
-    let c = corner(i) * (halo + 1.0);
+    let style = u32(uni.stars.x + 0.5);
+    let g = max(uni.stars.y, 0.0);
+    var core = (0.7 + 1.9 * f) * uni.u;
+    var reach = (3.5 + 15.0 * f) * uni.u;
+    var glow = vec2f(0.95, reach);
+    if (style == 1u) {
+        reach = (3.0 + 7.0 * f) * uni.u * sqrt(max(g, 0.05));
+        glow = vec2f(min(0.85, 0.85 * g), reach);
+    } else if (style == 2u) {
+        let flux = pow(10.0, -0.4 * (s.mag - 1.0));          // 1 at mag 1
+        let w = 1.2 * core;
+        let a0 = min(0.9, 0.6 * flux * g);
+        // out to where the wing falls to 0.4%: (1 + (r/w)^2)^-1.2 = 0.004 / a0
+        reach = clamp(w * sqrt(max(pow(a0 / 0.004, 1.0 / 1.2) - 1.0, 0.0)), core + 1.0, 80.0 * uni.u);
+        glow = vec2f(a0, w);
+    } else if (style == 3u) {
+        core = (0.8 + 2.3 * f) * uni.u;
+        reach = core * 2.5;
+        glow = vec2f(min(0.6, 0.35 * g), reach);
+    }
+    let c = corner(i) * (reach + 1.0);
     var out: StarOut;
     out.off = c;
     out.col = s.col.rgb;
-    out.radii = vec2f(core, halo);
+    out.radii = vec2f(core, reach);
+    out.glow = glow;
+    // Fainter than 4.5 the core can't shrink below a pixel, so the star fades instead:
+    // by its true flux ratio, down to 0.3 (about mag 5.8) so the faintest stay visible.
+    out.dim = clamp(pow(10.0, -0.4 * (s.mag - 4.5)), 0.3, 1.0);
     out.pos = select(OFFSCREEN, to_clip(q.xy + c), q.z > -0.9);
     return out;
 }
@@ -159,16 +190,29 @@ struct StarOut {
 @fragment fn star_fs(in: StarOut) -> @location(0) vec4f {
     let d = length(in.off);
     let t = d / in.radii.y;
-    // the old halo gradient: white 0.95 -> colour 0.75 at 0.18 -> 0.18 at 0.45 -> 0 at 1
+    let style = u32(uni.stars.x + 0.5);
     var hc = mix(vec3f(1.0), in.col, smoothstep(0.0, 0.18, t));
     var ha = 0.0;
-    if (t < 0.18) { ha = mix(0.95, 0.75, t / 0.18); }
-    else if (t < 0.45) { ha = mix(0.75, 0.18, (t - 0.18) / 0.27); }
-    else if (t < 1.0) { ha = mix(0.18, 0.0, (t - 0.45) / 0.55); }
+    if (style == 0u) {
+        // the old halo gradient: white 0.95 -> colour 0.75 at 0.18 -> 0.18 at 0.45 -> 0 at 1
+        if (t < 0.18) { ha = mix(0.95, 0.75, t / 0.18); }
+        else if (t < 0.45) { ha = mix(0.75, 0.18, (t - 0.18) / 0.27); }
+        else if (t < 1.0) { ha = mix(0.18, 0.0, (t - 0.45) / 0.55); }
+        ha = ha * min(uni.stars.y, 1.5);
+    } else if (style == 2u) {
+        let r = d / in.glow.y;
+        ha = in.glow.x * pow(1.0 + r * r, -1.2) * (1.0 - smoothstep(0.8, 1.0, t));
+        hc = mix(vec3f(1.0), in.col, smoothstep(0.0, 2.5, r));
+    } else {
+        let r = d / in.glow.y;
+        ha = in.glow.x * exp(-4.5 * r * r);
+        hc = mix(vec3f(1.0), in.col, smoothstep(0.0, 0.35, r));
+    }
+    ha = clamp(ha, 0.0, 1.0);
     let ca = clamp(in.radii.x - d + 0.5, 0.0, 1.0);          // crisp, anti-aliased core
     let a = ca + ha * (1.0 - ca);
     let rgb = (in.col * ca + hc * ha * (1.0 - ca)) / max(a, 1e-4);
-    return vec4f(rgb, a);
+    return vec4f(rgb, a * in.dim);
 }
 
 // --- 4. the probe ----------------------------------------------------------------------
@@ -199,12 +243,14 @@ struct ProbeOut {
 struct LineIn {
     @location(0) a: vec3f,
     @location(1) b: vec3f,
+    @location(3) col: vec4f,
     @location(2) alpha: f32,
 };
 struct LineOut {
     @builtin(position) pos: vec4f,
     @location(0) side: f32,    // pixels from the line's middle
     @location(1) alpha: f32,
+    @location(2) col: vec3f,
 };
 
 @vertex fn line_vs(@builtin(vertex_index) i: u32, l: LineIn) -> LineOut {
@@ -212,6 +258,7 @@ struct LineOut {
     let pb = project(l.b);
     var out: LineOut;
     out.alpha = l.alpha;
+    out.col = l.col.rgb;
     let d = pb.xy - pa.xy;
     let len = length(d);
     let gap = 5.0 * uni.u;                                    // leave the stars clear
@@ -229,7 +276,7 @@ struct LineOut {
 @fragment fn line_fs(in: LineOut) -> @location(0) vec4f {
     let w = 0.6 * uni.u;
     let a = clamp(w + 0.5 - abs(in.side), 0.0, 1.0) * in.alpha;
-    return vec4f(uni.line_col.rgb, a);
+    return vec4f(in.col, a);
 }
 
 // --- 6. capsules: the chips and the navigation ball (drag mode) -----------------------
@@ -274,4 +321,34 @@ struct ShapeOut {
     let a = fill * in.col.a;
     let rgb = mix(in.col.rgb, in.border.rgb, edge * in.border.a);
     return vec4f(rgb, max(a, edge * in.border.a));
+}
+
+// --- 7. a constellation's figure (drag mode, F) --------------------------------------
+//
+// The image is a square of the gnomonic tangent plane at the constellation's centre,
+// east to the left and north up, `half` tangent units from the middle to each edge
+// (see Constellation::centre in data.rs). Every pixel is taken back to the sphere and
+// onto that plane, so the art stays on its stars at any view, tilt and zoom.
+
+struct Figure {
+    c: vec4f,
+    e: vec4f,
+    n: vec4f,
+    params: vec4f,        // x = half-width (tangent units), y = opacity
+};
+
+@group(1) @binding(0) var<uniform> fig: Figure;
+@group(1) @binding(1) var fig_tex: texture_2d<f32>;
+@group(1) @binding(2) var fig_samp: sampler;
+
+@fragment fn figure_fs(in: SkyOut) -> @location(0) vec4f {
+    let p = unproject(in.pos.xy);
+    let d = dot(p, fig.c.xyz);
+    let h = fig.params.x;
+    let x = dot(p, fig.e.xyz) / max(d, 1e-4);
+    let y = dot(p, fig.n.xyz) / max(d, 1e-4);
+    let uv = vec2f(0.5 - x / (2.0 * h), 0.5 - y / (2.0 * h));
+    let c = textureSample(fig_tex, fig_samp, uv);
+    let inside = d > 0.05 && all(uv >= vec2f(0.0)) && all(uv <= vec2f(1.0));
+    return vec4f(c.rgb, select(0.0, c.a * fig.params.y, inside));
 }

@@ -21,6 +21,7 @@ require_user
 command -v "$EWW" >/dev/null || { red "eww is not on PATH. Install it (AUR: eww) or set EWW=/path/to/eww."; exit 1; }
 check_deps "$SRC/deps"
 
+require_lfs_files "$SRC"/icons/*/*.png
 install -d "$DEST/scripts" "$DEST/assets/light" "$DEST/assets/dark"
 install -m 644 "$SRC"/*.yuck "$SRC"/eww.scss "$DEST"/
 install -m 755 "$SRC"/scripts/*.sh "$DEST/scripts"/
