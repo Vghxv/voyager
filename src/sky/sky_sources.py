@@ -1,6 +1,7 @@
 """The downloads behind the sky data, shared by build-sky-data.py and
-install-stellarium-figures.py: where they come from, the cache they are kept in,
-and the HYG star catalogue. Standard library only; downloads need curl. Not a script.
+install-stellarium-figures.py: where they come from (tables/sources), the cache
+they are kept in, the HYG star catalogue, and the reader for the tables/ files.
+Standard library only; downloads need curl. Not a script.
 """
 
 import csv
@@ -8,17 +9,17 @@ import subprocess
 from pathlib import Path
 
 CACHE = Path.home() / ".cache" / "voyager-sky"
-STELLARIUM = "https://raw.githubusercontent.com/Stellarium/stellarium/master"
-MODERN = f"{STELLARIUM}/skycultures/modern"      # Stellarium's "modern" sky culture
-SOURCES = {
-    "modern.json": f"{MODERN}/index.json",
-    "hyg.csv": "https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv",
-    "starmap_2020_4k.exr": "https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/starmap_2020_4k.exr",
-    # Roman (1987), CDS VI/42: the IAU boundaries (Delporte 1930) as B1875 boxes. Astropy's copy,
-    # as the CDS host is not always reachable.
-    "roman87.dat": "https://raw.githubusercontent.com/astropy/astropy/main/"
-                   "astropy/coordinates/data/constellation_data_roman87.dat",
-}
+TABLES = Path(__file__).resolve().parent / "tables"
+
+
+def table(name):
+    """The rows of tables/<name>, each a list of its whitespace-separated columns."""
+    return [line.split() for line in (TABLES / name).read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.startswith("#")]
+
+
+SOURCES = dict(table("sources"))
+MODERN = SOURCES["modern.json"].rsplit("/", 1)[0]    # Stellarium's "modern" sky culture
 
 
 def cache_arg(ap):

@@ -120,7 +120,7 @@ Everything the sky draws is in [`awww/sky/`](sky/), built once and committed:
 | File | What | Made by |
 |---|---|---|
 | `voyager1.json` | Voyager 1's RA/Dec (ICRF), distance, galactic l/b | `src/sky/query-horizons.sh` (JPL Horizons API, observer Taipei) |
-| `constellations.json` | 88 figures: their stick-figure lines, `members` (every designated star inside the constellation's IAU boundary; no star is in two), the stars (position, V, colour) and names in English and 繁體中文 (Taiwan's, from the script's `ZH` table) | `src/sky/build-sky-data.py` (HYG and the IAU boundaries of Roman 1987; it prints the stars that lie in another constellation than their name or figure gives) |
+| `constellations.json` | 88 figures: their stick-figure lines, `members` (every designated star inside the constellation's IAU boundary; no star is in two), the stars (position, V, colour) and names in English and 繁體中文 (Taiwan's, from `src/sky/tables/constellations`) | `src/sky/build-sky-data.py` (HYG and the IAU boundaries of Roman 1987; it prints the stars that lie in another constellation than their name or figure gives) |
 | `field.bin` | 60,000 faint background stars, seeded | `src/sky/build-sky-data.py` |
 | `milkyway.png` | the diffuse Milky Way, equirectangular | `src/sky/build-sky-data.py` |
 | `probe.png` | the probe | `src/sky/build-sky-data.py` (from `src/art/logo.svg`) |
@@ -138,13 +138,13 @@ src/sky/install-stellarium-figures.py      # figures/ and frames.json (reads con
 ./awww/install.sh                      # install the new data and re-render the wallpaper
 ```
 
-Both scripts download their sources once (about 70 MB, listed in `src/sky/sky_sources.py`) into `~/.cache/voyager-sky`; pass `--cache DIR` to keep them elsewhere. `build-sky-data.py` needs `curl`, `magick` (ImageMagick with OpenEXR) and `rsvg-convert`; `install-stellarium-figures.py` needs [uv](https://docs.astral.sh/uv/), which fetches numpy and Pillow for it. The results are byte-for-byte the same on every run. The images in this repo (these figures included) are stored with Git LFS.
+Both scripts download their sources once (about 70 MB, listed in `src/sky/tables/sources`) into `~/.cache/voyager-sky`; pass `--cache DIR` to keep them elsewhere. `build-sky-data.py` needs `curl`, `magick` (ImageMagick with OpenEXR) and `rsvg-convert`; `install-stellarium-figures.py` needs [uv](https://docs.astral.sh/uv/), which fetches numpy and Pillow for it. The results are byte-for-byte the same on every run. The images in this repo (these figures included) are stored with Git LFS.
 
 Voyager 1 is so far away that it sits at the same point of the sky from anywhere on Earth (within 0.05″). It moves about 0.3° a year, so the query doesn't need re-running. If you ever want a fresh position, run `src/sky/query-horizons.sh`, then `./awww/install.sh`.
 
 Sources:
 
-- constellation stick figures from [Stellarium](https://github.com/Stellarium/stellarium)'s modern sky culture (CC BY-SA 4.0); the Chinese names are Taiwan's, listed in `src/sky/build-sky-data.py`
+- constellation stick figures from [Stellarium](https://github.com/Stellarium/stellarium)'s modern sky culture (CC BY-SA 4.0); the Chinese names are Taiwan's, listed in `src/sky/tables/constellations`
 - constellation drawings by Johan Meuris from the same sky culture (Free Art License 1.3)
 - star positions, magnitudes and colours from the [HYG database](https://github.com/astronexus/HYG-Database) v4.1 (CC BY-SA 4.0, from Hipparcos)
 - the Milky Way from NASA/Goddard Scientific Visualization Studio's [Deep Star Maps 2020](https://svs.gsfc.nasa.gov/4851)

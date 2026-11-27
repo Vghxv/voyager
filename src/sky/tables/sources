@@ -1,0 +1,15 @@
+# The downloads behind the sky data (sky_sources.py), each kept in the cache
+# (~/.cache/voyager-sky, or --cache) under its name and fetched only once.
+#
+#   modern.json          Stellarium's "modern" sky culture: stick figures, and the
+#                        illustrations install-stellarium-figures.py fetches beside it
+#   hyg.csv              the HYG star catalogue v4.1, from Hipparcos
+#   starmap_2020_4k.exr  NASA SVS Deep Star Maps 2020: the Milky Way
+#   roman87.dat          Roman (1987), CDS VI/42: the IAU boundaries (Delporte 1930) as
+#                        B1875 boxes. Astropy's copy, as the CDS host is not always reachable.
+#
+# name                 url
+modern.json            https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/modern/index.json
+hyg.csv                https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/CURRENT/hygdata_v41.csv
+starmap_2020_4k.exr    https://svs.gsfc.nasa.gov/vis/a000000/a004800/a004851/starmap_2020_4k.exr
+roman87.dat            https://raw.githubusercontent.com/astropy/astropy/main/astropy/coordinates/data/constellation_data_roman87.dat

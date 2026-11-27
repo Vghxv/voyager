@@ -14,9 +14,10 @@ image to the sky by three anchor stars: image (x, y, 1) maps linearly to the
 anchors' unit vectors, then onto the sphere. This maps each drawing into the
 frame drag mode draws figures in (a square of the tangent plane at the
 mean of the line stars, east left, north up), tints its grey to the
-constellation's colour with the brightness as transparency, and writes a
-1024 x 1024 RGBA PNG per constellation. Run it after src/sky/build-sky-data.py:
-the frames come from the stick figures in awww/sky/constellations.json.
+constellation's colour (tables/constellations) with the brightness as
+transparency, and writes a 1024 x 1024 RGBA PNG per constellation. Run it
+after src/sky/build-sky-data.py: the frames come from the stick figures in
+awww/sky/constellations.json.
 
 frames.json is where drag mode (awww/voyager-sky/src/data.rs) reads each
 figure's placement from, by abbreviation: its file, the frame's centre (a unit
@@ -25,7 +26,7 @@ least FIGURE_MARGIN x the farthest line star. Argo Navis is one drawing
 (Carina's), shown for Puppis and Vela too; Ophiuchus's drawing holds the
 serpent and is shown for Serpens.
 
-Downloads (src/sky/sky_sources.py) are kept in the same cache as build-sky-data.py's:
+Downloads (src/sky/tables/sources) are kept in the same cache as build-sky-data.py's:
 the sky culture's index, HYG, and the drawings in illustrations/ (about 3 MB, once).
 
 Needs: uv (which fetches numpy and Pillow, per the header above), curl.
@@ -41,44 +42,18 @@ import numpy as np
 from PIL import Image
 
 sys.dont_write_bytecode = True          # no src/sky/__pycache__
-from sky_sources import MODERN, cache_arg, fetch, hyg_stars  # noqa: E402
+from sky_sources import MODERN, cache_arg, fetch, hyg_stars, table  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-SHARED = {"Pup": "Car", "Vel": "Car", "Ser": "Oph"}      # drawings that hold more than one constellation
 LIT = 0.05              # grey above this is drawing, not background
 PAD = 1.03              # frame half-width over the drawing's farthest lit pixel
 OPACITY = 0.55          # the drawings are filled bodies, not lines: strong, but the stars still show through
 EVEN = 0.78             # darker tints (sapphire, magenta) get more opacity, up to 1.5x, to look as strong
-COLOURS = {             # the figures' tints, by name
-    "magenta-pink": (255, 92, 200), "electric cyan": (34, 229, 255), "warm gold": (255, 194, 77),
-    "lavender violet": (181, 156, 255), "soft emerald green": (94, 230, 160), "aqua teal": (94, 234, 212),
-    "cool silver-white": (220, 228, 245), "bright sapphire blue": (77, 141, 255),
-}
-COLOUR = {
-    "And": "magenta-pink", "Ant": "cool silver-white", "Aps": "lavender violet", "Aql": "electric cyan",
-    "Aqr": "warm gold", "Ara": "electric cyan", "Ari": "warm gold", "Aur": "magenta-pink",
-    "Boo": "soft emerald green", "CMa": "bright sapphire blue", "CMi": "bright sapphire blue",
-    "CVn": "soft emerald green", "Cae": "cool silver-white", "Cam": "soft emerald green", "Cap": "warm gold",
-    "Car": "aqua teal", "Cas": "magenta-pink", "Cen": "electric cyan", "Cep": "magenta-pink",
-    "Cet": "magenta-pink", "Cha": "lavender violet", "Cir": "cool silver-white", "Cnc": "warm gold",
-    "Col": "aqua teal", "Com": "soft emerald green", "CrA": "electric cyan", "CrB": "soft emerald green",
-    "Crt": "electric cyan", "Cru": "electric cyan", "Crv": "electric cyan", "Cyg": "electric cyan",
-    "Del": "aqua teal", "Dor": "aqua teal", "Dra": "soft emerald green", "Equ": "aqua teal",
-    "Eri": "aqua teal", "For": "cool silver-white", "Gem": "warm gold", "Gru": "lavender violet",
-    "Her": "electric cyan", "Hor": "cool silver-white", "Hya": "electric cyan", "Hyi": "lavender violet",
-    "Ind": "lavender violet", "LMi": "soft emerald green", "Lac": "magenta-pink", "Leo": "warm gold",
-    "Lep": "bright sapphire blue", "Lib": "warm gold", "Lup": "electric cyan", "Lyn": "soft emerald green",
-    "Lyr": "electric cyan", "Men": "cool silver-white", "Mic": "cool silver-white",
-    "Mon": "bright sapphire blue", "Mus": "lavender violet", "Nor": "cool silver-white",
-    "Oct": "cool silver-white", "Oph": "electric cyan", "Ori": "bright sapphire blue",
-    "Pav": "lavender violet", "Peg": "magenta-pink", "Per": "magenta-pink", "Phe": "lavender violet",
-    "Pic": "cool silver-white", "PsA": "aqua teal", "Psc": "warm gold", "Pup": "aqua teal",
-    "Pyx": "aqua teal", "Ret": "cool silver-white", "Scl": "cool silver-white", "Sco": "warm gold",
-    "Sct": "electric cyan", "Ser": "electric cyan", "Sex": "cool silver-white", "Sge": "electric cyan",
-    "Sgr": "warm gold", "Tau": "warm gold", "Tel": "cool silver-white", "TrA": "electric cyan",
-    "Tri": "magenta-pink", "Tuc": "lavender violet", "UMa": "soft emerald green", "UMi": "soft emerald green",
-    "Vel": "aqua teal", "Vir": "warm gold", "Vol": "lavender violet", "Vul": "electric cyan",
-}
+# tables/constellations: each one's tint (named in tables/tints) and, for a drawing
+# that holds more than one constellation, whose drawing it uses
+TINTS = {name: tuple(int(hex_[i:i + 2], 16) for i in (1, 3, 5)) for name, hex_ in table("tints")}
+TINT = {abbr: TINTS[tint] for abbr, _, tint, _ in table("constellations")}
+SHARED = {abbr: drawing for abbr, _, _, drawing in table("constellations") if drawing != "-"}
 
 SKY = ROOT / "awww" / "sky" / "constellations.json"
 OUT = ROOT / "awww" / "sky" / "figures"
@@ -188,7 +163,7 @@ def main():
         c, e, n, r = frame(sky["stars"], con["lines"])
         half = max(FIGURE_MARGIN * r, PAD * reach(grey, m, c, e, n))
         a = warp(grey, m, c, e, n, half)
-        tint = np.array(COLOURS[COLOUR[abbr]], np.float32) / 255
+        tint = np.array(TINT[abbr], np.float32) / 255
         lum = float(tint @ np.array([0.2126, 0.7152, 0.0722], np.float32))
         rgb = min(1.0, OPACITY * min(1.5, max(1.0, EVEN / lum))) * a[..., None] * tint
         name = f"{figure_name(con['en'])}.png"

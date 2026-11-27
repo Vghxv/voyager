@@ -9,10 +9,10 @@ Run once; the results are committed. Then src/sky/install-stellarium-figures.py
 makes the figures from the new constellations.json. Voyager's own position
 comes from src/sky/query-horizons.sh (awww/sky/voyager1.json).
 
-Sources (src/sky/sky_sources.py; downloaded once into the cache, never into the repo):
+Sources (src/sky/tables/sources; downloaded once into the cache, never into the repo):
 - Stellarium's "modern" sky culture: the 88 IAU constellations and their stick
   figures as Hipparcos numbers (CC BY-SA 4.0). The Traditional Chinese names are
-  Taiwan's, in ZH below.
+  Taiwan's, in src/sky/tables/constellations.
 - HYG database v4.1 (CC BY-SA 4.0): each star's position, V magnitude and
   B-V colour index (from Hipparcos), and its Bayer/Flamsteed designation.
 - Roman (1987), CDS VI/42: the IAU constellation boundaries, via astropy's copy.
@@ -54,27 +54,10 @@ from pathlib import Path
 sys.dont_write_bytecode = True          # no __pycache__ in src/
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # voyager_art, in src/
 from voyager_art import ROOT, LOGO, bv_rgb, eq2gal, field_bv, magick, rsvg, star_density, unit  # noqa: E402
-from sky_sources import SOURCES, cache_arg, fetch, hyg_stars  # noqa: E402
+from sky_sources import SOURCES, cache_arg, fetch, hyg_stars, table  # noqa: E402
 
 OUT = ROOT / "awww" / "sky"
-# Each constellation's Traditional Chinese name, as Taiwan writes it.
-ZH = {
-    "And": "仙女座", "Ant": "唧筒座", "Aps": "天燕座", "Aqr": "寶瓶座", "Aql": "天鷹座", "Ara": "天壇座",
-    "Ari": "白羊座", "Aur": "御夫座", "Boo": "牧夫座", "Cae": "雕具座", "Cam": "鹿豹座", "Cnc": "巨蟹座",
-    "CVn": "獵犬座", "CMa": "大犬座", "CMi": "小犬座", "Cap": "摩羯座", "Car": "船底座", "Cas": "仙后座",
-    "Cen": "半人馬座", "Cep": "仙王座", "Cet": "鯨魚座", "Cha": "蝘蜓座", "Cir": "圓規座", "Col": "天鴿座",
-    "Com": "后髮座", "CrA": "南冕座", "CrB": "北冕座", "Crv": "烏鴉座", "Crt": "巨爵座", "Cru": "南十字座",
-    "Cyg": "天鵝座", "Del": "海豚座", "Dor": "劍魚座", "Dra": "天龍座", "Equ": "小馬座", "Eri": "波江座",
-    "For": "天爐座", "Gem": "雙子座", "Gru": "天鶴座", "Her": "武仙座", "Hor": "時鐘座", "Hya": "長蛇座",
-    "Hyi": "水蛇座", "Ind": "印第安座", "Lac": "蝎虎座", "Leo": "獅子座", "LMi": "小獅座", "Lep": "天兔座",
-    "Lib": "天秤座", "Lup": "豺狼座", "Lyn": "天貓座", "Lyr": "天琴座", "Men": "山案座", "Mic": "顯微鏡座",
-    "Mon": "麒麟座", "Mus": "蒼蠅座", "Nor": "矩尺座", "Oct": "南極座", "Oph": "蛇夫座", "Ori": "獵戶座",
-    "Pav": "孔雀座", "Peg": "飛馬座", "Per": "英仙座", "Phe": "鳳凰座", "Pic": "繪架座", "Psc": "雙魚座",
-    "PsA": "南魚座", "Pup": "船尾座", "Pyx": "羅盤座", "Ret": "網罟座", "Sge": "天箭座", "Sgr": "人馬座",
-    "Sco": "天蠍座", "Scl": "玉夫座", "Sct": "盾牌座", "Ser": "巨蛇座", "Sex": "六分儀座", "Tau": "金牛座",
-    "Tel": "望遠鏡座", "Tri": "三角座", "TrA": "南三角座", "Tuc": "杜鵑座", "UMa": "大熊座", "UMi": "小熊座",
-    "Vel": "船帆座", "Vir": "室女座", "Vol": "飛魚座", "Vul": "狐狸座",
-}
+ZH = {abbr: zh for abbr, zh, *_ in table("constellations")}   # Taiwan's Chinese names
 
 FAINTEST = 6.0               # only designated stars brighter than this are drawn (stick-figure stars always are)
 FIELD_STARS = 60000          # whole sky; a 100-degree view shows ~8000

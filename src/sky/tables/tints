@@ -1,0 +1,12 @@
+# The constellation figures' tints (install-stellarium-figures.py), used by name
+# in tables/constellations.
+#
+# name                 colour
+magenta-pink           #FF5CC8
+electric-cyan          #22E5FF
+warm-gold              #FFC24D
+lavender-violet        #B59CFF
+soft-emerald-green     #5EE6A0
+aqua-teal              #5EEAD4
+cool-silver-white      #DCE4F5
+bright-sapphire-blue   #4D8DFF
