@@ -21,8 +21,8 @@ You need Hyprland started through [uwsm](https://github.com/Vladimir-csp/uwsm) (
 
 ```bash
 sudo pacman -S awww rust
-./awww/install.sh               # build voyager-sky, start awww, show the sky
-./awww/install.sh --restore     # stop awww, put your own awww.service back (or remove voyager's)
+./awww/install.sh               # build voyager-sky, start awww and the drag-mode listener, show the sky
+./awww/install.sh --restore     # stop awww, put your own awww.service back (or remove voyager's), remove the listener
 ```
 
 The installer:
@@ -30,18 +30,13 @@ The installer:
 - builds `voyager-sky` (a small Rust program; the first build takes a few minutes)
 - installs it with the sky data to `~/.config/hypr/voyager/` and links it as `~/.config/scripts/voyager-sky`
 - renders the wallpaper at your largest monitor's size
+- enables `voyager-sky.service`, which runs `voyager-sky listen` for drag mode
 
 The first time, Voyager 1 is in the middle. After that, re-running the installer keeps the view you chose. awww is the only wallpaper daemon voyager uses. You do not need hyprpaper, and the installer leaves it alone.
 
 ## Drag mode
 
-**Hold the left button on empty desktop** for about 0.4 s, without moving, and drag mode opens with the sky already in your hand: keep holding and drag. This needs `voyager-sky listen` running, so start it with Hyprland, e.g. in `hyprland.lua`:
-
-```lua
-hl.on("hyprland.start", function()
-    hl.exec_cmd(os.getenv("HOME") .. "/.config/scripts/voyager-sky listen")
-end)
-```
+**Hold the left button on empty desktop** for about 0.4 s, without moving, and drag mode opens with the sky already in your hand: keep holding and drag. This needs `voyager-sky listen` running. The installer runs it as a second systemd user service, `voyager-sky.service`, which starts with your graphical session (after awww) and is restarted each time you re-run the installer, so the new binary takes over. You don't add anything to `hyprland.lua`; if it still starts `voyager-sky listen` from an older setup, remove that line (the installer warns about it), or the two race at login and one exits with "already listening".
 
 `listen` puts an invisible surface under your windows on every monitor. It only gets clicks where no window covers the desktop, so holding the button over a window, or a quick click on the desktop, does nothing. While waiting it uses about 6 MB of memory and no CPU.
 
@@ -114,7 +109,7 @@ The saved view is in `~/.config/hypr/voyager/view.json` (`ra`, `dec`, `fov`, and
 | `photo` (default, with `glow` 1.5) | a sharp core and faint wings that fade out like a lens's, as strong as the star's real brightness: only the brightest dozen glow |
 | `eye` | almost no glow: a slightly bigger core and a 1–2 px bloom |
 
-`glow` scales the halo (1 = as designed, 0 = none, up to 4; 1.5 if left out). It works in every style; in `soft` and `classic` it changes the size a lot, in `photo` it changes mostly how far the brightest stars' wings reach. After editing the file, run `voyager-sky apply` for the wallpaper and restart `voyager-sky listen` for drag mode. To compare without touching the file: `VOYAGER_SKY_STARS=photo,1.5 voyager-sky export --out try.png` (the variable wins over the file).
+`glow` scales the halo (1 = as designed, 0 = none, up to 4; 1.5 if left out). It works in every style; in `soft` and `classic` it changes the size a lot, in `photo` it changes mostly how far the brightest stars' wings reach. After editing the file, run `voyager-sky apply` for the wallpaper and `systemctl --user restart voyager-sky` for drag mode. To compare without touching the file: `VOYAGER_SKY_STARS=photo,1.5 voyager-sky export --out try.png` (the variable wins over the file).
 
 ## Data
 
@@ -162,8 +157,8 @@ Start with `./doctor.sh awww`.
 | Installer says "No systemd graphical session" | start Hyprland with `uwsm start hyprland.desktop` |
 | No wallpaper after login | `systemctl --user restart awww`; why: `journalctl --user -u awww -n 20` |
 | Wallpaper looks soft on a new, bigger monitor | `voyager-sky apply` |
-| Holding the button on the desktop does nothing | is it running? `pgrep -a voyager-sky` (re-running the installer stops it until your next login); if not, run `~/.config/scripts/voyager-sky listen` in a terminal to see the error |
-| "already listening" | one is already running; restart it with `pkill -x voyager-sky`, then start `listen` again |
+| Holding the button on the desktop does nothing | is it running? `systemctl --user status voyager-sky`; why not: `journalctl --user -u voyager-sky -n 20`; restart it: `systemctl --user restart voyager-sky` |
+| "already listening" | another `listen` is running beside the service, often one started from `hyprland.lua`: remove that line, then `pkill -x voyager-sky; systemctl --user restart voyager-sky` |
 | The keybind does nothing | run `~/.config/scripts/voyager-sky toggle` in a terminal to see the error |
 | "drag mode is already on" | end it with `voyager-sky toggle`; a stuck one: `pkill -x voyager-sky` |
 | Drag mode's keys don't work | move the cursor onto the empty desktop, or click the sky once |
