@@ -1,6 +1,6 @@
 """Shared building blocks for the voyager image generators.
 
-Imported by the generators and by voyager_sky.py: paths, the palette, rendering,
+Imported by gen-plymouth.py, build-sky-data.py and voyager_sky.py: paths, the palette, rendering,
 the --size / --seed options, and the sky maths every sky uses (star colour from
 B-V, unit vectors, galactic coordinates, background-star mix and density). Not a script.
 """

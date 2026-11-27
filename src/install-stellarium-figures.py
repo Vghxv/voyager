@@ -15,16 +15,20 @@ anchors' unit vectors, then onto the sphere. This maps each drawing into the
 frame drag mode draws figures in (a square of the tangent plane at the
 mean of the line stars, east left, north up), tints its grey to the
 constellation's colour with the brightness as transparency, and writes a
-1024 x 1024 RGBA PNG per constellation.
+1024 x 1024 RGBA PNG per constellation. Run it after src/build-sky-data.py:
+the frames come from the stick figures in awww/sky/constellations.json.
 
 frames.json is where drag mode (awww/voyager-sky/src/data.rs) reads each
 figure's placement from, by abbreviation: its file, the frame's centre (a unit
 vector) and half-width in tangent units, as wide as the drawing needs and at
-least FIGURE_MARGIN x the farthest line star. Argo Navis is one drawing (Carina's), shown for Puppis and Vela too;
-Ophiuchus's drawing holds the serpent and is shown for Serpens.
+least FIGURE_MARGIN x the farthest line star. Argo Navis is one drawing
+(Carina's), shown for Puppis and Vela too; Ophiuchus's drawing holds the
+serpent and is shown for Serpens.
 
 Downloads (src/sky_sources.py) are kept in the same cache as build-sky-data.py's:
 the sky culture's index, HYG, and the drawings in illustrations/ (about 3 MB, once).
+
+Needs: uv (which fetches numpy and Pillow, per the header above), curl.
 """
 
 import argparse

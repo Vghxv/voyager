@@ -5,8 +5,9 @@
     src/build-sky-data.py --seed 42        # different faint background stars
     src/build-sky-data.py --cache DIR      # where downloads are kept (default ~/.cache/voyager-sky)
 
-Run once; the results are committed. Voyager's own position comes from
-src/query-horizons.sh (awww/sky/voyager1.json).
+Run once; the results are committed. Then src/install-stellarium-figures.py
+makes the figures from the new constellations.json. Voyager's own position
+comes from src/query-horizons.sh (awww/sky/voyager1.json).
 
 Sources (src/sky_sources.py; downloaded once into the cache, never into the repo):
 - Stellarium's "modern" sky culture: the 88 IAU constellations and their stick

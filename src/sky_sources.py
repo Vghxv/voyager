@@ -1,6 +1,6 @@
 """The downloads behind the sky data, shared by build-sky-data.py and
 install-stellarium-figures.py: where they come from, the cache they are kept in,
-and the HYG star catalogue. Standard library only. Not a script.
+and the HYG star catalogue. Standard library only; downloads need curl. Not a script.
 """
 
 import csv

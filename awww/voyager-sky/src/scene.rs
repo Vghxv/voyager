@@ -1,5 +1,5 @@
 //! What drag mode shows, apart from Wayland: the view, the cursor, the constellation
-//! lines and names, the chips, the navigation ball and the probe, how they fade, and
+//! lines, names and figures, the ecliptic and equator, the chips, the navigation ball and the probe, how they fade, and
 //! how the view moves on its own (snaps and the idle zodiac tour). app.rs feeds it
 //! input; `export --overlay` uses it headless for previews.
 //!
