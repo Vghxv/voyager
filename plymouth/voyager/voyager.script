@@ -143,7 +143,7 @@ logo_y = cy - logo_img.GetHeight() - 40;
 logo_sprite = Sprite(logo_img);
 logo_sprite.SetPosition(logo_x, logo_y, 10);
 
-# dish centre inside the 400x400 probe logo (src/logo.svg): update it if the
+# dish centre inside the 400x400 probe logo (src/art/logo.svg): update it if the
 # probe artwork changes.
 dish_x = logo_x + 190 * logo_s;
 dish_y = logo_y + 150 * logo_s;

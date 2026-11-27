@@ -8,7 +8,7 @@ The images in this folder are made from the constellation illustrations of
 Changes: each illustration was reprojected into the frame drag mode draws it in
 (the tangent plane at the constellation's centre, half-width in `frames.json`),
 tinted to one colour, its brightness turned into transparency at reduced
-opacity, and saved as a 1024 × 1024 PNG by `src/install-stellarium-figures.py`.
+opacity, and saved as a 1024 × 1024 PNG by `src/sky/install-stellarium-figures.py`.
 Argo Navis's illustration is used for Carina, Puppis and Vela; Ophiuchus's
 (which holds the serpent) for Serpens.
 

@@ -9,10 +9,10 @@
 # name       colour   files that use it (from the repo root)
 navy         #14141F  eww/eww.scss dunst/themes/light.conf hyprlock/hyprlock.conf plymouth/voyager/voyager.script
 void         #05050D  eww/eww.scss plymouth/voyager/voyager.script
-mist         #D9D9F2  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf plymouth/voyager/voyager.script src/logo.svg
-indigo       #8B8FF0  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/logo.svg
-teal         #5EEAD4  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/ring.svg
-red          #FF3355  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/flash.svg
+mist         #D9D9F2  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf plymouth/voyager/voyager.script src/art/logo.svg
+indigo       #8B8FF0  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/art/logo.svg
+teal         #5EEAD4  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/art/ring.svg
+red          #FF3355  eww/eww.scss dunst/themes/light.conf dunst/themes/dark.conf hyprlock/hyprlock.conf src/art/flash.svg
 amber        #F0C674  eww/eww.scss
 ink          #0A0A14  eww/eww.scss dunst/themes/dark.conf hyprlock/hyprlock.conf
 dim-light    #5A5A78  eww/eww.scss dunst/themes/light.conf

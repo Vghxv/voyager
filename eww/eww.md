@@ -39,7 +39,7 @@ Use `bars.sh` rather than `eww open bar`: each bar needs to be told its monitor.
 Nothing needs editing per machine.
 
 - **Battery:** the laptop's own battery, not a mouse or keyboard battery. No battery, no battery cell.
-- **Backlight:** the first one found. None, and the brightness cell stays empty.
+- **Backlight:** the panel's own (`intel_backlight`, `amdgpu_bl0`…) over the ACPI one, which often does nothing. None, and the brightness cell stays empty.
 - **Wifi:** NetworkManager, or `iw` without it. Any interface name.
 - **Monitors:** a bar on every monitor. The power menu opens on the monitor whose bar you clicked.
 - **Hyprland config:** workspace switching works with both `hyprland.lua` and `hyprland.conf`.
