@@ -18,7 +18,6 @@ struct U {
     mw_strength: f32,     // Milky Way brightness
     top: vec4f,           // gradient colours
     bottom: vec4f,
-    line_col: vec4f,
     voyager: vec4f,       // xyz on the sphere, w = probe opacity
     probe: vec4f,         // x = probe size in px, y = Milky Way tone curve, z = its saturation
     stars: vec4f,         // x = star style (0 classic, 1 soft, 2 photo, 3 eye), y = glow strength
@@ -244,12 +243,14 @@ struct ProbeOut {
 struct LineIn {
     @location(0) a: vec3f,
     @location(1) b: vec3f,
+    @location(3) col: vec4f,
     @location(2) alpha: f32,
 };
 struct LineOut {
     @builtin(position) pos: vec4f,
     @location(0) side: f32,    // pixels from the line's middle
     @location(1) alpha: f32,
+    @location(2) col: vec3f,
 };
 
 @vertex fn line_vs(@builtin(vertex_index) i: u32, l: LineIn) -> LineOut {
@@ -257,6 +258,7 @@ struct LineOut {
     let pb = project(l.b);
     var out: LineOut;
     out.alpha = l.alpha;
+    out.col = l.col.rgb;
     let d = pb.xy - pa.xy;
     let len = length(d);
     let gap = 5.0 * uni.u;                                    // leave the stars clear
@@ -274,7 +276,7 @@ struct LineOut {
 @fragment fn line_fs(in: LineOut) -> @location(0) vec4f {
     let w = 0.6 * uni.u;
     let a = clamp(w + 0.5 - abs(in.side), 0.0, 1.0) * in.alpha;
-    return vec4f(uni.line_col.rgb, a);
+    return vec4f(in.col, a);
 }
 
 // --- 6. capsules: the chips and the navigation ball (drag mode) -----------------------

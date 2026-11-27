@@ -8,7 +8,7 @@ use glyphon::{Cache, FontSystem, SwashCache, TextArea, TextAtlas, TextRenderer, 
 use wgpu::util::DeviceExt;
 
 use crate::data::{Palette, SkyData};
-use crate::view::{ecliptic_point, Proj};
+use crate::view::{ecliptic_point, equator_point, Proj};
 
 /// The Milky Way over the gradient: brightness, tone curve on the sqrt-encoded map,
 /// share of its colour kept. VOYAGER_SKY_MW=a,b,c overrides it, for tuning.
@@ -65,9 +65,10 @@ fn star_style() -> [f32; 2] {
         .unwrap_or_else(|| StarStyle::default().uniform().expect("the default is a style"))
 }
 
-/// The ecliptic is drawn (drag mode, E) as this many 2° segments after the
-/// constellation lines; the gaps the line shader leaves at each end make it dashed.
-pub const ECLIPTIC_SEGS: usize = 180;
+/// The ecliptic (drag mode, E) and then the celestial equator (Q) are drawn as this many
+/// 2° segments each, after the constellation lines; the gaps the line shader leaves at
+/// each end make them dashed.
+pub const CIRCLE_SEGS: usize = 180;
 
 /// The probe's width at 1080p, in pixels.
 pub const PROBE_PX: f32 = 48.0;
@@ -86,7 +87,6 @@ struct Uniforms {
     mw_strength: f32,
     top: [f32; 4],
     bottom: [f32; 4],
-    line_col: [f32; 4],
     voyager: [f32; 4],
     probe: [f32; 4],
     stars: [f32; 4],
@@ -105,6 +105,7 @@ struct PointInst {
 struct LineInst {
     a: [f32; 3],
     b: [f32; 3],
+    col: [u8; 4],
 }
 
 #[repr(C)]
@@ -251,6 +252,10 @@ fn v4(p: [f32; 3], w: f32) -> [f32; 4] {
     [p[0], p[1], p[2], w]
 }
 
+fn rgba8(c: [f32; 3]) -> [u8; 4] {
+    [(c[0] * 255.0).round() as u8, (c[1] * 255.0).round() as u8, (c[2] * 255.0).round() as u8, 255]
+}
+
 fn texture(gpu: &wgpu::Device, q: &wgpu::Queue, levels: &[(u32, u32, Vec<u8>)], label: &str) -> wgpu::TextureView {
     let (w, h, _) = &levels[0];
     let tex = gpu.create_texture(&wgpu::TextureDescriptor {
@@ -384,7 +389,8 @@ impl Renderer {
         };
         const POINT: [wgpu::VertexAttribute; 3] =
             wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Unorm8x4];
-        const LINE: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+        const LINE: [wgpu::VertexAttribute; 3] =
+            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 3 => Unorm8x4];
         const ALPHA: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![2 => Float32];
         const SHAPE: [wgpu::VertexAttribute; 4] =
             wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Float32x4, 3 => Float32x4];
@@ -394,7 +400,7 @@ impl Renderer {
         let field = pipeline(&pl, "field", "field_vs", "field_fs", &[point_layout.clone()], blend);
         let stars = pipeline(&pl, "stars", "star_vs", "star_fs", &[point_layout], blend);
         let probe = pipeline(&pl, "probe", "probe_vs", "probe_fs", &[], blend);
-        let lines = pipeline(&pl, "lines", "line_vs", "line_fs", &[inst(24, &LINE), inst(4, &ALPHA)], blend);
+        let lines = pipeline(&pl, "lines", "line_vs", "line_fs", &[inst(28, &LINE), inst(4, &ALPHA)], blend);
         let shapes = pipeline(&pl, "shapes", "shape_vs", "shape_fs", &[inst(64, &SHAPE)], blend);
 
         let figure_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -433,11 +439,13 @@ impl Renderer {
             .iter()
             .map(|s| PointInst { pos: v3(s.pos), size_or_mag: s.mag, col: [s.rgb[0], s.rgb[1], s.rgb[2], 255] })
             .collect();
+        let pal = Palette::get();
+        let indigo = rgba8(pal.indigo);
         let mut line_inst: Vec<LineInst> = sky
             .constellations
             .iter()
             .flat_map(|c| c.lines.iter())
-            .map(|&[a, b]| LineInst { a: v3(sky.stars[a].pos), b: v3(sky.stars[b].pos) })
+            .map(|&[a, b]| LineInst { a: v3(sky.stars[a].pos), b: v3(sky.stars[b].pos), col: indigo })
             .collect();
         let vbuf = |label, contents: &[u8]| {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -448,10 +456,16 @@ impl Renderer {
         };
         let field_buf = vbuf("field", bytemuck::cast_slice(&field_inst));
         let star_buf = vbuf("stars", bytemuck::cast_slice(&star_inst));
-        line_inst.extend((0..ECLIPTIC_SEGS).map(|i| {
-            let step = 360.0 / ECLIPTIC_SEGS as f64;
-            LineInst { a: v3(ecliptic_point(i as f64 * step)), b: v3(ecliptic_point((i + 1) as f64 * step)) }
-        }));
+        let circle = |point: fn(f64) -> crate::view::V3, col| {
+            let step = 360.0 / CIRCLE_SEGS as f64;
+            (0..CIRCLE_SEGS).map(move |i| LineInst {
+                a: v3(point(i as f64 * step)),
+                b: v3(point((i + 1) as f64 * step)),
+                col,
+            })
+        };
+        line_inst.extend(circle(ecliptic_point, indigo));
+        line_inst.extend(circle(equator_point, rgba8(pal.teal)));
         let line_buf = vbuf("lines", bytemuck::cast_slice(&line_inst));
         let line_alpha = vbuf("line alpha", bytemuck::cast_slice(&vec![0f32; line_inst.len()]));
         let shape_buf = vbuf("shapes", bytemuck::cast_slice(&[Shape::zeroed(); MAX_SHAPES]));
@@ -496,7 +510,7 @@ impl Renderer {
             figure_layout,
             figure_sampler,
             figures: [None, None],
-            palette: Palette::get(),
+            palette: pal,
             milky_way: milky_way(),
             star_style: star_style(),
             voyager: v3(sky.voyager),
@@ -531,7 +545,8 @@ impl Renderer {
         Target { uniform, bind, text }
     }
 
-    /// One alpha per line segment, in constellation order, then the ecliptic's (drag mode).
+    /// One alpha per line segment, in constellation order, then the ecliptic's and the
+    /// celestial equator's (drag mode).
     pub fn set_line_alpha(&self, alpha: &[f32]) {
         debug_assert_eq!(alpha.len(), self.n_lines as usize);
         self.queue.write_buffer(&self.line_alpha, 0, bytemuck::cast_slice(alpha));
@@ -609,7 +624,6 @@ impl Renderer {
             mw_strength,
             top: v4(pal.top, 1.0),
             bottom: v4(pal.bottom, 1.0),
-            line_col: v4(pal.indigo, 1.0),
             voyager: v4(self.voyager, fr.probe_alpha),
             probe: [PROBE_PX * fr.u, mw_curve, mw_colour, 0.0],
             stars: [self.star_style[0], self.star_style[1], 0.0, 0.0],

@@ -21,7 +21,7 @@ use glyphon::{Attrs, Buffer, Color, Family, Metrics, Shaping, TextArea, TextBoun
 
 use crate::data::SkyData;
 use crate::figures::Figures;
-use crate::render::{Frame, Renderer, Shape, Target, TextCtx, ECLIPTIC_SEGS, PROBE_PX};
+use crate::render::{Frame, Renderer, Shape, Target, TextCtx, CIRCLE_SEGS, PROBE_PX};
 use crate::view::{
     self as view, angle, cross, dot, ease_basis, ecliptic_lon, ecliptic_point, neg, normalize, pin, pin_free, radec,
     rotate_basis, turn_basis_to, Basis, Proj, View, V3,
@@ -123,6 +123,8 @@ pub enum Chip {
     Figures,
     /// E: the ecliptic on/off
     Ecliptic,
+    /// Q: the celestial equator on/off
+    Equator,
     /// L: names in Chinese or English
     Lang,
     /// Esc: end drag mode, making the view the wallpaper
@@ -130,7 +132,8 @@ pub enum Chip {
 }
 
 impl Chip {
-    const ALL: [Chip; 6] = [Chip::Nav, Chip::Lines, Chip::Figures, Chip::Ecliptic, Chip::Lang, Chip::Done];
+    const ALL: [Chip; 7] =
+        [Chip::Nav, Chip::Lines, Chip::Figures, Chip::Ecliptic, Chip::Equator, Chip::Lang, Chip::Done];
 }
 
 struct ChipText {
@@ -219,6 +222,7 @@ pub struct Scene {
     pub lines_on: bool,
     pub figures_on: bool,
     pub ecliptic_on: bool,
+    pub equator_on: bool,
     pub zh: bool,
     pub exit: bool,
     hovered: Option<usize>,
@@ -230,8 +234,9 @@ pub struct Scene {
     figures: Figures,
 
     texts: Texts,
-    /// how visible the ecliptic is (0 hidden)
+    /// how visible the ecliptic and the celestial equator are (0 hidden)
     ecliptic: f32,
+    equator: f32,
     /// per constellation: how lit its lines and name are (0 hidden, 0.5 shown, 1 hovered)
     glow: Vec<f32>,
     probe: f32,
@@ -301,6 +306,8 @@ impl Scene {
             figures_on: false,
             ecliptic_on: false,
             ecliptic: 0.0,
+            equator_on: false,
+            equator: 0.0,
             zh: true,
             exit: false,
             hovered: None,
@@ -311,7 +318,7 @@ impl Scene {
             glow: vec![0.0; n],
             probe: 0.0,
             controls: 1.0,
-            line_alpha: vec![0.0; seg_con.len() + ECLIPTIC_SEGS],
+            line_alpha: vec![0.0; seg_con.len() + 2 * CIRCLE_SEGS],
             seg_con,
             phase: (0..n).map(|i| (i as f32 * 0.618_034).fract()).collect(),
             sky,
@@ -450,6 +457,7 @@ impl Scene {
             Chip::Lines => self.lines_on = !self.lines_on,
             Chip::Figures => self.figures_on = !self.figures_on,
             Chip::Ecliptic => self.ecliptic_on = !self.ecliptic_on,
+            Chip::Equator => self.equator_on = !self.equator_on,
             Chip::Lang => self.zh = !self.zh,
             Chip::Done => self.exit = true,
         }
@@ -519,6 +527,7 @@ impl Scene {
             Chip::Lines => self.lines_on,
             Chip::Figures => self.figures_on,
             Chip::Ecliptic => self.ecliptic_on,
+            Chip::Equator => self.equator_on,
             Chip::Lang => true,
             Chip::Done => false,
         }
@@ -541,6 +550,8 @@ impl Scene {
                     (Chip::Figures, false) => format!("F  {} figures", on(self.figures_on)),
                     (Chip::Ecliptic, true) => format!("E  {} 黃道", on(self.ecliptic_on)),
                     (Chip::Ecliptic, false) => format!("E  {} ecliptic", on(self.ecliptic_on)),
+                    (Chip::Equator, true) => format!("Q  {} 天赤道", on(self.equator_on)),
+                    (Chip::Equator, false) => format!("Q  {} equator", on(self.equator_on)),
                     (Chip::Lang, true) => "L  中文".to_string(),
                     (Chip::Lang, false) => "L  English".to_string(),
                     (Chip::Done, true) => "Esc  設為桌布".to_string(),
@@ -601,6 +612,10 @@ impl Scene {
         if self.ecliptic_on { 0.6 } else { 0.0 }
     }
 
+    fn equator_target(&self) -> f32 {
+        if self.equator_on { 0.6 } else { 0.0 }
+    }
+
     fn controls_target(&self) -> f32 {
         if self.touring() { 0.0 } else { 1.0 }
     }
@@ -622,6 +637,7 @@ impl Scene {
             || self.controls != self.controls_target()
             || self.tour_due()
             || self.ecliptic != self.ecliptic_target()
+            || self.equator != self.equator_target()
             || (0..self.glow.len()).any(|i| self.glow[i] != self.glow_target(i))
             || self.probe != self.probe_target()
             || (0..2).any(|k| self.renderer.figure_alpha(k) != self.figure_alpha_target(k))
@@ -692,6 +708,8 @@ impl Scene {
         ease(&mut self.probe, pt, 5.0);
         let et = self.ecliptic_target();
         ease(&mut self.ecliptic, et, 7.0);
+        let qt = self.equator_target();
+        ease(&mut self.equator, qt, 7.0);
 
         // the slow blue flicker: each constellation breathes on its own 6-10 s cycle
         for (j, &c) in self.seg_con.iter().enumerate() {
@@ -701,7 +719,8 @@ impl Scene {
             self.line_alpha[j] = if Some(c) == self.hovered { g * 0.95 } else { g * 0.7 * flicker };
         }
         let n = self.seg_con.len();
-        self.line_alpha[n..].fill(self.ecliptic);
+        self.line_alpha[n..n + CIRCLE_SEGS].fill(self.ecliptic);
+        self.line_alpha[n + CIRCLE_SEGS..].fill(self.equator);
         self.renderer.set_line_alpha(&self.line_alpha);
     }
 
@@ -1002,7 +1021,7 @@ mod tests {
         // moving the mouse, keys and chips leave it running
         s.pointer_moved((100.0, 300.0));
         s.pointer_moved((140.0, 320.0));
-        for chip in [Chip::Lines, Chip::Figures, Chip::Ecliptic, Chip::Lang] {
+        for chip in [Chip::Lines, Chip::Figures, Chip::Ecliptic, Chip::Equator, Chip::Lang] {
             s.key_input();
             s.press_chip(chip);
         }

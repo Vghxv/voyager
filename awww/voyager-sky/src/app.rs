@@ -694,6 +694,7 @@ impl KeyboardHandler for App {
             Keysym::c | Keysym::C => d.scene.press_chip(Chip::Lines),
             Keysym::f | Keysym::F => d.scene.press_chip(Chip::Figures),
             Keysym::e | Keysym::E => d.scene.press_chip(Chip::Ecliptic),
+            Keysym::q | Keysym::Q => d.scene.press_chip(Chip::Equator),
             Keysym::l | Keysym::L => d.scene.press_chip(Chip::Lang),
             Keysym::Escape => d.scene.exit = true,
             _ => return,

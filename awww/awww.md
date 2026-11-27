@@ -59,6 +59,7 @@ While drag mode is on, the live sky sits on the desktop behind your windows, so 
 | `C`, or the **lines** chip | Shows or hides the constellation lines, which flicker slowly in blue, and their names |
 | `F`, or the **figures** chip | Shows or hides the constellation figures: one drawing at a time, on its stars (see below) |
 | `E`, or the **ecliptic** chip | Shows or hides the ecliptic, the Sun's path through the zodiac, as a dashed line |
+| `Q`, or the **equator** chip | Shows or hides the celestial equator (Dec 0°, Earth's equator on the sky) as a dashed teal line; it runs through Orion's belt |
 | `L`, or the **中文 / English** chip | Switches the names between Traditional Chinese and English |
 | Move the cursor near a constellation | Its lines and name light up |
 | Move the cursor near Voyager 1 | The probe fades in, with its name (航海家1號 / Voyager 1) under it |
@@ -92,6 +93,7 @@ voyager-sky export --no-probe --out sky.png                          # the same 
 voyager-sky export --overlay --cursor 960,540 --out preview.png      # what drag mode looks like (lines + names)
 voyager-sky export --overlay --english --out preview-en.png          # ... with the names in English
 voyager-sky export --overlay --ecliptic --out preview-ecl.png        # ... with the ecliptic
+voyager-sky export --overlay --equator --out preview-eq.png          # ... with the celestial equator
 voyager-sky export --overlay --figures --view 83,2,90 --out orion.png # ... with the figure under the cursor (Orion)
 ```
 
