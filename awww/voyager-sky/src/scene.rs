@@ -50,6 +50,11 @@ const ORBIT_DEG_PER_PX: f64 = 0.5;
 /// How fast a snap (axis click, levelling) closes in, per second.
 const SNAP_RATE: f64 = 5.0;
 
+/// While the lines' slow flicker is all that moves, it is drawn at 12 fps: on its
+/// 6-10 s cycle a line's alpha changes by at most 0.015 a frame, too little to see,
+/// and it costs a fifth of drawing every frame.
+const FLICKER_FRAME: Duration = Duration::from_millis(83);
+
 /// No input for this long in Trackball starts the zodiac tour.
 const IDLE: Duration = Duration::from_secs(5);
 /// The tour zooms out to at least this field of view.
@@ -631,10 +636,10 @@ impl Scene {
             && self.last_input.elapsed() >= IDLE
     }
 
-    /// Something is still moving, so keep drawing frames.
+    /// Something is still moving, so keep drawing every frame. The lines' flicker
+    /// alone does not count: see `flicker_due_in`.
     pub fn animating(&self) -> bool {
-        self.lines_on
-            || self.grab.is_some()
+        self.grab.is_some()
             || self.motion.is_some()
             || self.controls != self.controls_target()
             || self.tour_due()
@@ -644,6 +649,12 @@ impl Scene {
             || (0..2).any(|k| self.probe[k] != self.probe_target(k))
             || (0..2).any(|k| self.renderer.figure_alpha(k) != self.figure_alpha_target(k))
             || self.figures.loading()
+    }
+
+    /// With the lines on, how long until the flicker needs its next frame (zero when it
+    /// is due); None when the lines are off.
+    pub fn flicker_due_in(&self) -> Option<Duration> {
+        self.lines_on.then(|| FLICKER_FRAME.saturating_sub(self.last.elapsed()))
     }
 
     /// The constellation whose figure passes closest to the cursor, if close enough.

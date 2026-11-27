@@ -80,7 +80,7 @@ Drag mode takes the keyboard only while the cursor is on the sky (empty desktop)
 
 **What drag mode leaves on the wallpaper.** The lines, names, figures and chips are never part of the wallpaper. The wallpaper (`wallpaper.png`) includes a probe for each Voyager in view. `lock.png`, written next to it, is the same view without the probes.
 
-**Cost.** Drag mode draws frames only while something moves: a drag, a fade, a snap, the zodiac tour, or the flickering lines while they're on. It sets up the GPU when it opens and frees it when you leave the mode, so `listen` holds no GPU memory while it waits. Figures are decoded on a thread of their own and the last eight are kept, so moving between neighbouring constellations doesn't hold up a frame. The wallpaper itself is a still image, so it uses nothing once shown.
+**Cost.** Drag mode draws frames only while something moves: a drag, a fade, a snap, the zodiac tour, or the flickering lines while they're on. The flicker is slow, so when it is all that moves it is drawn at 12 frames a second instead of every frame. It sets up the GPU when it opens and frees it when you leave the mode, so `listen` holds no GPU memory while it waits. Figures are decoded on a thread of their own and the last eight are kept, so moving between neighbouring constellations doesn't hold up a frame. The wallpaper itself is a still image, so it uses nothing once shown.
 
 ## Commands
 
