@@ -9,23 +9,17 @@ NUM_STARS   = 55;     # warp stars (only seen while moving)
 KEY_BOOST   = 1.4;    # warp burst per typed character
 BACK_PULL   = 1.0;    # reverse pull per backspace
 WARP_MAX    = 6;      # warp speed after Enter
-WARP_SEEN   = 0.6;    # speed at which the warp stars are fully visible
+WARP_SEEN   = 0.6;    # stars are invisible when still and fade in as they speed up: fully visible from this speed on
 STAR_MIN    = 8;      # smallest warp star, in pixels
 STAR_MAX    = 14;     # largest warp star, in pixels
-STAR_STEP   = 2;      # star sizes go up in these steps (each size's tails are made at start-up)
-STAR_BRIGHT = 0.7;    # dimmest warp star's brightness (the brightest is 1)
+STAR_BRIGHT = 0.7;    # each star gets a random brightness between this and 1 (full)
 BLUE_AT     = 1.4;    # speed at which the sky is fully blue-shifted
 RED_AT      = 0.8;    # reverse speed at which it is fully red-shifted
-SHIFT_HOLD  = 0.979;  # how slowly the shift fades after the stars stop (per frame)
-STREAK_LEN  = 6;      # longest tail, in star sizes
-ANGLES      = 48;     # tail directions, turned once at start-up
-TRAIL       = 8;      # a tail is as long as its star moves in this many frames (motion blur)
+SHIFT_HOLD  = 0.979;  # how long the sky stays blue / red after the stars slow: closer to 1 = longer (0.979: half after ~0.5 s)
+TRAIL       = 8;      # tail = the distance its star covers in this many frames (motion blur): higher = longer tails
 TAIL_THICK  = 0.3;    # tail thickness, as a share of its star's size
 TAIL_EASE   = 0.2;    # how fast a tail grows or shrinks towards that (per frame): head first, tail after
-CORE_FADE   = 0.25;   # stars dim inside this radius (fraction of screen height)
-CORE_VANISH = 0.08;   # ...and vanish inside this one while pulled back
-INFLOW      = 1.6;    # backing off: share of stars sent to the edges, per unit of speed per second
-LEAVE_STEP  = 0.1;    # ...each fading out at this much per frame first (10 frames)
+CORE_FADE   = 0.25;   # stars get dimmer the closer they are to the centre, within this distance (share of screen height)
 SHAKE_PX    = 6;      # wrong passphrase: how far the probe shakes, in pixels
 SHAKE_DECAY = 0.85;   # ...and how fast it settles (per frame: 0.85 is about 0.25 s)
 
@@ -44,7 +38,9 @@ H  = Window.GetHeight();
 cx = W / 2;
 cy = H / 2;
 core_fade_r   = CORE_FADE * H;
-core_vanish_r = CORE_VANISH * H;
+# stars are invisible within this distance of the centre (and, backing off, one
+# reaching it jumps to an edge): well inside core_fade_r, so none vanish while bright
+core_vanish_r = 0.08 * H;
 # 60 frames a second, matching a 60 Hz panel: at 50 every fifth frame shows
 # twice, which makes fast warp stars judder. Per-frame steps below are for 60.
 FPS = 60;
@@ -106,6 +102,18 @@ hint_target = 1;
 
 # ---------------- warp stars ----------------
 star_src   = Image("star.png");
+
+# Fixed, not tunables:
+STAR_STEP  = 2;     # star sizes STAR_MIN, +2, +4 ... : each size's tails are made at
+                    # start-up, and sizes 2 px apart already look varied
+STREAK_LEN = 6;     # longest tail, in star sizes: longer costs frame time at full warp
+ANGLES     = 48;    # tail directions (every 7.5 degrees): tails point within 3.75
+                    # degrees, which can't be seen; more only slows start-up
+INFLOW     = 1.6;   # backing off: share of stars sent to the edges, per unit of speed
+                    # per second. 1.6 keeps the field even (simulated): less clumps
+                    # the stars in the middle, more empties it
+LEAVE_STEP = 0.1;   # ...each fading out over 10 frames first: slower falls behind
+                    # (stars clump), faster makes them visibly pop out
 
 # Warp streaks: a star is its head (the star dot) plus a tail, a second sprite.
 # The tail is tail.png stretched to each length (1 ... STREAK_LEN star sizes) and
