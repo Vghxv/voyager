@@ -4,8 +4,8 @@
 Run it from a text console (Ctrl+Alt+F3), not a terminal window or tmux. It
 shows the splash on the real screen, records it with ffmpeg's kmsgrab, and
 types the demo passphrases itself on a virtual keyboard (/dev/uinput), timed
-so each effect reads clearly: blue shift, red shift, warp, and the red flash
-of a wrong passphrase. Don't touch the keyboard while it runs.
+so each effect reads clearly: blue shift, red shift, warp, and the probe's red
+flash on a wrong passphrase. Don't touch the keyboard while it runs.
 Needs plymouth and ffmpeg. Stuck? Ctrl+C, then: sudo plymouth quit
 """
 
@@ -100,7 +100,7 @@ def perform(kb):
     kb.tap(kb.ENTER)                    # launch: the warp ramps up, the sky goes blue
     prompt.wait()
     time.sleep(2.2)
-    prompt = ask()                      # asked again = wrong passphrase: red flash, shake
+    prompt = ask()                      # asked again = wrong passphrase: the probe flashes red, shakes
     time.sleep(2.5)                     # the red fades and the hint comes back
     kb.type(6, 0.08)
     time.sleep(0.5)

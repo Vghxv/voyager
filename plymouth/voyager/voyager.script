@@ -5,17 +5,23 @@
 # =====================================================================
 
 # ---------------- tunables ----------------
-NUM_STARS   = 100;    # warp stars (only seen while moving)
+NUM_STARS   = 55;     # warp stars (only seen while moving)
 KEY_BOOST   = 1.4;    # warp burst per typed character
 BACK_PULL   = 1.0;    # reverse pull per backspace
 WARP_MAX    = 6;      # warp speed after Enter
-STREAK_AT   = 1.2;    # speed above which stars turn into streaks
-WARP_SEEN   = 0.6;    # speed at which the warp stars are fully visible
-BLUE_AT     = 3;      # speed at which the sky is fully blue-shifted
-RED_AT      = 1.5;    # reverse speed at which it is fully red-shifted
-ROT_SIGN    = 1;      # set to -1 if streaks point the wrong way
-CORE_FADE   = 0.25;   # stars dim inside this radius (fraction of screen height)
-CORE_VANISH = 0.08;   # ...and vanish inside this one while pulled back
+WARP_SEEN   = 0.6;    # stars are invisible when still and fade in as they speed up: fully visible from this speed on
+STAR_MIN    = 8;      # smallest warp star, in pixels
+STAR_MAX    = 14;     # largest warp star, in pixels
+STAR_BRIGHT = 0.7;    # each star gets a random brightness between this and 1 (full)
+BLUE_AT     = 1.4;    # speed at which the sky is fully blue-shifted
+RED_AT      = 0.8;    # reverse speed at which it is fully red-shifted
+SHIFT_HOLD  = 0.979;  # how long the sky stays blue / red after the stars slow: closer to 1 = longer (0.979: half after ~0.5 s)
+TRAIL       = 8;      # tail = the distance its star covers in this many frames (motion blur): higher = longer tails
+TAIL_THICK  = 0.3;    # tail thickness, as a share of its star's size
+TAIL_EASE   = 0.2;    # how fast a tail grows or shrinks towards that (per frame): head first, tail after
+CORE_FADE   = 0.25;   # stars get dimmer the closer they are to the centre, within this distance (share of screen height)
+SHAKE_PX    = 6;      # wrong passphrase: how far the probe shakes, in pixels
+SHAKE_DECAY = 0.85;   # ...and how fast it settles (per frame: 0.85 is about 0.25 s)
 
 # Polaris's top-left corner in sky.png, as fractions of its size.
 # Written by src/gen-plymouth.py: do not edit by hand.
@@ -32,8 +38,13 @@ H  = Window.GetHeight();
 cx = W / 2;
 cy = H / 2;
 core_fade_r   = CORE_FADE * H;
-core_vanish_r = CORE_VANISH * H;
-DT = 0.02;            # refresh runs ~50 times per second
+# stars are invisible within this distance of the centre (and, backing off, one
+# reaching it jumps to an edge): well inside core_fade_r, so none vanish while bright
+core_vanish_r = 0.08 * H;
+# 60 frames a second, matching a 60 Hz panel: at 50 every fifth frame shows
+# twice, which makes fast warp stars judder. Per-frame steps below are for 60.
+FPS = 60;
+DT  = 1 / FPS;
 t  = 0;
 
 fun clamp01(v) {
@@ -79,6 +90,8 @@ polaris_sprite = Sprite(polaris_img);
 polaris_sprite.SetPosition(sky_x + POLARIS_X * sky_w, sky_y + POLARIS_Y * sky_h, -90);
 
 speed     = 0;
+stars_hidden = 0;
+shift     = 0;        # Doppler envelope: follows speed, lingers after it
 warping   = 0;
 submitted = 0;
 prev      = 0;
@@ -89,44 +102,114 @@ hint_target = 1;
 
 # ---------------- warp stars ----------------
 star_src   = Image("star.png");
-streak_src = Image("streak.png");
 
-# The streak's bright head points the way the star moves: outward while warping
-# forward (mode 1), inward while backing off (mode -1). mode 0 is a dot.
-fun streak_for(i, mode) {
-  if (mode > 0) {
-    return global.star[i].streak_out;
+# Fixed, not tunables:
+STAR_STEP  = 2;     # star sizes STAR_MIN, +2, +4 ... : each size's tails are made at
+                    # start-up, and sizes 2 px apart already look varied
+STREAK_LEN = 6;     # longest tail, in star sizes: longer costs frame time at full warp
+ANGLES     = 48;    # tail directions (every 7.5 degrees): tails point within 3.75
+                    # degrees, which can't be seen; more only slows start-up
+INFLOW     = 1.6;   # backing off: share of stars sent to the edges, per unit of speed
+                    # per second. 1.6 keeps the field even (simulated): less clumps
+                    # the stars in the middle, more empties it
+LEAVE_STEP = 0.1;   # ...each fading out over 10 frames first: slower falls behind
+                    # (stars clump), faster makes them visibly pop out
+
+# Warp streaks: a star is its head (the star dot) plus a tail, a second sprite.
+# The tail is tail.png stretched to each length (1 ... STREAK_LEN star sizes) and
+# turned to each of ANGLES directions, once, here. Plymouth's Rotate keeps an
+# image's size, so each tail is first padded to a square (a Crop larger than the
+# image pads it with transparency), with its bright end at the centre, turned
+# about that centre, then cropped to fit. tail[n] points its head end at
+# k * 360 / ANGLES - 180 degrees (as atan2 on screen: y down), the tail behind.
+tail_src = Image("tail.png");
+NUM_SIZES = Math.Int((STAR_MAX - STAR_MIN) / STAR_STEP) + 1;
+for (z = 0; z < NUM_SIZES; z++) {
+  size = STAR_MIN + z * STAR_STEP;
+  thick = Math.Int(size * TAIL_THICK + 0.5);
+  if (thick < 2) { thick = 2; }
+  for (l = 1; l <= STREAK_LEN; l++) {
+    len = l * size;
+    q = 2 * len + 2 * thick + 2;                 # the square, even
+    q2 = q / 2;
+    sq = tail_src.Scale(len, thick).Crop(len - q2, Math.Int(thick / 2) - q2, q, q);
+    for (k = 0; k < ANGLES; k++) {
+      a = k * 6.28318 / ANGLES - 3.14159;
+      tx = -len * Math.Cos(a);                   # tail end, from the head
+      ty = -len * Math.Sin(a);
+      x0 = q2 - thick - 1;
+      x1 = q2 + thick + 1;
+      y0 = x0;
+      y1 = x1;
+      if (tx < 0) { x0 += tx; } else { x1 += tx; }
+      if (ty < 0) { y0 += ty; } else { y1 += ty; }
+      x0 = Math.Int(x0);
+      y0 = Math.Int(y0);
+      n = (z * STREAK_LEN + l - 1) * ANGLES + k;
+      tail_img[n] = sq.Rotate(a).Crop(x0, y0, Math.Int(x1 - x0 + 1), Math.Int(y1 - y0 + 1));
+      tail_hx[n] = q2 - x0;                      # head end, from the top-left
+      tail_hy[n] = q2 - y0;
+    }
   }
-  return global.star[i].streak_in;
 }
 
+# A new star is just its head: its tail grows as it speeds up.
 fun aim_star(i) {
   ang = Math.ATan2(global.star[i].y - global.cy, global.star[i].x - global.cx);
-  global.star[i].streak_out = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang);
-  global.star[i].streak_in = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang + 3.14159);
-  global.star[i].sw2 = global.star[i].streak_out.GetWidth() / 2;
-  global.star[i].sh2 = global.star[i].streak_out.GetHeight() / 2;
-  if (global.star[i].mode != 0) {
-    global.star[i].sprite.SetImage(streak_for(i, global.star[i].mode));
+  k = Math.Int((ang + 3.14159) / 6.28318 * global.ANGLES + 0.5);
+  if (k >= global.ANGLES) {
+    k = 0;
   }
+  back = k + global.ANGLES / 2;                 # the opposite direction
+  if (back >= global.ANGLES) {
+    back -= global.ANGLES;
+  }
+  global.star[i].k_out = k;
+  global.star[i].k_in = back;
+  global.star[i].len = 0;
 }
 
 fun place_star(i) {
   global.star[i].x = Math.Random() * global.W;
   global.star[i].y = Math.Random() * global.H;
   global.star[i].fade = 0;
+  global.star[i].leaving = 0;
+  aim_star(i);
+}
+
+# Backing off moves every star towards the centre, which empties the edges of
+# the screen. Stars respawned here, on a random edge, flow in to fill them. (The
+# four edges take equal shares: each one's length times its distance from the
+# centre is the same, W * H / 2.)
+fun place_star_at_edge(i) {
+  e = Math.Int(Math.Random() * 4);
+  if (e == 0) { global.star[i].x = Math.Random() * global.W; global.star[i].y = 0; }
+  if (e == 1) { global.star[i].x = Math.Random() * global.W; global.star[i].y = global.H; }
+  if (e == 2) { global.star[i].x = 0; global.star[i].y = Math.Random() * global.H; }
+  if (e >= 3) { global.star[i].x = global.W; global.star[i].y = Math.Random() * global.H; }
+  global.star[i].fade = 0;
+  global.star[i].leaving = 0;
   aim_star(i);
 }
 
 for (i = 0; i < NUM_STARS; i++) {
-  size = 2 + Math.Int(Math.Random() * 5);
+  z = Math.Int(Math.Random() * NUM_SIZES);
+  size = STAR_MIN + z * STAR_STEP;
   star[i].dot = star_src.Scale(size, size);
-  star[i].streak_base = streak_src.Scale(size * 8, size);
+  star[i].z = z;
+  star[i].size = size;
   star[i].half = size / 2;
   star[i].sprite = Sprite(star[i].dot);
+  star[i].sprite.SetZ(1);             # the head, over its tail
   star[i].sprite.SetOpacity(0);
-  star[i].mode = 0;
-  star[i].peak  = 0.4 + Math.Random() * 0.6;
+  star[i].tail = Sprite();
+  star[i].tail.SetZ(0);
+  star[i].tail.SetOpacity(0);
+  star[i].shown = -1;                 # tail image on the tail sprite: -1 none yet
+  star[i].lit = 0;                    # 1 while visible at all
+  star[i].tail_on = 0;                # 1 while its tail shows
+  star[i].k = 0;
+  star[i].peak  = STAR_BRIGHT + Math.Random() * (1 - STAR_BRIGHT);
   place_star(i);
   star[i].fade = 1;
 }
@@ -190,8 +273,12 @@ fun spawn_ring(dir) {
 }
 
 # ---------------- red flash ----------------
-flash_sprite = Sprite(Image("flash.png").Scale(W, H));
-flash_sprite.SetPosition(0, 0, 50);
+# the probe's red silhouette, laid over it (and shaking with it): only the probe
+# flashes, so only its corner of the screen is redrawn
+flash_img = Image("logo-flash.png");
+flash_img = flash_img.Scale(flash_img.GetWidth() * logo_s, flash_img.GetHeight() * logo_s);
+flash_sprite = Sprite(flash_img);
+flash_sprite.SetPosition(logo_x, logo_y, 11);
 flash_sprite.SetOpacity(0);
 
 # ================= animation loop =================
@@ -200,69 +287,157 @@ fun refresh_callback() {
 
   # warp speed: ramps up after Enter, otherwise decays back to still
   if (global.warping) {
-    global.speed = global.speed + (global.WARP_MAX - global.speed) * 0.04;
+    global.speed = global.speed + (global.WARP_MAX - global.speed) * 0.0334;
   } else {
-    global.speed = global.speed * 0.92;
+    global.speed = global.speed * 0.933;
     if (Math.Abs(global.speed) < 0.005) {
       global.speed = 0;               # truly still: nothing left to redraw
     }
   }
   seen = clamp01(Math.Abs(global.speed) / global.WARP_SEEN);
 
-  # Doppler shift: blue while speeding up, red while backing off
-  global.blue_sprite.SetOpacity(clamp01(global.speed / global.BLUE_AT));
-  global.red_sprite.SetOpacity(clamp01(-global.speed / global.RED_AT));
+  # Doppler shift: blue while speeding up, red while backing off. The envelope
+  # jumps to the speed at once but fades slowly, so each shift is seen clearly.
+  global.shift = global.shift * global.SHIFT_HOLD;
+  if (Math.Abs(global.speed) > Math.Abs(global.shift) || global.speed * global.shift < 0) {
+    global.shift = global.speed;
+  }
+  if (Math.Abs(global.shift) < 0.005) {
+    global.shift = 0;
+  }
+  # in steps of 1/16: each change redraws the whole screen, so not every frame
+  blue = Math.Int(clamp01(global.shift / global.BLUE_AT) * 16 + 0.5) / 16;
+  red  = Math.Int(clamp01(-global.shift / global.RED_AT) * 16 + 0.5) / 16;
+  global.blue_sprite.SetOpacity(blue);
+  global.red_sprite.SetOpacity(red);
 
   # Polaris breathes, one breath every 4 s
   global.polaris_sprite.SetOpacity(0.775 + 0.225 * Math.Cos(6.2832 * global.t / 4));
-  fast = 0;                           # 1 streaks outward, -1 inward, 0 dots
-  if (global.speed > global.STREAK_AT) {
-    fast = 1;
-  }
-  if (global.speed < -global.STREAK_AT) {
-    fast = -1;
-  }
 
-  # stars
-  for (i = 0; i < global.NUM_STARS; i++) {
-    dx = global.star[i].x - global.cx;
-    dy = global.star[i].y - global.cy;
-    global.star[i].x += dx * global.speed * global.DT;
-    global.star[i].y += dy * global.speed * global.DT;
-    x = global.star[i].x;
-    y = global.star[i].y;
-    r = Math.Sqrt((x - global.cx) * (x - global.cx) + (y - global.cy) * (y - global.cy));
+  # stars. At rest they are all invisible (seen = 0): after one last pass that
+  # hides them, skip the loop, the biggest cost of a frame. The loop runs in
+  # Plymouth's interpreter, where every name and index is a hash lookup (and
+  # star[i] formats i as a string), so: one reference st per star, and per-frame
+  # values worked out once, here. Sprites move with SetX / SetY: SetPosition is a
+  # script function around three calls (their z is set once, at the start), and
+  # an invisible star is not moved at all, as Plymouth redraws any sprite that
+  # moves, seen or not.
+  stars_idle = (global.speed == 0 && global.stars_hidden);
+  global.stars_hidden = (global.speed == 0);
+  spd   = global.speed;
+  move  = spd * global.DT;                       # a star moves by its offset times this
+  ccx   = global.cx;
+  ccy   = global.cy;
+  x_max = global.W + 20;
+  y_max = global.H + 20;
+  backing = (spd < 0);
+  leave_p = global.INFLOW * -spd * global.DT;    # backing off: chance to leave, per frame
+  vanish  = global.core_vanish_r;
+  core_k  = 1 / (global.core_fade_r - vanish);
+  blur    = Math.Abs(spd) * global.DT * global.TRAIL;
+  max_len = global.STREAK_LEN;
+  ease    = global.TAIL_EASE;
+  angles  = global.ANGLES;
+  vis     = seen;
+  for (i = 0; i < global.NUM_STARS && !stars_idle; i++) {
+    st = global.star[i];
+    dx = st.x - ccx;
+    dy = st.y - ccy;
+    dx += dx * move;
+    dy += dy * move;
+    x = ccx + dx;
+    y = ccy + dy;
+    st.x = x;
+    st.y = y;
 
-    # off screen, or pulled back into the core: respawn somewhere random,
-    # so backing off never piles the stars up in the middle
-    if (x < -20 || x > global.W + 20 || y < -20 || y > global.H + 20 ||
-        (global.speed < 0 && r < global.core_vanish_r)) {
+    # Off screen: respawn somewhere random. Backing off packs the stars closer
+    # together everywhere at once (by 2 * speed * DT of the area per frame), so
+    # stars leave for the edges from everywhere, not just the core: a few each
+    # frame, each fading out first. Reaching the vanish radius sends one at once.
+    respawn = 0;
+    if (x < -20 || x > x_max || y < -20 || y > y_max) {
       place_star(i);
-      x = global.star[i].x;
-      y = global.star[i].y;
-      r = Math.Sqrt((x - global.cx) * (x - global.cx) + (y - global.cy) * (y - global.cy));
-    }
-    # dim towards the core: gone by the time a star reaches the vanish radius
-    core = clamp01((r - global.core_vanish_r) / (global.core_fade_r - global.core_vanish_r));
-    if (global.star[i].fade < 1) {
-      global.star[i].fade += 0.04;
-    }
-
-    if (fast != global.star[i].mode) {
-      global.star[i].mode = fast;
-      if (fast != 0) {
-        global.star[i].sprite.SetImage(streak_for(i, fast));
-      } else {
-        global.star[i].sprite.SetImage(global.star[i].dot);
+      respawn = 1;
+    } else if (backing) {
+      if (dx * dx + dy * dy < vanish * vanish) {
+        place_star_at_edge(i);
+        respawn = 1;
+      } else if (st.leaving) {
+        st.fade -= global.LEAVE_STEP;
+        if (st.fade <= 0) {
+          place_star_at_edge(i);
+          respawn = 1;
+        }
+      } else if (Math.Random() < leave_p) {
+        st.leaving = 1;
       }
     }
+    if (respawn) {
+      x = st.x;
+      y = st.y;
+      dx = x - ccx;
+      dy = y - ccy;
+    }
+    r = Math.Sqrt(dx * dx + dy * dy);
+    # dim towards the core: gone by the time a star reaches the vanish radius
+    core = (r - vanish) * core_k;
+    if (core > 1) { core = 1; }
+    if (core < 0) { core = 0; }
+    if (st.leaving) {
+      if (!backing) {                   # moving forward again: stay after all
+        st.leaving = 0;
+      }
+    } else if (st.fade < 1) {
+      st.fade += 0.0333;
+    }
 
-    global.star[i].sprite.SetOpacity(global.star[i].peak * seen * global.star[i].fade * core);
+    # The tail is the star's motion blur: as long as it moves in TRAIL frames, in
+    # star sizes. It eases there, so a burst shows the head first and the tail
+    # after, and when typing stops the tail shrinks away before the head fades.
+    want = blur * r / st.size;
+    if (want > max_len) {
+      want = max_len;
+    }
+    st.len += (want - st.len) * ease;
+    lvl = Math.Int(st.len + 0.5);
+    if (spd > 0) {                      # head leads: outward, or inward backing off
+      st.k = st.k_out;
+    }
+    if (backing) {
+      st.k = st.k_in;
+    }
 
-    if (fast != 0) {
-      global.star[i].sprite.SetPosition(x - global.star[i].sw2, y - global.star[i].sh2, 0);
+    op = st.peak * vis * st.fade * core;
+    if (op < 0.011) {                   # invisible (Plymouth skips it anyway): hide once
+      if (st.lit) {
+        st.lit = 0;
+        st.tail_on = 0;
+        st.sprite.SetOpacity(0);
+        st.tail.SetOpacity(0);
+      }
     } else {
-      global.star[i].sprite.SetPosition(x - global.star[i].half, y - global.star[i].half, 0);
+      st.lit = 1;
+      st.sprite.SetX(x - st.half);
+      st.sprite.SetY(y - st.half);
+      st.sprite.SetOpacity(op);
+      if (lvl == 0) {
+        if (st.tail_on) {
+          st.tail_on = 0;
+          st.tail.SetOpacity(0);
+        }
+      } else {
+        n = (st.z * max_len + lvl - 1) * angles + st.k;
+        if (st.shown != n) {            # a new tail: look it up once, keep its head point
+          st.shown = n;
+          st.tail.SetImage(global.tail_img[n]);
+          st.hx = global.tail_hx[n];
+          st.hy = global.tail_hy[n];
+        }
+        st.tail_on = 1;
+        st.tail.SetX(x - st.hx);
+        st.tail.SetY(y - st.hy);
+        st.tail.SetOpacity(op);
+      }
     }
   }
 
@@ -274,7 +449,7 @@ fun refresh_callback() {
       global.ring[r].sprite.SetImage(img);
       global.ring[r].sprite.SetPosition(global.dish_x - img.GetWidth() / 2, global.dish_y - img.GetHeight() / 2, 5);
       global.ring[r].sprite.SetOpacity(0.9 * (1 - f / global.RING_FRAMES));
-      global.ring[r].f += 0.6 * global.ring[r].dir;
+      global.ring[r].f += 0.5 * global.ring[r].dir;
       if (global.ring[r].f >= global.RING_FRAMES || global.ring[r].f < 0) {
         global.ring[r].active = 0;
         global.ring[r].sprite.SetOpacity(0);
@@ -282,24 +457,41 @@ fun refresh_callback() {
     }
   }
 
-  # probe shake (wrong passphrase)
-  global.shake = global.shake * 0.9;
-  ox = Math.Sin(global.t * 70) * global.shake;
-  global.logo_sprite.SetPosition(global.logo_x + ox, global.logo_y, 10);
+  # probe shake (wrong passphrase): settles, then stops for good (and so stops
+  # redrawing the probe) once under half a pixel
+  if (global.shake > 0) {
+    global.shake = global.shake * global.SHAKE_DECAY;
+    if (global.shake < 0.5) {
+      global.shake = 0;
+    }
+    place_probe(Math.Sin(global.t * 70) * global.shake);
+  }
 
-  # red flash (wrong passphrase)
-  if (global.flash_a > 0.005) {
-    global.flash_a = global.flash_a * 0.92;
+  # red flash (wrong passphrase), over the probe: its opacity changes in steps of
+  # 1/24 (about a dozen redraws of the probe in all), not every frame
+  if (global.flash_a > 0.02) {
+    global.flash_a = global.flash_a * 0.933;
   } else {
     global.flash_a = 0;
   }
-  global.flash_sprite.SetOpacity(global.flash_a);
+  global.flash_sprite.SetOpacity(Math.Int(global.flash_a * 24 + 0.5) / 24);
 
   # hint text fade
-  global.hint_a += (global.hint_target - global.hint_a) * 0.1;
+  # (snapped once close, so it stops redrawing)
+  global.hint_a += (global.hint_target - global.hint_a) * 0.084;
+  if (Math.Abs(global.hint_target - global.hint_a) < 0.01) {
+    global.hint_a = global.hint_target;
+  }
   global.hint_sprite.SetOpacity(global.hint_a);
 }
+Plymouth.SetRefreshRate(FPS);
 Plymouth.SetRefreshFunction(refresh_callback);
+
+# the probe and its red flash, ox pixels from their place
+fun place_probe(ox) {
+  global.logo_sprite.SetPosition(global.logo_x + ox, global.logo_y, 10);
+  global.flash_sprite.SetPosition(global.logo_x + ox, global.logo_y, 11);
+}
 
 # ================= password input =================
 fun display_password_callback(prompt, bullets) {
@@ -308,11 +500,15 @@ fun display_password_callback(prompt, bullets) {
     global.submitted = 0;
     global.warping = 0;
     global.speed = -1.5;
-    global.flash_a = 0.35;
-    global.shake = 14;
+    global.flash_a = 0.6;
+    global.shake = global.SHAKE_PX;
     global.prev = 0;
   }
 
+  if (bullets != global.prev && global.shake > 0) {   # any key stops the shake
+    global.shake = 0;
+    place_probe(0);
+  }
   if (bullets > global.prev) {          # character typed
     global.speed += global.KEY_BOOST;
     if (global.speed > 5) {
