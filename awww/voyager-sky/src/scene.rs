@@ -30,8 +30,8 @@ use crate::data::SkyData;
 use crate::figures::Figures;
 use crate::render::{Frame, Renderer, Shape, Target, TextCtx, CIRCLE_SEGS, PROBE_PX};
 use crate::view::{
-    self as view, angle, cross, dot, ease_basis, ecliptic_lon, ecliptic_point, neg, normalize, pin, pin_free, radec,
-    rotate_basis, turn_basis_to, Basis, Proj, View, V3,
+    self as view, angle, cross, dot, ease_basis, ecliptic_lon, ecliptic_point, neg, normalize, pin,
+    pin_free, radec, rotate_basis, turn_basis_to, Basis, Proj, View, V3,
 };
 
 /// A constellation this close to the cursor (logical pixels) lights up.
@@ -40,7 +40,9 @@ const HOVER_PX: f64 = 120.0;
 /// angle of the middle of the view.
 const ZODIAC_FIGURE_DEG: f64 = 15.0;
 /// The twelve signs the tour passes, by constellation abbreviation.
-const ZODIAC: [&str; 12] = ["Ari", "Tau", "Gem", "Cnc", "Leo", "Vir", "Lib", "Sco", "Sgr", "Cap", "Aqr", "Psc"];
+const ZODIAC: [&str; 12] = [
+    "Ari", "Tau", "Gem", "Cnc", "Leo", "Vir", "Lib", "Sco", "Sgr", "Cap", "Aqr", "Psc",
+];
 /// With C or S on, a named star shows its name when the cursor is this close (logical px).
 const STAR_HOVER_PX: f64 = 60.0;
 /// A star's name sits this far right of the star (logical px).
@@ -104,11 +106,17 @@ impl Geom {
     }
 
     pub fn middle(&self) -> (f64, f64) {
-        (self.origin.0 + self.size.0 as f64 / 2.0, self.origin.1 + self.size.1 as f64 / 2.0)
+        (
+            self.origin.0 + self.size.0 as f64 / 2.0,
+            self.origin.1 + self.size.1 as f64 / 2.0,
+        )
     }
 
     pub fn pixels(&self) -> (u32, u32) {
-        (self.size.0 * self.scale as u32, self.size.1 * self.scale as u32)
+        (
+            self.size.0 * self.scale as u32,
+            self.size.1 * self.scale as u32,
+        )
     }
 }
 
@@ -230,12 +238,19 @@ struct Knob {
 fn axis_dir(k: usize) -> V3 {
     let mut a = [0.0; 3];
     a[k % 3] = 1.0;
-    if k < 3 { a } else { neg(a) }
+    if k < 3 {
+        a
+    } else {
+        neg(a)
+    }
 }
 
 fn ball_center(size: (u32, u32)) -> (f32, f32) {
     // clear of the chip row: its 24 px margin, 26 px height, then a 12 px gap
-    (size.0 as f32 - BALL_MARGIN - BALL_R, size.1 as f32 - 24.0 - 26.0 - 12.0 - BALL_R)
+    (
+        size.0 as f32 - BALL_MARGIN - BALL_R,
+        size.1 as f32 - 24.0 - 26.0 - 12.0 - BALL_R,
+    )
 }
 
 pub struct Scene {
@@ -294,7 +309,12 @@ pub struct Scene {
 fn make_text(ctx: &mut TextCtx, s: &str, px: f32) -> (Buffer, (f32, f32)) {
     let mut b = Buffer::new(&mut ctx.font_system, Metrics::new(px, px * 1.3));
     b.set_size(&mut ctx.font_system, None, None);
-    b.set_text(&mut ctx.font_system, s, &Attrs::new().family(Family::Name(FONT)), Shaping::Advanced);
+    b.set_text(
+        &mut ctx.font_system,
+        s,
+        &Attrs::new().family(Family::Name(FONT)),
+        Shaping::Advanced,
+    );
     b.shape_until_scroll(&mut ctx.font_system, false);
     let (mut w, mut h) = (0f32, 0f32);
     for run in b.layout_runs() {
@@ -315,9 +335,18 @@ impl Scene {
         let mut label = |en: &str, zh: &str| {
             let (zh, zh_size) = make_text(&mut text, zh, LABEL_PX);
             let (en, en_size) = make_text(&mut text, en, LABEL_PX);
-            Label { zh, en, zh_size, en_size }
+            Label {
+                zh,
+                en,
+                zh_size,
+                en_size,
+            }
         };
-        let labels = sky.constellations.iter().map(|c| label(&c.en, &c.zh)).collect();
+        let labels = sky
+            .constellations
+            .iter()
+            .map(|c| label(&c.en, &c.zh))
+            .collect();
         let probes = PROBE_NAMES.iter().map(|[en, zh]| label(en, zh)).collect();
         let star_labels = STARS.iter().map(|st| label(st.en, st.zh)).collect();
         let asterism_labels = ASTERISMS.iter().map(|a| label(a.en, a.zh)).collect();
@@ -328,11 +357,22 @@ impl Scene {
                 ChipText { text, size }
             })
             .collect();
-        let seg_con: Vec<usize> =
-            sky.constellations.iter().enumerate().flat_map(|(i, c)| std::iter::repeat_n(i, c.lines.len())).collect();
+        let seg_con: Vec<usize> = sky
+            .constellations
+            .iter()
+            .enumerate()
+            .flat_map(|(i, c)| std::iter::repeat_n(i, c.lines.len()))
+            .collect();
         let n = sky.constellations.len();
-        let zodiac = ZODIAC.iter().filter_map(|a| sky.constellations.iter().position(|c| c.abbr == *a)).collect();
-        let figures = Figures::new((0..sky.constellations.len()).map(|i| sky.figure_path(i)).collect());
+        let zodiac = ZODIAC
+            .iter()
+            .filter_map(|a| sky.constellations.iter().position(|c| c.abbr == *a))
+            .collect();
+        let figures = Figures::new(
+            (0..sky.constellations.len())
+                .map(|i| sky.figure_path(i))
+                .collect(),
+        );
         let mut s = Scene {
             renderer,
             text,
@@ -360,7 +400,14 @@ impl Scene {
             tour_hover: false,
             zodiac,
             figures,
-            texts: Texts { labels, chips: Vec::new(), probes, axes, stars: star_labels, asterisms: asterism_labels },
+            texts: Texts {
+                labels,
+                chips: Vec::new(),
+                probes,
+                axes,
+                stars: star_labels,
+                asterisms: asterism_labels,
+            },
             glow: vec![0.0; n],
             probe: [0.0; 2],
             controls: 1.0,
@@ -444,18 +491,27 @@ impl Scene {
             return;
         }
         let local = ((p.0 - g.origin.0) as f32, (p.1 - g.origin.1) as f32);
-        let hit = self
-            .chip_rects(g.size)
-            .iter()
-            .position(|&(x, y, w, h)| local.0 >= x && local.0 <= x + w && local.1 >= y && local.1 <= y + h);
+        let hit = self.chip_rects(g.size).iter().position(|&(x, y, w, h)| {
+            local.0 >= x && local.0 <= x + w && local.1 >= y && local.1 <= y + h
+        });
         if let Some(i) = hit {
             return self.press_chip(Chip::ALL[i]);
         }
         let dist = |q: (f32, f32)| (local.0 - q.0).hypot(local.1 - q.1);
-        let knob = self.knobs(g.size).into_iter().rev().find(|k| dist(k.pos) <= knob_r(k.axis) + 2.0).map(|k| k.axis);
+        let knob = self
+            .knobs(g.size)
+            .into_iter()
+            .rev()
+            .find(|k| dist(k.pos) <= knob_r(k.axis) + 2.0)
+            .map(|k| k.axis);
         if knob.is_some() || dist(ball_center(g.size)) <= BALL_R {
             self.stop_tour();
-            self.ball = Some(BallPress { axis: knob, at: p, last: p, moved: false });
+            self.ball = Some(BallPress {
+                axis: knob,
+                at: p,
+                last: p,
+                moved: false,
+            });
             return;
         }
         self.stop_tour();
@@ -468,7 +524,12 @@ impl Scene {
         self.touch();
         self.cursor = Some(p);
         self.grab = None;
-        if let Some(BallPress { axis: Some(k), moved: false, .. }) = self.ball.take() {
+        if let Some(BallPress {
+            axis: Some(k),
+            moved: false,
+            ..
+        }) = self.ball.take()
+        {
             self.snap_to_axis(k);
         }
     }
@@ -514,7 +575,14 @@ impl Scene {
     /// R, and going back to Turntable: turn the sky smoothly back to north-up.
     pub fn level(&mut self) {
         if self.nav == Nav::Turntable && self.view.roll != 0.0 {
-            self.motion = Some(Motion::Snap { to: View { roll: 0.0, ..self.view }.basis(), fov: self.view.fov });
+            self.motion = Some(Motion::Snap {
+                to: View {
+                    roll: 0.0,
+                    ..self.view
+                }
+                .basis(),
+                fov: self.view.fov,
+            });
         }
     }
 
@@ -530,7 +598,12 @@ impl Scene {
     fn orbit(&mut self, d: (f64, f64)) {
         let k = ORBIT_DEG_PER_PX;
         self.view = match self.nav {
-            Nav::Turntable => View { ra: self.view.ra + d.0 * k, dec: self.view.dec + d.1 * k, ..self.view }.clamped(),
+            Nav::Turntable => View {
+                ra: self.view.ra + d.0 * k,
+                dec: self.view.dec + d.1 * k,
+                ..self.view
+            }
+            .clamped(),
             Nav::Trackball => {
                 let b = self.view.basis();
                 let b = rotate_basis(b, b.1, (d.0 * k).to_radians());
@@ -550,12 +623,22 @@ impl Scene {
         let (ra, dec) = radec(a);
         // at a pole the RA is arbitrary: keep the current one
         let ra = if dec.abs() > 89.9 { self.view.ra } else { ra };
-        let level = View { ra, dec, fov: self.view.fov, roll: 0.0 }.basis();
+        let level = View {
+            ra,
+            dec,
+            fov: self.view.fov,
+            roll: 0.0,
+        }
+        .basis();
         let to = match self.nav {
             Nav::Turntable => level,
             Nav::Trackball => {
                 // keep screen-up as close to what it is as the new forward allows
-                let up = [n[0] - dot(n, a) * a[0], n[1] - dot(n, a) * a[1], n[2] - dot(n, a) * a[2]];
+                let up = [
+                    n[0] - dot(n, a) * a[0],
+                    n[1] - dot(n, a) * a[1],
+                    n[2] - dot(n, a) * a[2],
+                ];
                 if dot(up, up) < 1e-6 {
                     level
                 } else {
@@ -564,7 +647,10 @@ impl Scene {
                 }
             }
         };
-        self.motion = Some(Motion::Snap { to, fov: self.view.fov });
+        self.motion = Some(Motion::Snap {
+            to,
+            fov: self.view.fov,
+        });
     }
 
     /// Drawn brighter: lines while they are on, and the language chip always.
@@ -632,11 +718,19 @@ impl Scene {
             return 0.0;
         }
         let (x, y, z) = self.proj().project(self.star_pos[i]);
-        if z > -0.3 && (x - c.0).hypot(y - c.1) < STAR_HOVER_PX { 1.0 } else { 0.0 }
+        if z > -0.3 && (x - c.0).hypot(y - c.1) < STAR_HOVER_PX {
+            1.0
+        } else {
+            0.0
+        }
     }
 
     fn asterism_target(&self) -> f32 {
-        if self.stars_on { 0.7 } else { 0.0 }
+        if self.stars_on {
+            0.7
+        } else {
+            0.0
+        }
     }
 
     fn glow_target(&self, i: usize) -> f32 {
@@ -695,19 +789,35 @@ impl Scene {
     /// How visible each figure slot should be: only the one holding the target shows.
     fn figure_alpha_target(&self, slot: usize) -> f32 {
         let want = self.figure_target();
-        if want.is_some() && self.renderer.figure_id(slot) == want { 1.0 } else { 0.0 }
+        if want.is_some() && self.renderer.figure_id(slot) == want {
+            1.0
+        } else {
+            0.0
+        }
     }
 
     fn ecliptic_target(&self) -> f32 {
-        if self.ecliptic_on { 0.6 } else { 0.0 }
+        if self.ecliptic_on {
+            0.6
+        } else {
+            0.0
+        }
     }
 
     fn equator_target(&self) -> f32 {
-        if self.equator_on { 0.6 } else { 0.0 }
+        if self.equator_on {
+            0.6
+        } else {
+            0.0
+        }
     }
 
     fn controls_target(&self) -> f32 {
-        if self.touring() { 0.0 } else { 1.0 }
+        if self.touring() {
+            0.0
+        } else {
+            1.0
+        }
     }
 
     /// Trackball, left alone for IDLE, nothing else moving: time for the zodiac tour.
@@ -739,7 +849,8 @@ impl Scene {
     /// With the lines on, how long until the flicker needs its next frame (zero when it
     /// is due); None when the lines are off.
     pub fn flicker_due_in(&self) -> Option<Duration> {
-        self.lines_on.then(|| FLICKER_FRAME.saturating_sub(self.last.elapsed()))
+        self.lines_on
+            .then(|| FLICKER_FRAME.saturating_sub(self.last.elapsed()))
     }
 
     /// The constellation whose figure passes closest to the cursor, if close enough.
@@ -756,7 +867,11 @@ impl Scene {
                 }
                 let (dx, dy) = (pb.0 - pa.0, pb.1 - pa.1);
                 let l2 = dx * dx + dy * dy;
-                let t = if l2 > 0.0 { (((c.0 - pa.0) * dx + (c.1 - pa.1) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
+                let t = if l2 > 0.0 {
+                    (((c.0 - pa.0) * dx + (c.1 - pa.1) * dy) / l2).clamp(0.0, 1.0)
+                } else {
+                    0.0
+                };
                 let d = (pa.0 + t * dx - c.0).hypot(pa.1 + t * dy - c.1);
                 if d < best.0 {
                     best = (d, Some(i));
@@ -775,7 +890,11 @@ impl Scene {
 
         if self.tour_due() {
             let lon0 = ecliptic_lon(self.view.basis().2);
-            self.motion = Some(Motion::Tour { lon0, t0: now, fov: self.view.fov.max(TOUR_FOV) });
+            self.motion = Some(Motion::Tour {
+                lon0,
+                t0: now,
+                fov: self.view.fov.max(TOUR_FOV),
+            });
             self.tour_hover = false;
         }
         if let Some(m) = self.motion {
@@ -789,7 +908,11 @@ impl Scene {
             }
         };
 
-        self.hovered = if self.lines_on || self.figures_on { self.nearest() } else { None };
+        self.hovered = if self.lines_on || self.figures_on {
+            self.nearest()
+        } else {
+            None
+        };
         self.load_figure();
         for k in 0..2 {
             let mut alpha = self.renderer.figure_alpha(k);
@@ -823,7 +946,11 @@ impl Scene {
             let (g, ph) = (self.glow[c], self.phase[c]);
             let period = 6.0 + 4.0 * ph;
             let flicker = 0.75 + 0.25 * (t * std::f32::consts::TAU / period + ph * 40.0).sin();
-            self.line_alpha[j] = if Some(c) == lit { g * 0.95 } else { g * 0.7 * flicker };
+            self.line_alpha[j] = if Some(c) == lit {
+                g * 0.95
+            } else {
+                g * 0.7 * flicker
+            };
         }
         let n = self.seg_con.len();
         self.line_alpha[n..n + CIRCLE_SEGS].fill(self.ecliptic);
@@ -837,14 +964,23 @@ impl Scene {
     /// Have the target figure in a slot: from the cache at once, or once it has loaded
     /// (drag mode loads in the background, see `load_figures_in_background`).
     fn load_figure(&mut self) {
-        let Some(want) = self.figure_target() else { return };
+        let Some(want) = self.figure_target() else {
+            return;
+        };
         if (0..2).any(|k| self.renderer.figure_id(k) == Some(want)) {
             return;
         }
-        let Some(mips) = self.figures.get(want) else { return };
-        let slot = if self.renderer.figure_alpha(0) <= self.renderer.figure_alpha(1) { 0 } else { 1 };
+        let Some(mips) = self.figures.get(want) else {
+            return;
+        };
+        let slot = if self.renderer.figure_alpha(0) <= self.renderer.figure_alpha(1) {
+            0
+        } else {
+            1
+        };
         let c = &self.sky.constellations[want];
-        self.renderer.set_figure(slot, want, &mips, c.centre, c.half);
+        self.renderer
+            .set_figure(slot, want, &mips, c.centre, c.half);
     }
 
     /// Load figures on a thread of their own from now on (drag mode); stills load
@@ -865,13 +1001,20 @@ impl Scene {
                 let t = (now - t0).as_secs_f64();
                 let f = ecliptic_point(lon0 + TOUR_DEG_PER_S * t);
                 let ramp = (t / TOUR_RAMP).min(1.0);
-                (turn_basis_to(self.view.basis(), f), fov, TOUR_RATE * (ramp * ramp * (3.0 - 2.0 * ramp)).max(0.02))
+                (
+                    turn_basis_to(self.view.basis(), f),
+                    fov,
+                    TOUR_RATE * (ramp * ramp * (3.0 - 2.0 * ramp)).max(0.02),
+                )
             }
         };
         let k = 1.0 - (-dt * rate).exp();
         let (b, left) = ease_basis(self.view.basis(), to, k);
         let new_fov = self.view.fov + (fov - self.view.fov) * k;
-        if matches!(m, Motion::Snap { .. }) && left < 0.05_f64.to_radians() && (fov - new_fov).abs() < 0.05 {
+        if matches!(m, Motion::Snap { .. })
+            && left < 0.05_f64.to_radians()
+            && (fov - new_fov).abs() < 0.05
+        {
             self.view = View::from_basis(to, fov);
             self.motion = None;
         } else {
@@ -904,8 +1047,15 @@ impl Scene {
             .map(|axis| {
                 let a = axis_dir(axis);
                 // east is left and north up, as on the sky
-                let pos = (c.0 - AXIS_LEN * dot(a, e) as f32, c.1 - AXIS_LEN * dot(a, n) as f32);
-                Knob { axis, pos, depth: dot(a, f) }
+                let pos = (
+                    c.0 - AXIS_LEN * dot(a, e) as f32,
+                    c.1 - AXIS_LEN * dot(a, n) as f32,
+                );
+                Knob {
+                    axis,
+                    pos,
+                    depth: dot(a, f),
+                }
             })
             .collect();
         out.sort_by(|a, b| a.depth.total_cmp(&b.depth));
@@ -917,7 +1067,8 @@ impl Scene {
         let frame = self.prepare(g);
         let specs = self.text_specs(g);
         let areas = areas(&self.texts, self.zh, &specs, g);
-        self.renderer.draw(target, view, &frame, Some(&mut self.text), areas);
+        self.renderer
+            .draw(target, view, &frame, Some(&mut self.text), areas);
     }
 
     /// Like draw, but into a PNG (`export --overlay`).
@@ -926,7 +1077,8 @@ impl Scene {
         let mut target = self.renderer.target(Some(&mut self.text));
         let specs = self.text_specs(g);
         let areas = areas(&self.texts, self.zh, &specs, g);
-        self.renderer.export_with(&mut target, &frame, Some(&mut self.text), areas, path)
+        self.renderer
+            .export_with(&mut target, &frame, Some(&mut self.text), areas, path)
     }
 
     /// Monitor `g`'s frame, with the chips and the ball handed to the renderer.
@@ -940,7 +1092,10 @@ impl Scene {
         let sc = g.scale as f64;
         let pr = self.proj();
         let mut proj = pr;
-        proj.center = ((pr.center.0 - g.origin.0) * sc, (pr.center.1 - g.origin.1) * sc);
+        proj.center = (
+            (pr.center.0 - g.origin.0) * sc,
+            (pr.center.1 - g.origin.1) * sc,
+        );
         proj.scale *= sc;
         let frame = Frame {
             proj,
@@ -964,32 +1119,71 @@ impl Scene {
                     at((x + w - r, y + r)),
                     r * sc,
                     [pal.ink[0], pal.ink[1], pal.ink[2], 0.62],
-                    [pal.indigo[0], pal.indigo[1], pal.indigo[2], if self.chip_lit(chip) { 0.85 } else { 0.35 }],
+                    [
+                        pal.indigo[0],
+                        pal.indigo[1],
+                        pal.indigo[2],
+                        if self.chip_lit(chip) { 0.85 } else { 0.35 },
+                    ],
                 )
             })
             .collect();
 
         // the navigation ball: brighter under the cursor
         let c = ball_center(g.size);
-        let local = self.cursor.map(|p| ((p.0 - g.origin.0) as f32, (p.1 - g.origin.1) as f32));
+        let local = self
+            .cursor
+            .map(|p| ((p.0 - g.origin.0) as f32, (p.1 - g.origin.1) as f32));
         let near = |q: (f32, f32), r: f32| local.is_some_and(|l| (l.0 - q.0).hypot(l.1 - q.1) <= r);
         let hot = near(c, BALL_R) || self.ball.is_some_and(|b| b.moved);
         shapes.push(Shape::capsule(
             at(c),
             at(c),
             BALL_R * sc,
-            [pal.ink[0], pal.ink[1], pal.ink[2], if hot { 0.55 } else { 0.35 }],
-            [pal.indigo[0], pal.indigo[1], pal.indigo[2], if hot { 0.7 } else { 0.3 }],
+            [
+                pal.ink[0],
+                pal.ink[1],
+                pal.ink[2],
+                if hot { 0.55 } else { 0.35 },
+            ],
+            [
+                pal.indigo[0],
+                pal.indigo[1],
+                pal.indigo[2],
+                if hot { 0.7 } else { 0.3 },
+            ],
         ));
         for k in self.knobs(g.size) {
             let [r, gr, b] = AXIS_COL[k.axis % 3];
-            let ring = if near(k.pos, knob_r(k.axis) + 2.0) { [1.0, 1.0, 1.0, 0.9] } else { [r, gr, b, 0.0] };
+            let ring = if near(k.pos, knob_r(k.axis) + 2.0) {
+                [1.0, 1.0, 1.0, 0.9]
+            } else {
+                [r, gr, b, 0.0]
+            };
             if k.axis < 3 {
-                shapes.push(Shape::capsule(at(c), at(k.pos), 1.1 * sc, [r, gr, b, 0.85], [0.0; 4]));
-                shapes.push(Shape::capsule(at(k.pos), at(k.pos), KNOB_R * sc, [r, gr, b, 1.0], ring));
+                shapes.push(Shape::capsule(
+                    at(c),
+                    at(k.pos),
+                    1.1 * sc,
+                    [r, gr, b, 0.85],
+                    [0.0; 4],
+                ));
+                shapes.push(Shape::capsule(
+                    at(k.pos),
+                    at(k.pos),
+                    KNOB_R * sc,
+                    [r, gr, b, 1.0],
+                    ring,
+                ));
             } else {
                 let ring = if ring[3] > 0.0 { ring } else { [r, gr, b, 0.8] };
-                shapes.push(Shape::capsule(at(k.pos), at(k.pos), NEG_KNOB_R * sc, [r, gr, b, 0.25], ring));
+                shapes.push(Shape::capsule(
+                    at(k.pos),
+                    at(k.pos),
+                    NEG_KNOB_R * sc,
+                    [r, gr, b, 0.25],
+                    ring,
+                ));
             }
         }
         // faded out during the tour
@@ -1016,7 +1210,12 @@ impl Scene {
             }
             let (x, y, z) = pr.project(con.label);
             let (x, y) = ((x - g.origin.0) as f32, (y - g.origin.1) as f32);
-            if z < 0.0 || x < -200.0 || y < -50.0 || x > g.size.0 as f32 + 200.0 || y > g.size.1 as f32 + 50.0 {
+            if z < 0.0
+                || x < -200.0
+                || y < -50.0
+                || x > g.size.0 as f32 + 200.0
+                || y > g.size.1 as f32 + 50.0
+            {
                 continue;
             }
             let lab = &self.texts.labels[c];
@@ -1025,7 +1224,11 @@ impl Scene {
                 which: Which::Label(c),
                 left: (x - bw / 2.0) * sc,
                 top: (y - bh / 2.0) * sc,
-                colour: if Some(c) == lit { rgba([1.0, 1.0, 1.0], gl) } else { rgba(mist, gl * 0.8) },
+                colour: if Some(c) == lit {
+                    rgba([1.0, 1.0, 1.0], gl)
+                } else {
+                    rgba(mist, gl * 0.8)
+                },
             });
         }
         // the asterisms' names, in amber like their outlines, in the middle of each
@@ -1034,7 +1237,12 @@ impl Scene {
             for (k, a) in ASTERISMS.iter().enumerate() {
                 let (x, y, z) = pr.project(asterisms::label_pos(a));
                 let (x, y) = ((x - g.origin.0) as f32, (y - g.origin.1) as f32);
-                if z < 0.0 || x < -300.0 || y < -50.0 || x > g.size.0 as f32 + 300.0 || y > g.size.1 as f32 + 50.0 {
+                if z < 0.0
+                    || x < -300.0
+                    || y < -50.0
+                    || x > g.size.0 as f32 + 300.0
+                    || y > g.size.1 as f32 + 50.0
+                {
                     continue;
                 }
                 let lab = &self.texts.asterisms[k];
@@ -1093,7 +1301,14 @@ impl Scene {
                 which: Which::Chip(k),
                 left: (x + (rw - size.0) / 2.0) * sc,
                 top: (y + (rh - size.1) / 2.0) * sc,
-                colour: rgba(mist, if self.chip_lit(Chip::ALL[k]) { 0.95 } else { 0.6 } * self.controls),
+                colour: rgba(
+                    mist,
+                    if self.chip_lit(Chip::ALL[k]) {
+                        0.95
+                    } else {
+                        0.6
+                    } * self.controls,
+                ),
             });
         }
         if self.controls < 0.01 {
@@ -1108,12 +1323,21 @@ impl Scene {
 }
 
 fn knob_r(axis: usize) -> f32 {
-    if axis < 3 { KNOB_R } else { NEG_KNOB_R }
+    if axis < 3 {
+        KNOB_R
+    } else {
+        NEG_KNOB_R
+    }
 }
 
 fn areas<'a>(t: &'a Texts, zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'a>> {
     let (w, h) = g.pixels();
-    let bounds = TextBounds { left: 0, top: 0, right: w as i32, bottom: h as i32 };
+    let bounds = TextBounds {
+        left: 0,
+        top: 0,
+        right: w as i32,
+        bottom: h as i32,
+    };
     specs
         .iter()
         .map(|s| TextArea {
@@ -1139,7 +1363,6 @@ fn areas<'a>(t: &'a Texts, zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'
         .collect()
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1158,8 +1381,14 @@ mod tests {
 
     #[test]
     fn only_taking_hold_of_the_sky_stops_the_tour() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
-        let g = Geom { origin: (0.0, 0.0), size: (1920, 1080), scale: 1 };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
+        let g = Geom {
+            origin: (0.0, 0.0),
+            size: (1920, 1080),
+            scale: 1,
+        };
         assert_eq!(s.nav, Nav::Trackball, "drag mode opens in Trackball");
         s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
         s.update(Some(0.016));
@@ -1168,7 +1397,14 @@ mod tests {
         // moving the mouse, keys and chips leave it running
         s.pointer_moved((100.0, 300.0));
         s.pointer_moved((140.0, 320.0));
-        for chip in [Chip::Lines, Chip::Stars, Chip::Figures, Chip::Ecliptic, Chip::Equator, Chip::Lang] {
+        for chip in [
+            Chip::Lines,
+            Chip::Stars,
+            Chip::Figures,
+            Chip::Ecliptic,
+            Chip::Equator,
+            Chip::Lang,
+        ] {
             s.key_input();
             s.press_chip(chip);
         }
@@ -1176,9 +1412,13 @@ mod tests {
         assert!(s.touring(), "tour should keep going");
 
         // scrolling zooms the tour, without stopping it
-        let Some(Motion::Tour { fov: before, .. }) = s.motion else { unreachable!() };
+        let Some(Motion::Tour { fov: before, .. }) = s.motion else {
+            unreachable!()
+        };
         s.zoom((500.0, 500.0), -2.0);
-        let Some(Motion::Tour { fov: after, .. }) = s.motion else { panic!("scroll stopped the tour") };
+        let Some(Motion::Tour { fov: after, .. }) = s.motion else {
+            panic!("scroll stopped the tour")
+        };
         assert!(after < before);
 
         // the chips and the ball fade out
@@ -1201,11 +1441,28 @@ mod tests {
 
     #[test]
     fn figures_follow_the_cursor_or_the_zodiac() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
-        let ori = s.sky.constellations.iter().position(|c| c.abbr == "Ori").unwrap();
-        let leo = s.sky.constellations.iter().position(|c| c.abbr == "Leo").unwrap();
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
+        let ori = s
+            .sky
+            .constellations
+            .iter()
+            .position(|c| c.abbr == "Ori")
+            .unwrap();
+        let leo = s
+            .sky
+            .constellations
+            .iter()
+            .position(|c| c.abbr == "Leo")
+            .unwrap();
         let (ra, dec) = radec(s.sky.constellations[ori].centre);
-        s.view = View { ra, dec, fov: 90.0, roll: 0.0 };
+        s.view = View {
+            ra,
+            dec,
+            fov: 90.0,
+            roll: 0.0,
+        };
         s.pointer_moved(s.center);
         s.update(Some(0.016));
         assert_eq!(s.figure_target(), None, "F is off");
@@ -1217,7 +1474,10 @@ mod tests {
         for _ in 0..30 {
             s.update(Some(0.1));
         }
-        let shown: Vec<f32> = (0..2).map(|k| s.renderer.figure_alpha(k)).filter(|&a| a > 0.0).collect();
+        let shown: Vec<f32> = (0..2)
+            .map(|k| s.renderer.figure_alpha(k))
+            .filter(|&a| a > 0.0)
+            .collect();
         assert_eq!(shown, vec![1.0], "one figure, fully shown");
 
         // case 2: the tour starts with the cursor resting: the zodiac sign in the middle
@@ -1245,8 +1505,15 @@ mod tests {
 
     #[test]
     fn the_tour_lights_the_passing_sign() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
-        let leo = s.sky.constellations.iter().position(|c| c.abbr == "Leo").unwrap();
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
+        let leo = s
+            .sky
+            .constellations
+            .iter()
+            .position(|c| c.abbr == "Leo")
+            .unwrap();
         s.pointer_moved(s.center);
         s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
         s.update(Some(0.016));
@@ -1268,10 +1535,17 @@ mod tests {
 
     #[test]
     fn star_names_show_near_the_cursor_with_c_or_s_on() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
         let polaris = STARS.iter().position(|st| st.en == "Polaris").unwrap();
         let vega = STARS.iter().position(|st| st.en == "Vega").unwrap();
-        s.view = View { ra: 37.955, dec: 89.264, fov: 90.0, roll: 0.0 };
+        s.view = View {
+            ra: 37.955,
+            dec: 89.264,
+            fov: 90.0,
+            roll: 0.0,
+        };
         s.pointer_moved((s.center.0 + 20.0, s.center.1));
         assert_eq!(s.star_name_target(polaris), 0.0, "C and S are off");
         s.press_chip(Chip::Stars);
@@ -1286,14 +1560,19 @@ mod tests {
 
     #[test]
     fn s_shows_the_asterisms() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
         let n = s.seg_con.len() + 2 * CIRCLE_SEGS;
         s.press_chip(Chip::Stars);
         for _ in 0..30 {
             s.update(Some(0.1));
         }
         assert!(s.line_alpha[n..].iter().all(|&a| a > 0.5));
-        assert!(s.line_alpha[..n].iter().all(|&a| a == 0.0), "C, E and Q stay off");
+        assert!(
+            s.line_alpha[..n].iter().all(|&a| a == 0.0),
+            "C, E and Q stay off"
+        );
         s.press_chip(Chip::Stars);
         for _ in 0..30 {
             s.update(Some(0.1));
@@ -1303,7 +1582,9 @@ mod tests {
 
     #[test]
     fn switching_to_turntable_stops_the_tour() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
         s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
         s.update(Some(0.016));
         assert!(s.touring());

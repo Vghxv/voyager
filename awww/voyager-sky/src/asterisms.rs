@@ -101,15 +101,35 @@ pub const ASTERISMS: [Asterism; 8] = [
         paths: &[&[ALKAID, MIZAR, ALIOTH, MEGREZ, PHECDA, MERAK, DUBHE, MEGREZ]],
     },
     // the handle's arc carried on to Arcturus and Spica (the handle itself is the Dipper's)
-    Asterism { en: "Spring Arc", zh: "春季大曲線", paths: &[&[ALKAID, ARCTURUS, SPICA]] },
-    Asterism { en: "Spring Triangle", zh: "春季大三角", paths: &[&[DENEBOLA, ARCTURUS, SPICA, DENEBOLA]] },
-    Asterism { en: "Summer Triangle", zh: "夏季大三角", paths: &[&[VEGA, ALTAIR, DENEB, VEGA]] },
+    Asterism {
+        en: "Spring Arc",
+        zh: "春季大曲線",
+        paths: &[&[ALKAID, ARCTURUS, SPICA]],
+    },
+    Asterism {
+        en: "Spring Triangle",
+        zh: "春季大三角",
+        paths: &[&[DENEBOLA, ARCTURUS, SPICA, DENEBOLA]],
+    },
+    Asterism {
+        en: "Summer Triangle",
+        zh: "夏季大三角",
+        paths: &[&[VEGA, ALTAIR, DENEB, VEGA]],
+    },
     Asterism {
         en: "Teapot",
         zh: "茶壺",
         paths: &[
             // spout and body
-            &[KAUS_AUSTRALIS, ALNASL, KAUS_MEDIA, KAUS_AUSTRALIS, ASCELLA, PHI_SGR, KAUS_MEDIA],
+            &[
+                KAUS_AUSTRALIS,
+                ALNASL,
+                KAUS_MEDIA,
+                KAUS_AUSTRALIS,
+                ASCELLA,
+                PHI_SGR,
+                KAUS_MEDIA,
+            ],
             // lid
             &[KAUS_MEDIA, KAUS_BOREALIS, PHI_SGR],
             // handle
@@ -121,7 +141,11 @@ pub const ASTERISMS: [Asterism; 8] = [
         zh: "秋季四邊形",
         paths: &[&[MARKAB, SCHEAT, ALPHERATZ, ALGENIB, MARKAB]],
     },
-    Asterism { en: "Winter Triangle", zh: "冬季大三角", paths: &[&[BETELGEUSE, SIRIUS, PROCYON, BETELGEUSE]] },
+    Asterism {
+        en: "Winter Triangle",
+        zh: "冬季大三角",
+        paths: &[&[BETELGEUSE, SIRIUS, PROCYON, BETELGEUSE]],
+    },
     Asterism {
         en: "Winter Hexagon",
         zh: "冬季大橢圓",
@@ -143,7 +167,10 @@ pub fn label_pos(a: &Asterism) -> V3 {
     let mut ids: Vec<usize> = a.paths.iter().flat_map(|p| p.iter().copied()).collect();
     ids.sort_unstable();
     ids.dedup();
-    let s = ids.iter().map(|&i| star_pos(i)).fold([0.0; 3], |m, p| [m[0] + p[0], m[1] + p[1], m[2] + p[2]]);
+    let s = ids
+        .iter()
+        .map(|&i| star_pos(i))
+        .fold([0.0; 3], |m, p| [m[0] + p[0], m[1] + p[1], m[2] + p[2]]);
     normalize(s)
 }
 
@@ -181,7 +208,11 @@ mod tests {
                 // each path's pieces run from its first star to its last without a break
                 let n: usize = path
                     .windows(2)
-                    .map(|e| (angle(star_pos(e[0]), star_pos(e[1])).to_degrees() / PIECE_DEG).ceil().max(1.0) as usize)
+                    .map(|e| {
+                        (angle(star_pos(e[0]), star_pos(e[1])).to_degrees() / PIECE_DEG)
+                            .ceil()
+                            .max(1.0) as usize
+                    })
                     .sum();
                 let mine = &segs[at..at + n];
                 at += n;
@@ -190,7 +221,11 @@ mod tests {
                     assert!(angle(w[0].1, w[1].0) < 1e-9, "{}", a.en);
                 }
                 assert!(angle(mine[0].0, star_pos(path[0])) < 1e-9, "{}", a.en);
-                assert!(angle(mine[n - 1].1, star_pos(*path.last().unwrap())) < 1e-9, "{}", a.en);
+                assert!(
+                    angle(mine[n - 1].1, star_pos(*path.last().unwrap())) < 1e-9,
+                    "{}",
+                    a.en
+                );
                 for s in mine {
                     assert!(angle(s.0, s.1).to_degrees() <= PIECE_DEG + 1e-9);
                     assert!((dot(s.0, s.0) - 1.0).abs() < 1e-9);
@@ -203,9 +238,16 @@ mod tests {
     #[test]
     fn no_edge_is_drawn_twice() {
         for a in &ASTERISMS {
-            let mut edges: Vec<(usize, usize)> =
-                a.paths.iter().flat_map(|p| p.windows(2).map(|e| (e[0].min(e[1]), e[0].max(e[1])))).collect();
-            assert!(edges.iter().all(|&(i, j)| i != j && j < STARS.len()), "{}", a.en);
+            let mut edges: Vec<(usize, usize)> = a
+                .paths
+                .iter()
+                .flat_map(|p| p.windows(2).map(|e| (e[0].min(e[1]), e[0].max(e[1]))))
+                .collect();
+            assert!(
+                edges.iter().all(|&(i, j)| i != j && j < STARS.len()),
+                "{}",
+                a.en
+            );
             let n = edges.len();
             edges.sort_unstable();
             edges.dedup();

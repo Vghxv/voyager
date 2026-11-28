@@ -28,13 +28,19 @@ pub fn stopping() -> bool {
 }
 
 fn path(name: &str) -> PathBuf {
-    let dir = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+    let dir = std::env::var_os("XDG_RUNTIME_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
     dir.join(name)
 }
 
 /// The pid in `name`, if that process is a live voyager-sky other than this one.
 pub fn running(name: &str) -> Option<i32> {
-    let pid: i32 = std::fs::read_to_string(path(name)).ok()?.trim().parse().ok()?;
+    let pid: i32 = std::fs::read_to_string(path(name))
+        .ok()?
+        .trim()
+        .parse()
+        .ok()?;
     let comm = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()?;
     (comm.trim() == "voyager-sky" && pid != std::process::id() as i32).then_some(pid)
 }
@@ -56,7 +62,8 @@ pub struct PidFile(PathBuf);
 impl PidFile {
     pub fn claim(name: &str) -> Result<Self, String> {
         let path = path(name);
-        std::fs::write(&path, std::process::id().to_string()).map_err(|e| format!("{}: {e}", path.display()))?;
+        std::fs::write(&path, std::process::id().to_string())
+            .map_err(|e| format!("{}: {e}", path.display()))?;
         Ok(PidFile(path))
     }
 }

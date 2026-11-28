@@ -34,7 +34,13 @@ fn load(path: &PathBuf) -> Result<Mips, String> {
 impl Figures {
     /// `paths[i]` is constellation i's figure image. Loads on the calling thread.
     pub fn new(paths: Vec<PathBuf>) -> Self {
-        Figures { paths: Arc::new(paths), worker: None, cache: VecDeque::new(), pending: None, failed: None }
+        Figures {
+            paths: Arc::new(paths),
+            worker: None,
+            cache: VecDeque::new(),
+            pending: None,
+            failed: None,
+        }
     }
 
     /// From now on, load on a thread of its own.
@@ -75,7 +81,10 @@ impl Figures {
             None => {
                 let loaded = load(&self.paths[id]);
                 self.store(id, loaded);
-                self.cache.front().filter(|(i, _)| *i == id).map(|(_, m)| m.clone())
+                self.cache
+                    .front()
+                    .filter(|(i, _)| *i == id)
+                    .map(|(_, m)| m.clone())
             }
             Some(w) => {
                 if self.pending != Some(id) && w.requests.send(id).is_ok() {
