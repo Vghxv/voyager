@@ -189,7 +189,12 @@ fn render_still(cmd: Cmd, a: Args) -> Result<(), String> {
     } else if a.overlay {
         let cursor = a.cursor.as_deref().map(parse_cursor).transpose()?;
         let mut sc = Scene::new(r, sky, view);
-        for (on, chip) in [(a.figures, Chip::Figures), (a.stars, Chip::Stars), (a.ecliptic, Chip::Ecliptic), (a.equator, Chip::Equator)] {
+        for (on, chip) in [
+            (a.figures, Chip::Figures),
+            (a.stars, Chip::Stars),
+            (a.ecliptic, Chip::Ecliptic),
+            (a.equator, Chip::Equator),
+        ] {
             if on {
                 sc.press_chip(chip);
             }

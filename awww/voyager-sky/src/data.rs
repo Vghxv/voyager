@@ -228,14 +228,23 @@ mod tests {
             }
         }
         assert!(owner.iter().all(Option::is_some), "a star in no constellation");
-        let borrowed = raw["constellations"].as_array().unwrap().iter().map(|c| {
-            let abbr = c["abbr"].as_str().unwrap();
-            let mut ends: Vec<usize> = c["lines"].as_array().unwrap().iter()
-                .flat_map(|l| l.as_array().unwrap().iter().map(|i| i.as_u64().unwrap() as usize)).collect();
-            ends.sort_unstable();
-            ends.dedup();
-            ends.iter().filter(|&&i| owner[i] != Some(abbr)).count()
-        }).sum::<usize>();
+        let borrowed = raw["constellations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                let abbr = c["abbr"].as_str().unwrap();
+                let mut ends: Vec<usize> = c["lines"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .flat_map(|l| l.as_array().unwrap().iter().map(|i| i.as_u64().unwrap() as usize))
+                    .collect();
+                ends.sort_unstable();
+                ends.dedup();
+                ends.iter().filter(|&&i| owner[i] != Some(abbr)).count()
+            })
+            .sum::<usize>();
         assert!(borrowed < 12, "{borrowed} borrowed figure stars");
     }
 

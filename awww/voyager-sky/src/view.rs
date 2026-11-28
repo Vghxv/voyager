@@ -84,7 +84,8 @@ pub fn turn_basis_to(b: Basis, f: V3) -> Basis {
 /// about it), staying orthonormal. Also returns how far off it still is, radians.
 pub fn ease_basis(cur: Basis, target: Basis, t: f64) -> (Basis, f64) {
     let (e, n, f) = cur;
-    let (e, n, f) = (rotate_toward(e, f, target.2, t), rotate_toward(n, f, target.2, t), rotate_toward(f, f, target.2, t));
+    let (e, n, f) =
+        (rotate_toward(e, f, target.2, t), rotate_toward(n, f, target.2, t), rotate_toward(f, f, target.2, t));
     // the turn left: the target's north seen around the new forward
     let nt = normalize(add(target.1, mul(f, -dot(target.1, f))));
     let roll = dot(cross(n, nt), f).atan2(dot(n, nt));

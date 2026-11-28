@@ -174,19 +174,16 @@ pub struct Gpu {
 
 impl Gpu {
     pub fn new() -> Result<Self, String> {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::VULKAN,
-            ..Default::default()
-        });
+        let instance =
+            wgpu::Instance::new(&wgpu::InstanceDescriptor { backends: wgpu::Backends::VULKAN, ..Default::default() });
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             ..Default::default()
         }))
         .map_err(|e| format!("no Vulkan GPU found ({e}); is vulkan-intel / vulkan-radeon installed?"))?;
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("voyager-sky"),
-            ..Default::default()
-        }))
+        let (device, queue) = pollster::block_on(
+            adapter.request_device(&wgpu::DeviceDescriptor { label: Some("voyager-sky"), ..Default::default() }),
+        )
         .map_err(|e| format!("could not open the GPU: {e}"))?;
         Ok(Gpu { instance, adapter, device, queue })
     }
@@ -345,11 +342,15 @@ impl Renderer {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("sky"),
             entries: &[
-                entry(0, vf, wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                }),
+                entry(
+                    0,
+                    vf,
+                    wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                ),
                 entry(1, wgpu::ShaderStages::FRAGMENT, tex_ty),
                 entry(2, wgpu::ShaderStages::FRAGMENT, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
                 entry(3, wgpu::ShaderStages::FRAGMENT, tex_ty),
@@ -362,8 +363,12 @@ impl Renderer {
         });
 
         let blend = Some(wgpu::BlendState::ALPHA_BLENDING);
-        let pipeline = |layout: &wgpu::PipelineLayout, name: &str, vs: &str, fs: &str,
-                        buffers: &[wgpu::VertexBufferLayout], blend| {
+        let pipeline = |layout: &wgpu::PipelineLayout,
+                        name: &str,
+                        vs: &str,
+                        fs: &str,
+                        buffers: &[wgpu::VertexBufferLayout],
+                        blend| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(name),
                 layout: Some(layout),
@@ -391,8 +396,7 @@ impl Renderer {
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: attrs,
         };
-        const POINT: [wgpu::VertexAttribute; 3] =
-            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Unorm8x4];
+        const POINT: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Unorm8x4];
         const LINE: [wgpu::VertexAttribute; 3] =
             wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 3 => Unorm8x4];
         const ALPHA: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![2 => Float32];
@@ -410,11 +414,15 @@ impl Renderer {
         let figure_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("figure"),
             entries: &[
-                entry(0, wgpu::ShaderStages::FRAGMENT, wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                }),
+                entry(
+                    0,
+                    wgpu::ShaderStages::FRAGMENT,
+                    wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                ),
                 entry(1, wgpu::ShaderStages::FRAGMENT, tex_ty),
                 entry(2, wgpu::ShaderStages::FRAGMENT, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
             ],
@@ -433,11 +441,8 @@ impl Renderer {
             ..Default::default()
         });
 
-        let field_inst: Vec<PointInst> = sky
-            .field
-            .iter()
-            .map(|s| PointInst { pos: v3(s.pos), size_or_mag: s.size, col: s.rgba })
-            .collect();
+        let field_inst: Vec<PointInst> =
+            sky.field.iter().map(|s| PointInst { pos: v3(s.pos), size_or_mag: s.size, col: s.rgba }).collect();
         let star_inst: Vec<PointInst> = sky
             .stars
             .iter()
@@ -471,7 +476,11 @@ impl Renderer {
         line_inst.extend(circle(ecliptic_point, indigo));
         line_inst.extend(circle(equator_point, rgba8(pal.teal)));
         let amber = rgba8(pal.amber);
-        line_inst.extend(asterisms::segments().into_iter().map(|(a, b, _)| LineInst { a: v3(a), b: v3(b), col: amber }));
+        line_inst.extend(asterisms::segments().into_iter().map(|(a, b, _)| LineInst {
+            a: v3(a),
+            b: v3(b),
+            col: amber,
+        }));
         let line_buf = vbuf("lines", bytemuck::cast_slice(&line_inst));
         let line_alpha = vbuf("line alpha", bytemuck::cast_slice(&vec![0f32; line_inst.len()]));
         let shape_buf = vbuf("shapes", bytemuck::cast_slice(&[Shape::zeroed(); MAX_SHAPES]));
@@ -663,7 +672,10 @@ impl Renderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view,
                     resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,

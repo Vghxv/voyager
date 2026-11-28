@@ -16,9 +16,10 @@
 //! the lines (C) are on or not.
 //!
 //! With C or S on, the asterisms' bright stars and Polaris show their names while the
-//! cursor is near them. S outlines the four seasonal asterisms (Spring and Summer
-//! Triangles, the Great Square of Pegasus, the Winter Triangle) in dashed amber, with
-//! their names.
+//! cursor is near them. S outlines the seasonal asterisms (Big Dipper, Spring Arc,
+//! Spring and Summer Triangles, Teapot, Great Square of Pegasus, Winter Triangle and
+//! Winter Hexagon) in dashed amber, with their names; like the constellations they
+//! breathe, and the one nearest the cursor lights up.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -150,16 +151,8 @@ pub enum Chip {
 }
 
 impl Chip {
-    const ALL: [Chip; 8] = [
-        Chip::Nav,
-        Chip::Lines,
-        Chip::Stars,
-        Chip::Figures,
-        Chip::Ecliptic,
-        Chip::Equator,
-        Chip::Lang,
-        Chip::Done,
-    ];
+    const ALL: [Chip; 8] =
+        [Chip::Nav, Chip::Lines, Chip::Stars, Chip::Figures, Chip::Ecliptic, Chip::Equator, Chip::Lang, Chip::Done];
 }
 
 struct ChipText {
@@ -230,7 +223,11 @@ struct Knob {
 fn axis_dir(k: usize) -> V3 {
     let mut a = [0.0; 3];
     a[k % 3] = 1.0;
-    if k < 3 { a } else { neg(a) }
+    if k < 3 {
+        a
+    } else {
+        neg(a)
+    }
 }
 
 fn ball_center(size: (u32, u32)) -> (f32, f32) {
@@ -268,10 +265,15 @@ pub struct Scene {
     figures: Figures,
 
     texts: Texts,
-    /// how visible the ecliptic, the celestial equator and the asterisms are (0 hidden)
+    /// how visible the ecliptic and the celestial equator are (0 hidden)
     ecliptic: f32,
     equator: f32,
-    asterism: f32,
+    /// per asterism: how lit its outline and name are (0 hidden, 0.6 shown, 1 hovered)
+    aster_glow: Vec<f32>,
+    /// the asterism whose outline passes closest to the cursor (S on)
+    aster_hovered: Option<usize>,
+    /// the asterisms' outline pieces, as `asterisms::segments` gives them
+    aster_segs: Vec<(V3, V3, usize)>,
     /// per named star: how visible its name is
     star_name: Vec<f32>,
     /// the named stars, in asterisms::STARS order
@@ -347,7 +349,9 @@ impl Scene {
             lines_on: false,
             figures_on: false,
             stars_on: false,
-            asterism: 0.0,
+            aster_glow: vec![0.0; ASTERISMS.len()],
+            aster_hovered: None,
+            aster_segs: asterisms::segments(),
             star_name: vec![0.0; STARS.len()],
             star_pos: (0..STARS.len()).map(asterisms::star_pos).collect(),
             ecliptic_on: false,
@@ -632,11 +636,21 @@ impl Scene {
             return 0.0;
         }
         let (x, y, z) = self.proj().project(self.star_pos[i]);
-        if z > -0.3 && (x - c.0).hypot(y - c.1) < STAR_HOVER_PX { 1.0 } else { 0.0 }
+        if z > -0.3 && (x - c.0).hypot(y - c.1) < STAR_HOVER_PX {
+            1.0
+        } else {
+            0.0
+        }
     }
 
-    fn asterism_target(&self) -> f32 {
-        if self.stars_on { 0.7 } else { 0.0 }
+    fn asterism_target(&self, k: usize) -> f32 {
+        if !self.stars_on {
+            0.0
+        } else if Some(k) == self.aster_hovered {
+            1.0
+        } else {
+            0.6
+        }
     }
 
     fn glow_target(&self, i: usize) -> f32 {
@@ -695,19 +709,35 @@ impl Scene {
     /// How visible each figure slot should be: only the one holding the target shows.
     fn figure_alpha_target(&self, slot: usize) -> f32 {
         let want = self.figure_target();
-        if want.is_some() && self.renderer.figure_id(slot) == want { 1.0 } else { 0.0 }
+        if want.is_some() && self.renderer.figure_id(slot) == want {
+            1.0
+        } else {
+            0.0
+        }
     }
 
     fn ecliptic_target(&self) -> f32 {
-        if self.ecliptic_on { 0.6 } else { 0.0 }
+        if self.ecliptic_on {
+            0.6
+        } else {
+            0.0
+        }
     }
 
     fn equator_target(&self) -> f32 {
-        if self.equator_on { 0.6 } else { 0.0 }
+        if self.equator_on {
+            0.6
+        } else {
+            0.0
+        }
     }
 
     fn controls_target(&self) -> f32 {
-        if self.touring() { 0.0 } else { 1.0 }
+        if self.touring() {
+            0.0
+        } else {
+            1.0
+        }
     }
 
     /// Trackball, left alone for IDLE, nothing else moving: time for the zodiac tour.
@@ -728,7 +758,7 @@ impl Scene {
             || self.tour_due()
             || self.ecliptic != self.ecliptic_target()
             || self.equator != self.equator_target()
-            || self.asterism != self.asterism_target()
+            || (0..self.aster_glow.len()).any(|k| self.aster_glow[k] != self.asterism_target(k))
             || (0..self.star_name.len()).any(|i| self.star_name[i] != self.star_name_target(i))
             || (0..self.glow.len()).any(|i| self.glow[i] != self.glow_target(i))
             || (0..2).any(|k| self.probe[k] != self.probe_target(k))
@@ -736,10 +766,10 @@ impl Scene {
             || self.figures.loading()
     }
 
-    /// With the lines on, how long until the flicker needs its next frame (zero when it
-    /// is due); None when the lines are off.
+    /// With the lines or the asterisms on, how long until the flicker needs its next
+    /// frame (zero when it is due); None when both are off.
     pub fn flicker_due_in(&self) -> Option<Duration> {
-        self.lines_on.then(|| FLICKER_FRAME.saturating_sub(self.last.elapsed()))
+        (self.lines_on || self.stars_on).then(|| FLICKER_FRAME.saturating_sub(self.last.elapsed()))
     }
 
     /// The constellation whose figure passes closest to the cursor, if close enough.
@@ -754,13 +784,28 @@ impl Scene {
                 if pa.2 < -0.3 || pb.2 < -0.3 {
                     continue;
                 }
-                let (dx, dy) = (pb.0 - pa.0, pb.1 - pa.1);
-                let l2 = dx * dx + dy * dy;
-                let t = if l2 > 0.0 { (((c.0 - pa.0) * dx + (c.1 - pa.1) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
-                let d = (pa.0 + t * dx - c.0).hypot(pa.1 + t * dy - c.1);
+                let d = seg_dist(c, pa, pb);
                 if d < best.0 {
                     best = (d, Some(i));
                 }
+            }
+        }
+        best.1
+    }
+
+    /// The asterism whose outline passes closest to the cursor, if close enough.
+    fn nearest_asterism(&self) -> Option<usize> {
+        let c = self.cursor?;
+        let pr = self.proj();
+        let mut best = (HOVER_PX, None);
+        for &(a, b, k) in &self.aster_segs {
+            let (pa, pb) = (pr.project(a), pr.project(b));
+            if pa.2 < -0.3 || pb.2 < -0.3 {
+                continue;
+            }
+            let d = seg_dist(c, pa, pb);
+            if d < best.0 {
+                best = (d, Some(k));
             }
         }
         best.1
@@ -810,8 +855,13 @@ impl Scene {
         ease(&mut self.ecliptic, et, 7.0);
         let qt = self.equator_target();
         ease(&mut self.equator, qt, 7.0);
-        let at = self.asterism_target();
-        ease(&mut self.asterism, at, 7.0);
+        // like the constellations: the asterism under the cursor lights up, but not while
+        // the zodiac leads the tour
+        self.aster_hovered = if self.stars_on && !self.zodiac_leads() { self.nearest_asterism() } else { None };
+        for k in 0..self.aster_glow.len() {
+            let target = self.asterism_target(k);
+            ease(&mut self.aster_glow[k], target, 7.0);
+        }
         for i in 0..self.star_name.len() {
             let target = self.star_name_target(i);
             ease(&mut self.star_name[i], target, 7.0);
@@ -828,7 +878,15 @@ impl Scene {
         let n = self.seg_con.len();
         self.line_alpha[n..n + CIRCLE_SEGS].fill(self.ecliptic);
         self.line_alpha[n + CIRCLE_SEGS..n + 2 * CIRCLE_SEGS].fill(self.equator);
-        self.line_alpha[n + 2 * CIRCLE_SEGS..].fill(self.asterism);
+        // the asterisms breathe the same way, in amber; the hovered one holds steady
+        for (j, &(_, _, k)) in self.aster_segs.iter().enumerate() {
+            let g = self.aster_glow[k];
+            let ph = (k as f32 * 0.618_034 + 0.31).fract();
+            let period = 6.0 + 4.0 * ph;
+            let flicker = 0.75 + 0.25 * (t * std::f32::consts::TAU / period + ph * 40.0).sin();
+            self.line_alpha[n + 2 * CIRCLE_SEGS + j] =
+                if Some(k) == self.aster_hovered { g * 0.95 } else { g * flicker };
+        }
         self.renderer.set_line_alpha(&self.line_alpha);
     }
 
@@ -837,11 +895,15 @@ impl Scene {
     /// Have the target figure in a slot: from the cache at once, or once it has loaded
     /// (drag mode loads in the background, see `load_figures_in_background`).
     fn load_figure(&mut self) {
-        let Some(want) = self.figure_target() else { return };
+        let Some(want) = self.figure_target() else {
+            return;
+        };
         if (0..2).any(|k| self.renderer.figure_id(k) == Some(want)) {
             return;
         }
-        let Some(mips) = self.figures.get(want) else { return };
+        let Some(mips) = self.figures.get(want) else {
+            return;
+        };
         let slot = if self.renderer.figure_alpha(0) <= self.renderer.figure_alpha(1) { 0 } else { 1 };
         let c = &self.sky.constellations[want];
         self.renderer.set_figure(slot, want, &mips, c.centre, c.half);
@@ -1030,8 +1092,8 @@ impl Scene {
         }
         // the asterisms' names, in amber like their outlines, in the middle of each
         let amber = self.renderer.palette().amber;
-        if self.asterism > 0.01 {
-            for (k, a) in ASTERISMS.iter().enumerate() {
+        for (k, a) in ASTERISMS.iter().enumerate() {
+            if self.aster_glow[k] > 0.01 {
                 let (x, y, z) = pr.project(asterisms::label_pos(a));
                 let (x, y) = ((x - g.origin.0) as f32, (y - g.origin.1) as f32);
                 if z < 0.0 || x < -300.0 || y < -50.0 || x > g.size.0 as f32 + 300.0 || y > g.size.1 as f32 + 50.0 {
@@ -1043,7 +1105,7 @@ impl Scene {
                     which: Which::Asterism(k),
                     left: (x - bw / 2.0) * sc,
                     top: (y - bh / 2.0) * sc,
-                    colour: rgba(amber, self.asterism * 1.2),
+                    colour: rgba(amber, self.aster_glow[k]),
                 });
             }
         }
@@ -1108,7 +1170,11 @@ impl Scene {
 }
 
 fn knob_r(axis: usize) -> f32 {
-    if axis < 3 { KNOB_R } else { NEG_KNOB_R }
+    if axis < 3 {
+        KNOB_R
+    } else {
+        NEG_KNOB_R
+    }
 }
 
 fn areas<'a>(t: &'a Texts, zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'a>> {
@@ -1139,6 +1205,13 @@ fn areas<'a>(t: &'a Texts, zh: bool, specs: &[Spec], g: &Geom) -> Vec<TextArea<'
         .collect()
 }
 
+/// How far point `c` is from the screen segment `pa`-`pb` (projected points).
+fn seg_dist(c: (f64, f64), pa: (f64, f64, f64), pb: (f64, f64, f64)) -> f64 {
+    let (dx, dy) = (pb.0 - pa.0, pb.1 - pa.1);
+    let l2 = dx * dx + dy * dy;
+    let t = if l2 > 0.0 { (((c.0 - pa.0) * dx + (c.1 - pa.1) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
+    (pa.0 + t * dx - c.0).hypot(pa.1 + t * dy - c.1)
+}
 
 #[cfg(test)]
 mod tests {
@@ -1158,7 +1231,9 @@ mod tests {
 
     #[test]
     fn only_taking_hold_of_the_sky_stops_the_tour() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
         let g = Geom { origin: (0.0, 0.0), size: (1920, 1080), scale: 1 };
         assert_eq!(s.nav, Nav::Trackball, "drag mode opens in Trackball");
         s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
@@ -1201,7 +1276,9 @@ mod tests {
 
     #[test]
     fn figures_follow_the_cursor_or_the_zodiac() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
         let ori = s.sky.constellations.iter().position(|c| c.abbr == "Ori").unwrap();
         let leo = s.sky.constellations.iter().position(|c| c.abbr == "Leo").unwrap();
         let (ra, dec) = radec(s.sky.constellations[ori].centre);
@@ -1245,7 +1322,9 @@ mod tests {
 
     #[test]
     fn the_tour_lights_the_passing_sign() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
         let leo = s.sky.constellations.iter().position(|c| c.abbr == "Leo").unwrap();
         s.pointer_moved(s.center);
         s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
@@ -1268,7 +1347,9 @@ mod tests {
 
     #[test]
     fn star_names_show_near_the_cursor_with_c_or_s_on() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
         let polaris = STARS.iter().position(|st| st.en == "Polaris").unwrap();
         let vega = STARS.iter().position(|st| st.en == "Vega").unwrap();
         s.view = View { ra: 37.955, dec: 89.264, fov: 90.0, roll: 0.0 };
@@ -1286,13 +1367,16 @@ mod tests {
 
     #[test]
     fn s_shows_the_asterisms() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
         let n = s.seg_con.len() + 2 * CIRCLE_SEGS;
         s.press_chip(Chip::Stars);
         for _ in 0..30 {
             s.update(Some(0.1));
         }
-        assert!(s.line_alpha[n..].iter().all(|&a| a > 0.5));
+        // shown at 0.6, breathing between half and full of that
+        assert!(s.line_alpha[n..].iter().all(|&a| a >= 0.3 - 1e-6));
         assert!(s.line_alpha[..n].iter().all(|&a| a == 0.0), "C, E and Q stay off");
         s.press_chip(Chip::Stars);
         for _ in 0..30 {
@@ -1302,8 +1386,33 @@ mod tests {
     }
 
     #[test]
+    fn the_asterism_under_the_cursor_lights_up() {
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
+        let summer = ASTERISMS.iter().position(|a| a.en == "Summer Triangle").unwrap();
+        let vega = STARS.iter().position(|st| st.en == "Vega").unwrap();
+        s.view = View { ra: 279.235, dec: 38.784, fov: 90.0, roll: 0.0 };
+        let (x, y, _) = s.proj().project(s.star_pos[vega]);
+        s.pointer_moved((x + 5.0, y));
+        s.update(Some(0.016));
+        assert_eq!(s.aster_hovered, None, "S is off");
+        s.press_chip(Chip::Stars);
+        for _ in 0..30 {
+            s.update(Some(0.1));
+        }
+        assert_eq!(s.aster_hovered, Some(summer));
+        assert_eq!(s.aster_glow[summer], 1.0);
+        let other = (summer + 1) % ASTERISMS.len();
+        assert_eq!(s.aster_glow[other], 0.6);
+        assert!(s.flicker_due_in().is_some(), "the others breathe");
+    }
+
+    #[test]
     fn switching_to_turntable_stops_the_tour() {
-        let Some(mut s) = scene() else { return eprintln!("no GPU: skipped") };
+        let Some(mut s) = scene() else {
+            return eprintln!("no GPU: skipped");
+        };
         s.last_input = Instant::now() - IDLE - Duration::from_millis(10);
         s.update(Some(0.016));
         assert!(s.touring());
