@@ -192,10 +192,14 @@ for (i = 0; i < NUM_STARS; i++) {
   star[i].size = size;
   star[i].half = size / 2;
   star[i].sprite = Sprite(star[i].dot);
+  star[i].sprite.SetZ(1);             # the head, over its tail
   star[i].sprite.SetOpacity(0);
   star[i].tail = Sprite();
+  star[i].tail.SetZ(0);
   star[i].tail.SetOpacity(0);
-  star[i].shown = -1;                 # tail image on the tail sprite: -1 none
+  star[i].shown = -1;                 # tail image on the tail sprite: -1 none yet
+  star[i].lit = 0;                    # 1 while visible at all
+  star[i].tail_on = 0;                # 1 while its tail shows
   star[i].k = 0;
   star[i].peak  = STAR_BRIGHT + Math.Random() * (1 - STAR_BRIGHT);
   place_star(i);
@@ -303,87 +307,129 @@ fun refresh_callback() {
   global.polaris_sprite.SetOpacity(0.775 + 0.225 * Math.Cos(6.2832 * global.t / 4));
 
   # stars. At rest they are all invisible (seen = 0): after one last pass that
-  # hides them, skip the loop, the biggest cost of a frame.
+  # hides them, skip the loop, the biggest cost of a frame. The loop runs in
+  # Plymouth's interpreter, where every name and index is a hash lookup (and
+  # star[i] formats i as a string), so: one reference st per star, and per-frame
+  # values worked out once, here. Sprites move with SetX / SetY: SetPosition is a
+  # script function around three calls (their z is set once, at the start), and
+  # an invisible star is not moved at all, as Plymouth redraws any sprite that
+  # moves, seen or not.
   stars_idle = (global.speed == 0 && global.stars_hidden);
   global.stars_hidden = (global.speed == 0);
+  spd   = global.speed;
+  move  = spd * global.DT;                       # a star moves by its offset times this
+  ccx   = global.cx;
+  ccy   = global.cy;
+  x_max = global.W + 20;
+  y_max = global.H + 20;
+  backing = (spd < 0);
+  leave_p = global.INFLOW * -spd * global.DT;    # backing off: chance to leave, per frame
+  vanish  = global.core_vanish_r;
+  core_k  = 1 / (global.core_fade_r - vanish);
+  blur    = Math.Abs(spd) * global.DT * global.TRAIL;
+  max_len = global.STREAK_LEN;
+  ease    = global.TAIL_EASE;
+  angles  = global.ANGLES;
+  vis     = seen;
   for (i = 0; i < global.NUM_STARS && !stars_idle; i++) {
-    dx = global.star[i].x - global.cx;
-    dy = global.star[i].y - global.cy;
-    global.star[i].x += dx * global.speed * global.DT;
-    global.star[i].y += dy * global.speed * global.DT;
-    x = global.star[i].x;
-    y = global.star[i].y;
-    r = Math.Sqrt((x - global.cx) * (x - global.cx) + (y - global.cy) * (y - global.cy));
+    st = global.star[i];
+    dx = st.x - ccx;
+    dy = st.y - ccy;
+    dx += dx * move;
+    dy += dy * move;
+    x = ccx + dx;
+    y = ccy + dy;
+    st.x = x;
+    st.y = y;
 
     # Off screen: respawn somewhere random. Backing off packs the stars closer
     # together everywhere at once (by 2 * speed * DT of the area per frame), so
     # stars leave for the edges from everywhere, not just the core: a few each
     # frame, each fading out first. Reaching the vanish radius sends one at once.
     respawn = 0;
-    if (x < -20 || x > global.W + 20 || y < -20 || y > global.H + 20) {
+    if (x < -20 || x > x_max || y < -20 || y > y_max) {
       place_star(i);
       respawn = 1;
-    } else if (global.speed < 0) {
-      if (r < global.core_vanish_r) {
+    } else if (backing) {
+      if (dx * dx + dy * dy < vanish * vanish) {
         place_star_at_edge(i);
         respawn = 1;
-      } else if (global.star[i].leaving) {
-        global.star[i].fade -= global.LEAVE_STEP;
-        if (global.star[i].fade <= 0) {
+      } else if (st.leaving) {
+        st.fade -= global.LEAVE_STEP;
+        if (st.fade <= 0) {
           place_star_at_edge(i);
           respawn = 1;
         }
-      } else if (Math.Random() < global.INFLOW * -global.speed * global.DT) {
-        global.star[i].leaving = 1;
+      } else if (Math.Random() < leave_p) {
+        st.leaving = 1;
       }
     }
     if (respawn) {
-      x = global.star[i].x;
-      y = global.star[i].y;
-      r = Math.Sqrt((x - global.cx) * (x - global.cx) + (y - global.cy) * (y - global.cy));
+      x = st.x;
+      y = st.y;
+      dx = x - ccx;
+      dy = y - ccy;
     }
+    r = Math.Sqrt(dx * dx + dy * dy);
     # dim towards the core: gone by the time a star reaches the vanish radius
-    core = clamp01((r - global.core_vanish_r) / (global.core_fade_r - global.core_vanish_r));
-    if (global.star[i].leaving) {
-      if (global.speed >= 0) {          # moving forward again: stay after all
-        global.star[i].leaving = 0;
+    core = (r - vanish) * core_k;
+    if (core > 1) { core = 1; }
+    if (core < 0) { core = 0; }
+    if (st.leaving) {
+      if (!backing) {                   # moving forward again: stay after all
+        st.leaving = 0;
       }
-    } else if (global.star[i].fade < 1) {
-      global.star[i].fade += 0.0333;
+    } else if (st.fade < 1) {
+      st.fade += 0.0333;
     }
 
     # The tail is the star's motion blur: as long as it moves in TRAIL frames, in
     # star sizes. It eases there, so a burst shows the head first and the tail
     # after, and when typing stops the tail shrinks away before the head fades.
-    want = Math.Abs(global.speed) * r * global.DT * global.TRAIL / global.star[i].size;
-    if (want > global.STREAK_LEN) {
-      want = global.STREAK_LEN;
+    want = blur * r / st.size;
+    if (want > max_len) {
+      want = max_len;
     }
-    global.star[i].len += (want - global.star[i].len) * global.TAIL_EASE;
-    lvl = Math.Int(global.star[i].len + 0.5);
-    if (global.speed > 0) {             # head leads: outward, or inward backing off
-      global.star[i].k = global.star[i].k_out;
+    st.len += (want - st.len) * ease;
+    lvl = Math.Int(st.len + 0.5);
+    if (spd > 0) {                      # head leads: outward, or inward backing off
+      st.k = st.k_out;
     }
-    if (global.speed < 0) {
-      global.star[i].k = global.star[i].k_in;
+    if (backing) {
+      st.k = st.k_in;
     }
 
-    op = global.star[i].peak * seen * global.star[i].fade * core;
-    global.star[i].sprite.SetPosition(x - global.star[i].half, y - global.star[i].half, 1);
-    global.star[i].sprite.SetOpacity(op);
-    if (lvl == 0) {
-      if (global.star[i].shown != -1) {
-        global.star[i].shown = -1;
-        global.star[i].tail.SetOpacity(0);
+    op = st.peak * vis * st.fade * core;
+    if (op < 0.011) {                   # invisible (Plymouth skips it anyway): hide once
+      if (st.lit) {
+        st.lit = 0;
+        st.tail_on = 0;
+        st.sprite.SetOpacity(0);
+        st.tail.SetOpacity(0);
       }
     } else {
-      n = (global.star[i].z * global.STREAK_LEN + lvl - 1) * global.ANGLES + global.star[i].k;
-      if (global.star[i].shown != n) {
-        global.star[i].shown = n;
-        global.star[i].tail.SetImage(global.tail_img[n]);
+      st.lit = 1;
+      st.sprite.SetX(x - st.half);
+      st.sprite.SetY(y - st.half);
+      st.sprite.SetOpacity(op);
+      if (lvl == 0) {
+        if (st.tail_on) {
+          st.tail_on = 0;
+          st.tail.SetOpacity(0);
+        }
+      } else {
+        n = (st.z * max_len + lvl - 1) * angles + st.k;
+        if (st.shown != n) {            # a new tail: look it up once, keep its head point
+          st.shown = n;
+          st.tail.SetImage(global.tail_img[n]);
+          st.hx = global.tail_hx[n];
+          st.hy = global.tail_hy[n];
+        }
+        st.tail_on = 1;
+        st.tail.SetX(x - st.hx);
+        st.tail.SetY(y - st.hy);
+        st.tail.SetOpacity(op);
       }
-      global.star[i].tail.SetPosition(x - global.tail_hx[n], y - global.tail_hy[n], 0);
-      global.star[i].tail.SetOpacity(op);
     }
   }
 
