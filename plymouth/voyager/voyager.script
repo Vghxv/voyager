@@ -33,7 +33,10 @@ cx = W / 2;
 cy = H / 2;
 core_fade_r   = CORE_FADE * H;
 core_vanish_r = CORE_VANISH * H;
-DT = 0.02;            # refresh runs ~50 times per second
+# 60 frames a second, matching a 60 Hz panel: at 50 every fifth frame shows
+# twice, which makes fast warp stars judder. Per-frame steps below are for 60.
+FPS = 60;
+DT  = 1 / FPS;
 t  = 0;
 
 fun clamp01(v) {
@@ -79,6 +82,7 @@ polaris_sprite = Sprite(polaris_img);
 polaris_sprite.SetPosition(sky_x + POLARIS_X * sky_w, sky_y + POLARIS_Y * sky_h, -90);
 
 speed     = 0;
+stars_hidden = 0;
 warping   = 0;
 submitted = 0;
 prev      = 0;
@@ -200,9 +204,9 @@ fun refresh_callback() {
 
   # warp speed: ramps up after Enter, otherwise decays back to still
   if (global.warping) {
-    global.speed = global.speed + (global.WARP_MAX - global.speed) * 0.04;
+    global.speed = global.speed + (global.WARP_MAX - global.speed) * 0.0334;
   } else {
-    global.speed = global.speed * 0.92;
+    global.speed = global.speed * 0.933;
     if (Math.Abs(global.speed) < 0.005) {
       global.speed = 0;               # truly still: nothing left to redraw
     }
@@ -223,8 +227,11 @@ fun refresh_callback() {
     fast = -1;
   }
 
-  # stars
-  for (i = 0; i < global.NUM_STARS; i++) {
+  # stars. At rest they are all invisible (seen = 0): after one last pass that
+  # hides them, skip the loop, the biggest cost of a frame.
+  stars_idle = (global.speed == 0 && global.stars_hidden);
+  global.stars_hidden = (global.speed == 0);
+  for (i = 0; i < global.NUM_STARS && !stars_idle; i++) {
     dx = global.star[i].x - global.cx;
     dy = global.star[i].y - global.cy;
     global.star[i].x += dx * global.speed * global.DT;
@@ -245,7 +252,7 @@ fun refresh_callback() {
     # dim towards the core: gone by the time a star reaches the vanish radius
     core = clamp01((r - global.core_vanish_r) / (global.core_fade_r - global.core_vanish_r));
     if (global.star[i].fade < 1) {
-      global.star[i].fade += 0.04;
+      global.star[i].fade += 0.0333;
     }
 
     if (fast != global.star[i].mode) {
@@ -274,7 +281,7 @@ fun refresh_callback() {
       global.ring[r].sprite.SetImage(img);
       global.ring[r].sprite.SetPosition(global.dish_x - img.GetWidth() / 2, global.dish_y - img.GetHeight() / 2, 5);
       global.ring[r].sprite.SetOpacity(0.9 * (1 - f / global.RING_FRAMES));
-      global.ring[r].f += 0.6 * global.ring[r].dir;
+      global.ring[r].f += 0.5 * global.ring[r].dir;
       if (global.ring[r].f >= global.RING_FRAMES || global.ring[r].f < 0) {
         global.ring[r].active = 0;
         global.ring[r].sprite.SetOpacity(0);
@@ -283,22 +290,27 @@ fun refresh_callback() {
   }
 
   # probe shake (wrong passphrase)
-  global.shake = global.shake * 0.9;
+  global.shake = global.shake * 0.916;
   ox = Math.Sin(global.t * 70) * global.shake;
   global.logo_sprite.SetPosition(global.logo_x + ox, global.logo_y, 10);
 
   # red flash (wrong passphrase)
   if (global.flash_a > 0.005) {
-    global.flash_a = global.flash_a * 0.92;
+    global.flash_a = global.flash_a * 0.933;
   } else {
     global.flash_a = 0;
   }
   global.flash_sprite.SetOpacity(global.flash_a);
 
   # hint text fade
-  global.hint_a += (global.hint_target - global.hint_a) * 0.1;
+  # (snapped once close, so it stops redrawing)
+  global.hint_a += (global.hint_target - global.hint_a) * 0.084;
+  if (Math.Abs(global.hint_target - global.hint_a) < 0.01) {
+    global.hint_a = global.hint_target;
+  }
   global.hint_sprite.SetOpacity(global.hint_a);
 }
+Plymouth.SetRefreshRate(FPS);
 Plymouth.SetRefreshFunction(refresh_callback);
 
 # ================= password input =================
