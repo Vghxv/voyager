@@ -7,8 +7,8 @@ An animated screen for unlocking an encrypted disk at boot: the probe in a long-
 | When | What happens |
 |---|---|
 | Waiting | Just the sky. Polaris breathes, and a faint hint says *"type your passphrase, press enter to launch"* |
-| You type a character | Stars streak outward in a warp burst, the sky's stars blue-shift, and a signal ring pulses from the probe's dish |
-| Backspace | Stars pull back in and red-shift, and the ring collapses into the dish |
+| You type a character | Stars streak outward in a warp burst, the sky blue-shifts, and a signal ring pulses from the probe's dish |
+| Backspace | Stars pull back in, the sky red-shifts, and the ring collapses into the dish |
 | Enter | The warp speeds up and the sky turns blue while the disk unlocks |
 | Wrong passphrase | Red flash, the probe shakes, the sky red-shifts, the hint comes back |
 

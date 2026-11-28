@@ -11,8 +11,9 @@ BACK_PULL   = 1.0;    # reverse pull per backspace
 WARP_MAX    = 6;      # warp speed after Enter
 STREAK_AT   = 1.2;    # speed above which stars turn into streaks
 WARP_SEEN   = 0.6;    # speed at which the warp stars are fully visible
-BLUE_AT     = 3;      # speed at which the sky is fully blue-shifted
-RED_AT      = 1.5;    # reverse speed at which it is fully red-shifted
+BLUE_AT     = 1.4;    # speed at which the sky is fully blue-shifted
+RED_AT      = 0.8;    # reverse speed at which it is fully red-shifted
+SHIFT_HOLD  = 0.979;  # how slowly the shift fades after the stars stop (per frame)
 ROT_SIGN    = 1;      # set to -1 if streaks point the wrong way
 CORE_FADE   = 0.25;   # stars dim inside this radius (fraction of screen height)
 CORE_VANISH = 0.08;   # ...and vanish inside this one while pulled back
@@ -83,6 +84,7 @@ polaris_sprite.SetPosition(sky_x + POLARIS_X * sky_w, sky_y + POLARIS_Y * sky_h,
 
 speed     = 0;
 stars_hidden = 0;
+shift     = 0;        # Doppler envelope: follows speed, lingers after it
 warping   = 0;
 submitted = 0;
 prev      = 0;
@@ -213,9 +215,20 @@ fun refresh_callback() {
   }
   seen = clamp01(Math.Abs(global.speed) / global.WARP_SEEN);
 
-  # Doppler shift: blue while speeding up, red while backing off
-  global.blue_sprite.SetOpacity(clamp01(global.speed / global.BLUE_AT));
-  global.red_sprite.SetOpacity(clamp01(-global.speed / global.RED_AT));
+  # Doppler shift: blue while speeding up, red while backing off. The envelope
+  # jumps to the speed at once but fades slowly, so each shift is seen clearly.
+  global.shift = global.shift * global.SHIFT_HOLD;
+  if (Math.Abs(global.speed) > Math.Abs(global.shift) || global.speed * global.shift < 0) {
+    global.shift = global.speed;
+  }
+  if (Math.Abs(global.shift) < 0.005) {
+    global.shift = 0;
+  }
+  # in steps of 1/16: each change redraws the whole screen, so not every frame
+  blue = Math.Int(clamp01(global.shift / global.BLUE_AT) * 16 + 0.5) / 16;
+  red  = Math.Int(clamp01(-global.shift / global.RED_AT) * 16 + 0.5) / 16;
+  global.blue_sprite.SetOpacity(blue);
+  global.red_sprite.SetOpacity(red);
 
   # Polaris breathes, one breath every 4 s
   global.polaris_sprite.SetOpacity(0.775 + 0.225 * Math.Cos(6.2832 * global.t / 4));
