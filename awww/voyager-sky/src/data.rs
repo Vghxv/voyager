@@ -93,40 +93,28 @@ fn read(path: &Path) -> Result<Vec<u8>, String> {
 }
 
 pub fn png(path: &Path) -> Result<Image, String> {
-    let img =
-        image::load_from_memory(&read(path)?).map_err(|e| format!("{}: {e}", path.display()))?;
+    let img = image::load_from_memory(&read(path)?).map_err(|e| format!("{}: {e}", path.display()))?;
     let rgba = img.to_rgba8();
-    Ok(Image {
-        width: rgba.width(),
-        height: rgba.height(),
-        rgba: rgba.into_raw(),
-    })
+    Ok(Image { width: rgba.width(), height: rgba.height(), rgba: rgba.into_raw() })
 }
 
 impl SkyData {
     pub fn load(dir: &Path) -> Result<Self, String> {
-        let raw: ConstellationsFile =
-            serde_json::from_slice(&read(&dir.join("constellations.json"))?)
-                .map_err(|e| format!("constellations.json: {e}"))?;
+        let raw: ConstellationsFile = serde_json::from_slice(&read(&dir.join("constellations.json"))?)
+            .map_err(|e| format!("constellations.json: {e}"))?;
         let mut frames: std::collections::HashMap<String, FrameRaw> =
             serde_json::from_slice(&read(&dir.join("figures").join("frames.json"))?)
                 .map_err(|e| format!("figures/frames.json: {e}"))?;
         let stars: Vec<Star> = raw
             .stars
             .iter()
-            .map(|s| Star {
-                pos: unit(s[0], s[1]),
-                mag: s[2] as f32,
-                rgb: [s[3] as u8, s[4] as u8, s[5] as u8],
-            })
+            .map(|s| Star { pos: unit(s[0], s[1]), mag: s[2] as f32, rgb: [s[3] as u8, s[4] as u8, s[5] as u8] })
             .collect();
         let constellations = raw
             .constellations
             .into_iter()
             .map(|c| {
-                let f = frames
-                    .remove(&c.abbr)
-                    .ok_or_else(|| format!("figures/frames.json: no {}", c.abbr))?;
+                let f = frames.remove(&c.abbr).ok_or_else(|| format!("figures/frames.json: no {}", c.abbr))?;
                 Ok(Constellation {
                     abbr: c.abbr,
                     en: c.en,
@@ -156,8 +144,8 @@ impl SkyData {
 
         let voyager = |n: u32| -> Result<V3, String> {
             let file = format!("voyager{n}.json");
-            let v: VoyagerFile = serde_json::from_slice(&read(&dir.join(&file))?)
-                .map_err(|e| format!("{file}: {e}"))?;
+            let v: VoyagerFile =
+                serde_json::from_slice(&read(&dir.join(&file))?).map_err(|e| format!("{file}: {e}"))?;
             Ok(unit(v.ra, v.dec))
         };
 
@@ -176,9 +164,7 @@ impl SkyData {
 impl SkyData {
     /// Constellation `i`'s figure image (see `crate::figures`).
     pub fn figure_path(&self, i: usize) -> PathBuf {
-        self.dir
-            .join("figures")
-            .join(&self.constellations[i].figure)
+        self.dir.join("figures").join(&self.constellations[i].figure)
     }
 }
 
@@ -201,11 +187,7 @@ impl Palette {
                 .lines()
                 .find(|l| l.split_whitespace().next() == Some(name))
                 .unwrap_or_else(|| panic!("lib/palette has no {name}"));
-            let hex = line
-                .split_whitespace()
-                .nth(1)
-                .unwrap()
-                .trim_start_matches('#');
+            let hex = line.split_whitespace().nth(1).unwrap().trim_start_matches('#');
             let c = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).unwrap() as f32 / 255.0;
             [c(0), c(2), c(4)]
         };
@@ -232,8 +214,7 @@ mod tests {
         // figure may borrow a neighbour's star (Alpheratz in the Square of Pegasus), but
         // that star stays a member of the one constellation that holds it.
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../sky");
-        let raw: serde_json::Value =
-            serde_json::from_slice(&read(&dir.join("constellations.json")).unwrap()).unwrap();
+        let raw: serde_json::Value = serde_json::from_slice(&read(&dir.join("constellations.json")).unwrap()).unwrap();
         let n = raw["stars"].as_array().unwrap().len();
         assert!(n > 2500, "only {n} stars");
         let mut owner: Vec<Option<&str>> = vec![None; n];
@@ -242,18 +223,11 @@ mod tests {
             for v in c["members"].as_array().unwrap() {
                 let i = v.as_u64().unwrap() as usize;
                 assert!(i < n, "{abbr}");
-                assert!(
-                    owner[i].is_none(),
-                    "star {i} in both {} and {abbr}",
-                    owner[i].unwrap()
-                );
+                assert!(owner[i].is_none(), "star {i} in both {} and {abbr}", owner[i].unwrap());
                 owner[i] = Some(abbr);
             }
         }
-        assert!(
-            owner.iter().all(Option::is_some),
-            "a star in no constellation"
-        );
+        assert!(owner.iter().all(Option::is_some), "a star in no constellation");
         let borrowed = raw["constellations"]
             .as_array()
             .unwrap()
@@ -264,12 +238,7 @@ mod tests {
                     .as_array()
                     .unwrap()
                     .iter()
-                    .flat_map(|l| {
-                        l.as_array()
-                            .unwrap()
-                            .iter()
-                            .map(|i| i.as_u64().unwrap() as usize)
-                    })
+                    .flat_map(|l| l.as_array().unwrap().iter().map(|i| i.as_u64().unwrap() as usize))
                     .collect();
                 ends.sort_unstable();
                 ends.dedup();

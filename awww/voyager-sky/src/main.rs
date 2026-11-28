@@ -149,11 +149,7 @@ fn parse_size(s: &str) -> Result<(u32, u32), String> {
 
 fn parse_view(s: &str) -> Result<View, String> {
     let err = || format!("--view {s}: expected RA,DEC[,FOV[,ROLL]] in degrees");
-    let v: Vec<f64> = s
-        .split(',')
-        .map(|t| t.trim().parse::<f64>())
-        .collect::<Result<_, _>>()
-        .map_err(|_| err())?;
+    let v: Vec<f64> = s.split(',').map(|t| t.trim().parse::<f64>()).collect::<Result<_, _>>().map_err(|_| err())?;
     let (ra, dec) = match v.as_slice() {
         [ra, dec, ..] if v.len() <= 4 => (*ra, *dec),
         _ => return Err(err()),
@@ -166,10 +162,7 @@ fn parse_view(s: &str) -> Result<View, String> {
 fn parse_cursor(s: &str) -> Result<(f64, f64), String> {
     let err = || "--cursor X,Y".to_string();
     let (x, y) = s.split_once(',').ok_or_else(err)?;
-    Ok((
-        x.trim().parse().map_err(|_| err())?,
-        y.trim().parse().map_err(|_| err())?,
-    ))
+    Ok((x.trim().parse().map_err(|_| err())?, y.trim().parse().map_err(|_| err())?))
 }
 
 // --- commands ----------------------------------------------------------------------------
@@ -192,12 +185,7 @@ fn render_still(cmd: Cmd, a: Args) -> Result<(), String> {
 
     if cmd == Cmd::Apply {
         wallpaper::write(&r, &view, size, true)?;
-        println!(
-            "wrote {}/wallpaper.png and lock.png ({}x{})",
-            wallpaper::out_dir().display(),
-            size.0,
-            size.1
-        );
+        println!("wrote {}/wallpaper.png and lock.png ({}x{})", wallpaper::out_dir().display(), size.0, size.1);
     } else if a.overlay {
         let cursor = a.cursor.as_deref().map(parse_cursor).transpose()?;
         let mut sc = Scene::new(r, sky, view);
@@ -214,10 +202,7 @@ fn render_still(cmd: Cmd, a: Args) -> Result<(), String> {
         export_overlay(sc, size, cursor, a.english, Path::new(&out))?;
         println!("wrote {out} (drag-mode preview)");
     } else {
-        r.export(
-            &wallpaper::still_frame(&view, size, !a.no_probe),
-            Path::new(&out),
-        )?;
+        r.export(&wallpaper::still_frame(&view, size, !a.no_probe), Path::new(&out))?;
         println!(
             "wrote {out} ({}x{}, RA {:.2} Dec {:.2} FOV {:.0} roll {:.0})",
             size.0, size.1, view.ra, view.dec, view.fov, view.roll
@@ -235,11 +220,7 @@ fn export_overlay(
     english: bool,
     out: &Path,
 ) -> Result<(), String> {
-    let g = Geom {
-        origin: (0.0, 0.0),
-        size,
-        scale: 1,
-    };
+    let g = Geom { origin: (0.0, 0.0), size, scale: 1 };
     sc.center = g.middle();
     sc.press_chip(Chip::Lines);
     if english {

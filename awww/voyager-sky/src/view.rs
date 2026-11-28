@@ -16,10 +16,7 @@ pub fn unit(ra: f64, dec: f64) -> V3 {
 
 pub fn radec(p: V3) -> (f64, f64) {
     let n = (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
-    (
-        p[1].atan2(p[0]).to_degrees().rem_euclid(360.0),
-        (p[2] / n).clamp(-1.0, 1.0).asin().to_degrees(),
-    )
+    (p[1].atan2(p[0]).to_degrees().rem_euclid(360.0), (p[2] / n).clamp(-1.0, 1.0).asin().to_degrees())
 }
 
 // --- vectors ------------------------------------------------------------------------------
@@ -29,11 +26,7 @@ pub fn dot(a: V3, b: V3) -> f64 {
 }
 
 pub fn cross(a: V3, b: V3) -> V3 {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
+    [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
 }
 
 fn add(a: V3, b: V3) -> V3 {
@@ -60,10 +53,7 @@ pub fn angle(a: V3, b: V3) -> f64 {
 /// `v` turned by `angle` (radians) about the unit `axis` (Rodrigues).
 pub fn rotate(v: V3, axis: V3, angle: f64) -> V3 {
     let (s, c) = angle.sin_cos();
-    add(
-        add(mul(v, c), mul(cross(axis, v), s)),
-        mul(axis, dot(axis, v) * (1.0 - c)),
-    )
+    add(add(mul(v, c), mul(cross(axis, v), s)), mul(axis, dot(axis, v) * (1.0 - c)))
 }
 
 /// `v` turned by the shortest rotation that takes unit `a` to unit `b`, times `t`.
@@ -81,32 +71,21 @@ pub type Basis = (V3, V3, V3);
 
 /// `b` turned about the unit `axis` by `angle` radians.
 pub fn rotate_basis(b: Basis, axis: V3, angle: f64) -> Basis {
-    (
-        rotate(b.0, axis, angle),
-        rotate(b.1, axis, angle),
-        rotate(b.2, axis, angle),
-    )
+    (rotate(b.0, axis, angle), rotate(b.1, axis, angle), rotate(b.2, axis, angle))
 }
 
 /// `b` turned by the shortest rotation that brings its forward to unit `f`: the view
 /// moves there without turning about its own centre.
 pub fn turn_basis_to(b: Basis, f: V3) -> Basis {
-    (
-        rotate_toward(b.0, b.2, f, 1.0),
-        rotate_toward(b.1, b.2, f, 1.0),
-        rotate_toward(b.2, b.2, f, 1.0),
-    )
+    (rotate_toward(b.0, b.2, f, 1.0), rotate_toward(b.1, b.2, f, 1.0), rotate_toward(b.2, b.2, f, 1.0))
 }
 
 /// Move `cur` a fraction `t` of the way to `target` (forward first, then the turn
 /// about it), staying orthonormal. Also returns how far off it still is, radians.
 pub fn ease_basis(cur: Basis, target: Basis, t: f64) -> (Basis, f64) {
     let (e, n, f) = cur;
-    let (e, n, f) = (
-        rotate_toward(e, f, target.2, t),
-        rotate_toward(n, f, target.2, t),
-        rotate_toward(f, f, target.2, t),
-    );
+    let (e, n, f) =
+        (rotate_toward(e, f, target.2, t), rotate_toward(n, f, target.2, t), rotate_toward(f, f, target.2, t));
     // the turn left: the target's north seen around the new forward
     let nt = normalize(add(target.1, mul(f, -dot(target.1, f))));
     let roll = dot(cross(n, nt), f).atan2(dot(n, nt));
@@ -168,18 +147,9 @@ impl View {
     /// The view with camera basis `b` (orthonormal) and field of view `fov`.
     pub fn from_basis(b: Basis, fov: f64) -> Self {
         let (ra, dec) = radec(b.2);
-        let level = View {
-            ra,
-            dec,
-            fov,
-            roll: 0.0,
-        };
+        let level = View { ra, dec, fov, roll: 0.0 };
         let (e0, n0, _) = level.level_basis();
-        View {
-            roll: dot(b.0, n0).atan2(dot(b.0, e0)).to_degrees(),
-            ..level
-        }
-        .clamped()
+        View { roll: dot(b.0, n0).atan2(dot(b.0, e0)).to_degrees(), ..level }.clamped()
     }
 }
 
@@ -197,24 +167,14 @@ pub struct Proj {
 impl Proj {
     pub fn new(view: &View, center: (f64, f64)) -> Self {
         let (e, n, f) = view.basis();
-        Proj {
-            e,
-            n,
-            f,
-            center,
-            scale: view.scale(),
-        }
+        Proj { e, n, f, center, scale: view.scale() }
     }
 
     /// Sky -> canvas pixel and the cosine of the angle from the view centre.
     pub fn project(&self, p: V3) -> (f64, f64, f64) {
         let (x, y, z) = (dot(p, self.e), dot(p, self.n), dot(p, self.f));
         let k = 2.0 / (1.0 + z).max(1e-6);
-        (
-            self.center.0 - k * x * self.scale,
-            self.center.1 - k * y * self.scale,
-            z,
-        )
+        (self.center.0 - k * x * self.scale, self.center.1 - k * y * self.scale, z)
     }
 
     pub fn unproject(&self, px: (f64, f64)) -> V3 {
@@ -289,10 +249,7 @@ pub fn ecliptic_pole() -> V3 {
 /// Ecliptic longitude of `p`: where on the ecliptic the point nearest to it is.
 pub fn ecliptic_lon(p: V3) -> f64 {
     let (se, ce) = OBLIQUITY.to_radians().sin_cos();
-    (p[1] * ce + p[2] * se)
-        .atan2(p[0])
-        .to_degrees()
-        .rem_euclid(360.0)
+    (p[1] * ce + p[2] * se).atan2(p[0]).to_degrees().rem_euclid(360.0)
 }
 
 #[cfg(test)]
@@ -300,35 +257,16 @@ mod tests {
     use super::*;
 
     fn v(ra: f64, dec: f64, fov: f64) -> View {
-        View {
-            ra,
-            dec,
-            fov,
-            roll: 0.0,
-        }
+        View { ra, dec, fov, roll: 0.0 }
     }
 
     #[test]
     fn round_trip() {
         for roll in [0.0, 37.0] {
-            let pr = Proj::new(
-                &View {
-                    roll,
-                    ..v(258.88, 12.05, 100.0)
-                },
-                (960.0, 540.0),
-            );
-            for &(x, y) in &[
-                (0.0, 0.0),
-                (960.0, 540.0),
-                (1919.0, 1079.0),
-                (3000.0, -200.0),
-            ] {
+            let pr = Proj::new(&View { roll, ..v(258.88, 12.05, 100.0) }, (960.0, 540.0));
+            for &(x, y) in &[(0.0, 0.0), (960.0, 540.0), (1919.0, 1079.0), (3000.0, -200.0)] {
                 let (x2, y2, _) = pr.project(pr.unproject((x, y)));
-                assert!(
-                    (x - x2).abs() < 1e-6 && (y - y2).abs() < 1e-6,
-                    "{x},{y} -> {x2},{y2}"
-                );
+                assert!((x - x2).abs() < 1e-6 && (y - y2).abs() < 1e-6, "{x},{y} -> {x2},{y2}");
             }
         }
     }
@@ -346,18 +284,9 @@ mod tests {
 
     #[test]
     fn roll_turns_north_sideways() {
-        let pr = Proj::new(
-            &View {
-                roll: 90.0,
-                ..v(100.0, 0.0, 100.0)
-            },
-            (960.0, 540.0),
-        );
+        let pr = Proj::new(&View { roll: 90.0, ..v(100.0, 0.0, 100.0) }, (960.0, 540.0));
         let (x, y, _) = pr.project(unit(100.0, 10.0));
-        assert!(
-            (y - 540.0).abs() < 1e-6 && (x - 960.0).abs() > 50.0,
-            "{x},{y}"
-        );
+        assert!((y - 540.0).abs() < 1e-6 && (x - 960.0).abs() > 50.0, "{x},{y}");
     }
 
     #[test]
@@ -369,18 +298,8 @@ mod tests {
 
     #[test]
     fn basis_round_trip() {
-        for &(ra, dec, roll) in &[
-            (10.0, 20.0, 0.0),
-            (200.0, -45.0, 70.0),
-            (300.0, 89.9, -120.0),
-            (5.0, -89.9, 179.0),
-        ] {
-            let a = View {
-                ra,
-                dec,
-                fov: 90.0,
-                roll,
-            };
+        for &(ra, dec, roll) in &[(10.0, 20.0, 0.0), (200.0, -45.0, 70.0), (300.0, 89.9, -120.0), (5.0, -89.9, 179.0)] {
+            let a = View { ra, dec, fov: 90.0, roll };
             let b = View::from_basis(a.basis(), 90.0);
             let (ea, na, fa) = a.basis();
             let (eb, nb, fb) = b.basis();
@@ -393,50 +312,30 @@ mod tests {
     #[test]
     fn pin_moves_point_under_cursor() {
         for roll in [0.0, 40.0] {
-            let v = View {
-                roll,
-                ..v(100.0, 20.0, 90.0)
-            };
+            let v = View { roll, ..v(100.0, 20.0, 90.0) };
             let c = (960.0, 540.0);
             let p = Proj::new(&v, c).unproject((500.0, 300.0));
             let v2 = pin(v, c, p, (700.0, 450.0));
             let (x, y, _) = Proj::new(&v2, c).project(p);
-            assert!(
-                (x - 700.0).abs() < 0.5 && (y - 450.0).abs() < 0.5,
-                "roll {roll}: {x},{y}"
-            );
+            assert!((x - 700.0).abs() < 0.5 && (y - 450.0).abs() < 0.5, "roll {roll}: {x},{y}");
             assert!((v2.roll - roll).abs() < 1e-9);
         }
     }
 
     #[test]
     fn pin_free_moves_point_under_cursor() {
-        let v = View {
-            roll: 15.0,
-            ..v(100.0, 70.0, 90.0)
-        };
+        let v = View { roll: 15.0, ..v(100.0, 70.0, 90.0) };
         let c = (960.0, 540.0);
         let p = Proj::new(&v, c).unproject((200.0, 900.0));
         let v2 = pin_free(v, c, p, (1500.0, 200.0));
         let (x, y, _) = Proj::new(&v2, c).project(p);
-        assert!(
-            (x - 1500.0).abs() < 1e-6 && (y - 200.0).abs() < 1e-6,
-            "{x},{y}"
-        );
+        assert!((x - 1500.0).abs() < 1e-6 && (y - 200.0).abs() < 1e-6, "{x},{y}");
     }
 
     #[test]
     fn ease_basis_arrives() {
-        let a = View {
-            roll: 30.0,
-            ..v(10.0, 10.0, 90.0)
-        }
-        .basis();
-        let t = View {
-            roll: -50.0,
-            ..v(120.0, -40.0, 90.0)
-        }
-        .basis();
+        let a = View { roll: 30.0, ..v(10.0, 10.0, 90.0) }.basis();
+        let t = View { roll: -50.0, ..v(120.0, -40.0, 90.0) }.basis();
         let (mid, left) = ease_basis(a, t, 0.5);
         assert!(left > 0.1);
         assert!((dot(mid.0, mid.1)).abs() < 1e-9 && (dot(mid.1, mid.2)).abs() < 1e-9);
@@ -447,11 +346,7 @@ mod tests {
 
     #[test]
     fn turn_basis_keeps_roll_at_the_centre() {
-        let b = View {
-            roll: 25.0,
-            ..v(40.0, 10.0, 90.0)
-        }
-        .basis();
+        let b = View { roll: 25.0, ..v(40.0, 10.0, 90.0) }.basis();
         let f = unit(50.0, 12.0);
         let t = turn_basis_to(b, f);
         assert!(angle(t.2, f) < 1e-12);

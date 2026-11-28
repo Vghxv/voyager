@@ -38,10 +38,7 @@ struct StarStyle {
 
 impl Default for StarStyle {
     fn default() -> Self {
-        StarStyle {
-            style: "photo".into(),
-            glow: 1.5,
-        }
+        StarStyle { style: "photo".into(), glow: 1.5 }
     }
 }
 
@@ -56,27 +53,17 @@ impl StarStyle {
 fn star_style() -> [f32; 2] {
     if let Ok(s) = std::env::var("VOYAGER_SKY_STARS") {
         let (style, glow) = s.split_once(',').unwrap_or((&s, ""));
-        let try_it = StarStyle {
-            style: style.into(),
-            glow: glow.trim().parse().unwrap_or(StarStyle::default().glow),
-        };
+        let try_it = StarStyle { style: style.into(), glow: glow.trim().parse().unwrap_or(StarStyle::default().glow) };
         if let Some(v) = try_it.uniform() {
             return v;
         }
-        eprintln!(
-            "voyager-sky: VOYAGER_SKY_STARS={s}: expected one of {} and a strength",
-            STAR_STYLES.join("/")
-        );
+        eprintln!("voyager-sky: VOYAGER_SKY_STARS={s}: expected one of {} and a strength", STAR_STYLES.join("/"));
     }
     std::fs::read(crate::wallpaper::out_dir().join("stars.json"))
         .ok()
         .and_then(|b| serde_json::from_slice::<StarStyle>(&b).ok())
         .and_then(|s| s.uniform())
-        .unwrap_or_else(|| {
-            StarStyle::default()
-                .uniform()
-                .expect("the default is a style")
-        })
+        .unwrap_or_else(|| StarStyle::default().uniform().expect("the default is a style"))
 }
 
 /// The ecliptic (drag mode, E) and then the celestial equator (Q) are drawn as this many
@@ -139,12 +126,7 @@ pub struct Shape {
 
 impl Shape {
     pub fn capsule(a: (f32, f32), b: (f32, f32), r: f32, col: [f32; 4], border: [f32; 4]) -> Self {
-        Shape {
-            seg: [a.0, a.1, b.0, b.1],
-            col,
-            border,
-            extra: [r, 0.0, 0.0, 0.0],
-        }
+        Shape { seg: [a.0, a.1, b.0, b.1], col, border, extra: [r, 0.0, 0.0, 0.0] }
     }
 }
 
@@ -192,28 +174,18 @@ pub struct Gpu {
 
 impl Gpu {
     pub fn new() -> Result<Self, String> {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::VULKAN,
-            ..Default::default()
-        });
+        let instance =
+            wgpu::Instance::new(&wgpu::InstanceDescriptor { backends: wgpu::Backends::VULKAN, ..Default::default() });
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::LowPower,
             ..Default::default()
         }))
-        .map_err(|e| {
-            format!("no Vulkan GPU found ({e}); is vulkan-intel / vulkan-radeon installed?")
-        })?;
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-            label: Some("voyager-sky"),
-            ..Default::default()
-        }))
+        .map_err(|e| format!("no Vulkan GPU found ({e}); is vulkan-intel / vulkan-radeon installed?"))?;
+        let (device, queue) = pollster::block_on(
+            adapter.request_device(&wgpu::DeviceDescriptor { label: Some("voyager-sky"), ..Default::default() }),
+        )
         .map_err(|e| format!("could not open the GPU: {e}"))?;
-        Ok(Gpu {
-            instance,
-            adapter,
-            device,
-            queue,
-        })
+        Ok(Gpu { instance, adapter, device, queue })
     }
 }
 
@@ -228,19 +200,8 @@ pub struct TextCtx {
 impl TextCtx {
     pub fn new(r: &Renderer) -> Self {
         let cache = Cache::new(&r.device);
-        let atlas = TextAtlas::with_color_mode(
-            &r.device,
-            &r.queue,
-            &cache,
-            r.format,
-            glyphon::ColorMode::Web,
-        );
-        TextCtx {
-            font_system: FontSystem::new(),
-            swash: SwashCache::new(),
-            cache,
-            atlas,
-        }
+        let atlas = TextAtlas::with_color_mode(&r.device, &r.queue, &cache, r.format, glyphon::ColorMode::Web);
+        TextCtx { font_system: FontSystem::new(), swash: SwashCache::new(), cache, atlas }
     }
 }
 
@@ -293,28 +254,14 @@ fn v4(p: [f32; 3], w: f32) -> [f32; 4] {
 }
 
 fn rgba8(c: [f32; 3]) -> [u8; 4] {
-    [
-        (c[0] * 255.0).round() as u8,
-        (c[1] * 255.0).round() as u8,
-        (c[2] * 255.0).round() as u8,
-        255,
-    ]
+    [(c[0] * 255.0).round() as u8, (c[1] * 255.0).round() as u8, (c[2] * 255.0).round() as u8, 255]
 }
 
-fn texture(
-    gpu: &wgpu::Device,
-    q: &wgpu::Queue,
-    levels: &[(u32, u32, Vec<u8>)],
-    label: &str,
-) -> wgpu::TextureView {
+fn texture(gpu: &wgpu::Device, q: &wgpu::Queue, levels: &[(u32, u32, Vec<u8>)], label: &str) -> wgpu::TextureView {
     let (w, h, _) = &levels[0];
     let tex = gpu.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
-        size: wgpu::Extent3d {
-            width: *w,
-            height: *h,
-            depth_or_array_layers: 1,
-        },
+        size: wgpu::Extent3d { width: *w, height: *h, depth_or_array_layers: 1 },
         mip_level_count: levels.len() as u32,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -331,16 +278,8 @@ fn texture(
                 aspect: wgpu::TextureAspect::All,
             },
             px,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * w),
-                rows_per_image: Some(*h),
-            },
-            wgpu::Extent3d {
-                width: *w,
-                height: *h,
-                depth_or_array_layers: 1,
-            },
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(4 * w), rows_per_image: Some(*h) },
+            wgpu::Extent3d { width: *w, height: *h, depth_or_array_layers: 1 },
         );
     }
     tex.create_view(&Default::default())
@@ -375,11 +314,7 @@ pub fn mip_chain(img: &crate::data::Image) -> Mips {
                 }
                 let o = ((y * nw + x) * 4) as usize;
                 for c in 0..3 {
-                    next[o + c] = if a > 0 {
-                        ((rgb[c] + a / 2) / a) as u8
-                    } else {
-                        0
-                    };
+                    next[o + c] = if a > 0 { ((rgb[c] + a / 2) / a) as u8 } else { 0 };
                 }
                 next[o + 3] = ((a + 2) / 4) as u8;
             }
@@ -397,12 +332,7 @@ impl Renderer {
             source: wgpu::ShaderSource::Wgsl(include_str!("sky.wgsl").into()),
         });
 
-        let entry = |binding, visibility, ty| wgpu::BindGroupLayoutEntry {
-            binding,
-            visibility,
-            ty,
-            count: None,
-        };
+        let entry = |binding, visibility, ty| wgpu::BindGroupLayoutEntry { binding, visibility, ty, count: None };
         let tex_ty = wgpu::BindingType::Texture {
             sample_type: wgpu::TextureSampleType::Float { filterable: true },
             view_dimension: wgpu::TextureViewDimension::D2,
@@ -422,11 +352,7 @@ impl Renderer {
                     },
                 ),
                 entry(1, wgpu::ShaderStages::FRAGMENT, tex_ty),
-                entry(
-                    2,
-                    wgpu::ShaderStages::FRAGMENT,
-                    wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                ),
+                entry(2, wgpu::ShaderStages::FRAGMENT, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
                 entry(3, wgpu::ShaderStages::FRAGMENT, tex_ty),
             ],
         });
@@ -455,11 +381,7 @@ impl Renderer {
                 fragment: Some(wgpu::FragmentState {
                     module: &shader,
                     entry_point: Some(fs),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend,
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
+                    targets: &[Some(wgpu::ColorTargetState { format, blend, write_mask: wgpu::ColorWrites::ALL })],
                     compilation_options: Default::default(),
                 }),
                 primitive: wgpu::PrimitiveState::default(),
@@ -474,41 +396,20 @@ impl Renderer {
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: attrs,
         };
-        const POINT: [wgpu::VertexAttribute; 3] =
-            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Unorm8x4];
+        const POINT: [wgpu::VertexAttribute; 3] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Unorm8x4];
         const LINE: [wgpu::VertexAttribute; 3] =
             wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 3 => Unorm8x4];
         const ALPHA: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![2 => Float32];
-        const SHAPE: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Float32x4, 3 => Float32x4];
+        const SHAPE: [wgpu::VertexAttribute; 4] =
+            wgpu::vertex_attr_array![0 => Float32x4, 1 => Float32x4, 2 => Float32x4, 3 => Float32x4];
         let point_layout = inst(20, &POINT);
 
         let sky_p = pipeline(&pl, "sky", "sky_vs", "sky_fs", &[], None);
-        let field = pipeline(
-            &pl,
-            "field",
-            "field_vs",
-            "field_fs",
-            &[point_layout.clone()],
-            blend,
-        );
+        let field = pipeline(&pl, "field", "field_vs", "field_fs", &[point_layout.clone()], blend);
         let stars = pipeline(&pl, "stars", "star_vs", "star_fs", &[point_layout], blend);
         let probe = pipeline(&pl, "probe", "probe_vs", "probe_fs", &[], blend);
-        let lines = pipeline(
-            &pl,
-            "lines",
-            "line_vs",
-            "line_fs",
-            &[inst(28, &LINE), inst(4, &ALPHA)],
-            blend,
-        );
-        let shapes = pipeline(
-            &pl,
-            "shapes",
-            "shape_vs",
-            "shape_fs",
-            &[inst(64, &SHAPE)],
-            blend,
-        );
+        let lines = pipeline(&pl, "lines", "line_vs", "line_fs", &[inst(28, &LINE), inst(4, &ALPHA)], blend);
+        let shapes = pipeline(&pl, "shapes", "shape_vs", "shape_fs", &[inst(64, &SHAPE)], blend);
 
         let figure_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("figure"),
@@ -523,11 +424,7 @@ impl Renderer {
                     },
                 ),
                 entry(1, wgpu::ShaderStages::FRAGMENT, tex_ty),
-                entry(
-                    2,
-                    wgpu::ShaderStages::FRAGMENT,
-                    wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                ),
+                entry(2, wgpu::ShaderStages::FRAGMENT, wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering)),
             ],
         });
         let figure_pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -544,23 +441,12 @@ impl Renderer {
             ..Default::default()
         });
 
-        let field_inst: Vec<PointInst> = sky
-            .field
-            .iter()
-            .map(|s| PointInst {
-                pos: v3(s.pos),
-                size_or_mag: s.size,
-                col: s.rgba,
-            })
-            .collect();
+        let field_inst: Vec<PointInst> =
+            sky.field.iter().map(|s| PointInst { pos: v3(s.pos), size_or_mag: s.size, col: s.rgba }).collect();
         let star_inst: Vec<PointInst> = sky
             .stars
             .iter()
-            .map(|s| PointInst {
-                pos: v3(s.pos),
-                size_or_mag: s.mag,
-                col: [s.rgb[0], s.rgb[1], s.rgb[2], 255],
-            })
+            .map(|s| PointInst { pos: v3(s.pos), size_or_mag: s.mag, col: [s.rgb[0], s.rgb[1], s.rgb[2], 255] })
             .collect();
         let pal = Palette::get();
         let indigo = rgba8(pal.indigo);
@@ -568,11 +454,7 @@ impl Renderer {
             .constellations
             .iter()
             .flat_map(|c| c.lines.iter())
-            .map(|&[a, b]| LineInst {
-                a: v3(sky.stars[a].pos),
-                b: v3(sky.stars[b].pos),
-                col: indigo,
-            })
+            .map(|&[a, b]| LineInst { a: v3(sky.stars[a].pos), b: v3(sky.stars[b].pos), col: indigo })
             .collect();
         let vbuf = |label, contents: &[u8]| {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -600,22 +482,11 @@ impl Renderer {
             col: amber,
         }));
         let line_buf = vbuf("lines", bytemuck::cast_slice(&line_inst));
-        let line_alpha = vbuf(
-            "line alpha",
-            bytemuck::cast_slice(&vec![0f32; line_inst.len()]),
-        );
-        let shape_buf = vbuf(
-            "shapes",
-            bytemuck::cast_slice(&[Shape::zeroed(); MAX_SHAPES]),
-        );
+        let line_alpha = vbuf("line alpha", bytemuck::cast_slice(&vec![0f32; line_inst.len()]));
+        let shape_buf = vbuf("shapes", bytemuck::cast_slice(&[Shape::zeroed(); MAX_SHAPES]));
 
         let mw = &sky.milky_way;
-        let mw_view = texture(
-            &device,
-            &queue,
-            &[(mw.width, mw.height, mw.rgba.clone())],
-            "milky way",
-        );
+        let mw_view = texture(&device, &queue, &[(mw.width, mw.height, mw.rgba.clone())], "milky way");
         let probe_view = texture(&device, &queue, &mip_chain(&sky.probe), "probe");
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("linear"),
@@ -676,53 +547,30 @@ impl Renderer {
             label: Some("sky"),
             layout: &self.layout,
             entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniform.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&self.mw_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&self.probe_view),
-                },
+                wgpu::BindGroupEntry { binding: 0, resource: uniform.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&self.mw_view) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&self.sampler) },
+                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&self.probe_view) },
             ],
         });
         let text = text.map(|t| {
-            let r = TextRenderer::new(
-                &mut t.atlas,
-                &self.device,
-                wgpu::MultisampleState::default(),
-                None,
-            );
+            let r = TextRenderer::new(&mut t.atlas, &self.device, wgpu::MultisampleState::default(), None);
             (r, Viewport::new(&self.device, &t.cache))
         });
-        Target {
-            uniform,
-            bind,
-            text,
-        }
+        Target { uniform, bind, text }
     }
 
     /// One alpha per line segment, in constellation order, then the ecliptic's, the
     /// celestial equator's and the asterisms' (drag mode).
     pub fn set_line_alpha(&self, alpha: &[f32]) {
         debug_assert_eq!(alpha.len(), self.n_lines as usize);
-        self.queue
-            .write_buffer(&self.line_alpha, 0, bytemuck::cast_slice(alpha));
+        self.queue.write_buffer(&self.line_alpha, 0, bytemuck::cast_slice(alpha));
     }
 
     /// The overlay's shapes (chips, navigation ball), drawn in this order.
     pub fn set_shapes(&mut self, shapes: &[Shape]) {
         let n = shapes.len().min(MAX_SHAPES);
-        self.queue
-            .write_buffer(&self.shape_buf, 0, bytemuck::cast_slice(&shapes[..n]));
+        self.queue.write_buffer(&self.shape_buf, 0, bytemuck::cast_slice(&shapes[..n]));
         self.n_shapes = n as u32;
     }
 
@@ -742,37 +590,21 @@ impl Renderer {
             n: v4(v3(n), 0.0),
             params: [half as f32, 0.0, 0.0, 0.0],
         };
-        let uniform = self
-            .device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("figure"),
-                contents: bytemuck::bytes_of(&u),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            });
+        let uniform = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("figure"),
+            contents: bytemuck::bytes_of(&u),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
         let bind = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("figure"),
             layout: &self.figure_layout,
             entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniform.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.figure_sampler),
-                },
+                wgpu::BindGroupEntry { binding: 0, resource: uniform.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&view) },
+                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&self.figure_sampler) },
             ],
         });
-        self.figures[slot] = Some(FigureSlot {
-            id,
-            uniform,
-            bind,
-            alpha: 0.0,
-        });
+        self.figures[slot] = Some(FigureSlot { id, uniform, bind, alpha: 0.0 });
     }
 
     /// How visible the figure in slot `slot` is (0 hidden, or empty).
@@ -786,8 +618,7 @@ impl Renderer {
             if f.alpha != alpha {
                 f.alpha = alpha;
                 let params_y = std::mem::offset_of!(FigureUniforms, params) as u64 + 4;
-                self.queue
-                    .write_buffer(&f.uniform, params_y, bytemuck::bytes_of(&alpha));
+                self.queue.write_buffer(&f.uniform, params_y, bytemuck::bytes_of(&alpha));
             }
         }
     }
@@ -824,28 +655,13 @@ impl Renderer {
         mut text: Option<&mut TextCtx>,
         texts: Vec<TextArea<'_>>,
     ) {
-        self.queue
-            .write_buffer(&target.uniform, 0, bytemuck::bytes_of(&self.uniforms(fr)));
+        self.queue.write_buffer(&target.uniform, 0, bytemuck::bytes_of(&self.uniforms(fr)));
         let mut text_ok = false;
         if let (Some(ctx), Some((tr, vp))) = (text.as_deref_mut(), target.text.as_mut()) {
             if !texts.is_empty() {
-                vp.update(
-                    &self.queue,
-                    glyphon::Resolution {
-                        width: fr.size.0,
-                        height: fr.size.1,
-                    },
-                );
+                vp.update(&self.queue, glyphon::Resolution { width: fr.size.0, height: fr.size.1 });
                 text_ok = tr
-                    .prepare(
-                        &self.device,
-                        &self.queue,
-                        &mut ctx.font_system,
-                        &mut ctx.atlas,
-                        vp,
-                        texts,
-                        &mut ctx.swash,
-                    )
+                    .prepare(&self.device, &self.queue, &mut ctx.font_system, &mut ctx.atlas, vp, texts, &mut ctx.swash)
                     .is_ok();
             }
         }
@@ -923,11 +739,7 @@ impl Renderer {
         let (w, h) = fr.size;
         let tex = self.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("export"),
-            size: wgpu::Extent3d {
-                width: w,
-                height: h,
-                depth_or_array_layers: 1,
-            },
+            size: wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -935,16 +747,9 @@ impl Renderer {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
             view_formats: &[],
         });
-        self.draw(
-            target,
-            &tex.create_view(&Default::default()),
-            fr,
-            text,
-            texts,
-        );
+        self.draw(target, &tex.create_view(&Default::default()), fr, text, texts);
 
-        let row = (4 * w).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT)
-            * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+        let row = (4 * w).div_ceil(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT) * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let buf = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("readback"),
             size: (row * h) as u64,
@@ -956,24 +761,14 @@ impl Renderer {
             tex.as_image_copy(),
             wgpu::TexelCopyBufferInfo {
                 buffer: &buf,
-                layout: wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(row),
-                    rows_per_image: Some(h),
-                },
+                layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: Some(h) },
             },
-            wgpu::Extent3d {
-                width: w,
-                height: h,
-                depth_or_array_layers: 1,
-            },
+            wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
         );
         self.queue.submit([enc.finish()]);
         let slice = buf.slice(..);
         slice.map_async(wgpu::MapMode::Read, |_| {});
-        self.device
-            .poll(wgpu::PollType::Wait)
-            .map_err(|e| format!("GPU: {e}"))?;
+        self.device.poll(wgpu::PollType::Wait).map_err(|e| format!("GPU: {e}"))?;
         let data = slice.get_mapped_range();
         let bgra = matches!(self.format, wgpu::TextureFormat::Bgra8Unorm);
         let mut rgb = Vec::with_capacity((w * h * 3) as usize);
@@ -990,15 +785,8 @@ impl Renderer {
         drop(data);
         buf.unmap();
         let tmp = path.with_extension("png.part");
-        image::save_buffer_with_format(
-            &tmp,
-            &rgb,
-            w,
-            h,
-            image::ExtendedColorType::Rgb8,
-            image::ImageFormat::Png,
-        )
-        .map_err(|e| format!("{}: {e}", tmp.display()))?;
+        image::save_buffer_with_format(&tmp, &rgb, w, h, image::ExtendedColorType::Rgb8, image::ImageFormat::Png)
+            .map_err(|e| format!("{}: {e}", tmp.display()))?;
         std::fs::rename(&tmp, path).map_err(|e| format!("{}: {e}", path.display()))
     }
 }

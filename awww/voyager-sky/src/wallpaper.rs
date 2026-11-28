@@ -11,21 +11,14 @@ pub const DEFAULT_FOV: f64 = 100.0;
 
 /// ~/.config/hypr/voyager: where the wallpaper, lock image and view live.
 pub fn out_dir() -> PathBuf {
-    let home = std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."));
+    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."));
     home.join(".config/hypr/voyager")
 }
 
 /// Centred on Voyager 1.
 pub fn default_view(sky: &SkyData) -> View {
     let (ra, dec) = radec(sky.voyagers[0]);
-    View {
-        ra,
-        dec,
-        fov: DEFAULT_FOV,
-        roll: 0.0,
-    }
+    View { ra, dec, fov: DEFAULT_FOV, roll: 0.0 }
 }
 
 /// The saved view, or the default if there is none (or it is unreadable).
@@ -75,16 +68,9 @@ pub fn write(r: &Renderer, view: &View, size: (u32, u32), show: bool) -> Result<
 
 fn awww_img(path: &Path, transition: &str) {
     // awww caches by path: clear it so the same path with new pixels is re-read
-    let _ = std::process::Command::new("awww")
-        .arg("clear-cache")
-        .status();
+    let _ = std::process::Command::new("awww").arg("clear-cache").status();
     match std::process::Command::new("awww")
-        .args([
-            "img",
-            &path.to_string_lossy(),
-            "--transition-type",
-            transition,
-        ])
+        .args(["img", &path.to_string_lossy(), "--transition-type", transition])
         .status()
     {
         Ok(s) if s.success() => {}
