@@ -16,9 +16,9 @@
 //! the lines (C) are on or not.
 //!
 //! With C or S on, the asterisms' bright stars and Polaris show their names while the
-//! cursor is near them. S outlines the four seasonal asterisms (Spring and Summer
-//! Triangles, the Great Square of Pegasus, the Winter Triangle) in dashed amber, with
-//! their names.
+//! cursor is near them. S outlines the seasonal asterisms (Big Dipper, Spring Arc,
+//! Spring and Summer Triangles, Teapot, Great Square of Pegasus, Winter Triangle and
+//! Winter Hexagon) in dashed amber, with their names.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
