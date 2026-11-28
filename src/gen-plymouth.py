@@ -28,12 +28,12 @@ import sys
 from pathlib import Path
 
 sys.dont_write_bytecode = True          # no src/__pycache__
-from voyager_art import ROOT, magick, parse_size, render, rsvg, sky_args  # noqa: E402
+from voyager_art import PALETTE, ROOT, magick, parse_size, render, rsvg, sky_args  # noqa: E402
 from voyager_sky import (Scene, flatten, render_base, workspace,  # noqa: E402
                          PNG_NO_DATES, BLUE_SHIFT, RED_SHIFT)
 
 ASSETS = ("logo", "ring", "star", "tail")
-FLASH_COLOR = "#FF3355"  # the probe flashes this colour on a wrong passphrase
+FLASH_COLOR = PALETTE["red"]  # the probe flashes this colour on a wrong passphrase
 SCRIPT = ROOT / "plymouth" / "voyager" / "voyager.script"
 
 
