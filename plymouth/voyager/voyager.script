@@ -5,16 +5,23 @@
 # =====================================================================
 
 # ---------------- tunables ----------------
-NUM_STARS   = 100;    # warp stars (only seen while moving)
+NUM_STARS   = 55;     # warp stars (only seen while moving)
 KEY_BOOST   = 1.4;    # warp burst per typed character
 BACK_PULL   = 1.0;    # reverse pull per backspace
 WARP_MAX    = 6;      # warp speed after Enter
-STREAK_AT   = 1.2;    # speed above which stars turn into streaks
 WARP_SEEN   = 0.6;    # speed at which the warp stars are fully visible
+STAR_MIN    = 8;      # smallest warp star, in pixels
+STAR_MAX    = 14;     # largest warp star, in pixels
+STAR_STEP   = 2;      # star sizes go up in these steps (each size's tails are made at start-up)
+STAR_BRIGHT = 0.7;    # dimmest warp star's brightness (the brightest is 1)
 BLUE_AT     = 1.4;    # speed at which the sky is fully blue-shifted
 RED_AT      = 0.8;    # reverse speed at which it is fully red-shifted
 SHIFT_HOLD  = 0.979;  # how slowly the shift fades after the stars stop (per frame)
-ROT_SIGN    = 1;      # set to -1 if streaks point the wrong way
+STREAK_LEN  = 6;      # longest tail, in star sizes
+ANGLES      = 48;     # tail directions, turned once at start-up
+TRAIL       = 8;      # a tail is as long as its star moves in this many frames (motion blur)
+TAIL_THICK  = 0.3;    # tail thickness, as a share of its star's size
+TAIL_EASE   = 0.2;    # how fast a tail grows or shrinks towards that (per frame): head first, tail after
 CORE_FADE   = 0.25;   # stars dim inside this radius (fraction of screen height)
 CORE_VANISH = 0.08;   # ...and vanish inside this one while pulled back
 INFLOW      = 1.6;    # backing off: share of stars sent to the edges, per unit of speed per second
@@ -97,26 +104,59 @@ hint_target = 1;
 
 # ---------------- warp stars ----------------
 star_src   = Image("star.png");
-streak_src = Image("streak.png");
 
-# The streak's bright head points the way the star moves: outward while warping
-# forward (mode 1), inward while backing off (mode -1). mode 0 is a dot.
-fun streak_for(i, mode) {
-  if (mode > 0) {
-    return global.star[i].streak_out;
+# Warp streaks: a star is its head (the star dot) plus a tail, a second sprite.
+# The tail is tail.png stretched to each length (1 ... STREAK_LEN star sizes) and
+# turned to each of ANGLES directions, once, here. Plymouth's Rotate keeps an
+# image's size, so each tail is first padded to a square (a Crop larger than the
+# image pads it with transparency), with its bright end at the centre, turned
+# about that centre, then cropped to fit. tail[n] points its head end at
+# k * 360 / ANGLES - 180 degrees (as atan2 on screen: y down), the tail behind.
+tail_src = Image("tail.png");
+NUM_SIZES = Math.Int((STAR_MAX - STAR_MIN) / STAR_STEP) + 1;
+for (z = 0; z < NUM_SIZES; z++) {
+  size = STAR_MIN + z * STAR_STEP;
+  thick = Math.Int(size * TAIL_THICK + 0.5);
+  if (thick < 2) { thick = 2; }
+  for (l = 1; l <= STREAK_LEN; l++) {
+    len = l * size;
+    q = 2 * len + 2 * thick + 2;                 # the square, even
+    q2 = q / 2;
+    sq = tail_src.Scale(len, thick).Crop(len - q2, Math.Int(thick / 2) - q2, q, q);
+    for (k = 0; k < ANGLES; k++) {
+      a = k * 6.28318 / ANGLES - 3.14159;
+      tx = -len * Math.Cos(a);                   # tail end, from the head
+      ty = -len * Math.Sin(a);
+      x0 = q2 - thick - 1;
+      x1 = q2 + thick + 1;
+      y0 = x0;
+      y1 = x1;
+      if (tx < 0) { x0 += tx; } else { x1 += tx; }
+      if (ty < 0) { y0 += ty; } else { y1 += ty; }
+      x0 = Math.Int(x0);
+      y0 = Math.Int(y0);
+      n = (z * STREAK_LEN + l - 1) * ANGLES + k;
+      tail_img[n] = sq.Rotate(a).Crop(x0, y0, Math.Int(x1 - x0 + 1), Math.Int(y1 - y0 + 1));
+      tail_hx[n] = q2 - x0;                      # head end, from the top-left
+      tail_hy[n] = q2 - y0;
+    }
   }
-  return global.star[i].streak_in;
 }
 
+# A new star is just its head: its tail grows as it speeds up.
 fun aim_star(i) {
   ang = Math.ATan2(global.star[i].y - global.cy, global.star[i].x - global.cx);
-  global.star[i].streak_out = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang);
-  global.star[i].streak_in = global.star[i].streak_base.Rotate(global.ROT_SIGN * ang + 3.14159);
-  global.star[i].sw2 = global.star[i].streak_out.GetWidth() / 2;
-  global.star[i].sh2 = global.star[i].streak_out.GetHeight() / 2;
-  if (global.star[i].mode != 0) {
-    global.star[i].sprite.SetImage(streak_for(i, global.star[i].mode));
+  k = Math.Int((ang + 3.14159) / 6.28318 * global.ANGLES + 0.5);
+  if (k >= global.ANGLES) {
+    k = 0;
   }
+  back = k + global.ANGLES / 2;                 # the opposite direction
+  if (back >= global.ANGLES) {
+    back -= global.ANGLES;
+  }
+  global.star[i].k_out = k;
+  global.star[i].k_in = back;
+  global.star[i].len = 0;
 }
 
 fun place_star(i) {
@@ -143,14 +183,19 @@ fun place_star_at_edge(i) {
 }
 
 for (i = 0; i < NUM_STARS; i++) {
-  size = 2 + Math.Int(Math.Random() * 5);
+  z = Math.Int(Math.Random() * NUM_SIZES);
+  size = STAR_MIN + z * STAR_STEP;
   star[i].dot = star_src.Scale(size, size);
-  star[i].streak_base = streak_src.Scale(size * 8, size);
+  star[i].z = z;
+  star[i].size = size;
   star[i].half = size / 2;
   star[i].sprite = Sprite(star[i].dot);
   star[i].sprite.SetOpacity(0);
-  star[i].mode = 0;
-  star[i].peak  = 0.4 + Math.Random() * 0.6;
+  star[i].tail = Sprite();
+  star[i].tail.SetOpacity(0);
+  star[i].shown = -1;                 # tail image on the tail sprite: -1 none
+  star[i].k = 0;
+  star[i].peak  = STAR_BRIGHT + Math.Random() * (1 - STAR_BRIGHT);
   place_star(i);
   star[i].fade = 1;
 }
@@ -250,13 +295,6 @@ fun refresh_callback() {
 
   # Polaris breathes, one breath every 4 s
   global.polaris_sprite.SetOpacity(0.775 + 0.225 * Math.Cos(6.2832 * global.t / 4));
-  fast = 0;                           # 1 streaks outward, -1 inward, 0 dots
-  if (global.speed > global.STREAK_AT) {
-    fast = 1;
-  }
-  if (global.speed < -global.STREAK_AT) {
-    fast = -1;
-  }
 
   # stars. At rest they are all invisible (seen = 0): after one last pass that
   # hides them, skip the loop, the biggest cost of a frame.
@@ -308,21 +346,38 @@ fun refresh_callback() {
       global.star[i].fade += 0.0333;
     }
 
-    if (fast != global.star[i].mode) {
-      global.star[i].mode = fast;
-      if (fast != 0) {
-        global.star[i].sprite.SetImage(streak_for(i, fast));
-      } else {
-        global.star[i].sprite.SetImage(global.star[i].dot);
-      }
+    # The tail is the star's motion blur: as long as it moves in TRAIL frames, in
+    # star sizes. It eases there, so a burst shows the head first and the tail
+    # after, and when typing stops the tail shrinks away before the head fades.
+    want = Math.Abs(global.speed) * r * global.DT * global.TRAIL / global.star[i].size;
+    if (want > global.STREAK_LEN) {
+      want = global.STREAK_LEN;
+    }
+    global.star[i].len += (want - global.star[i].len) * global.TAIL_EASE;
+    lvl = Math.Int(global.star[i].len + 0.5);
+    if (global.speed > 0) {             # head leads: outward, or inward backing off
+      global.star[i].k = global.star[i].k_out;
+    }
+    if (global.speed < 0) {
+      global.star[i].k = global.star[i].k_in;
     }
 
-    global.star[i].sprite.SetOpacity(global.star[i].peak * seen * global.star[i].fade * core);
-
-    if (fast != 0) {
-      global.star[i].sprite.SetPosition(x - global.star[i].sw2, y - global.star[i].sh2, 0);
+    op = global.star[i].peak * seen * global.star[i].fade * core;
+    global.star[i].sprite.SetPosition(x - global.star[i].half, y - global.star[i].half, 1);
+    global.star[i].sprite.SetOpacity(op);
+    if (lvl == 0) {
+      if (global.star[i].shown != -1) {
+        global.star[i].shown = -1;
+        global.star[i].tail.SetOpacity(0);
+      }
     } else {
-      global.star[i].sprite.SetPosition(x - global.star[i].half, y - global.star[i].half, 0);
+      n = (global.star[i].z * global.STREAK_LEN + lvl - 1) * global.ANGLES + global.star[i].k;
+      if (global.star[i].shown != n) {
+        global.star[i].shown = n;
+        global.star[i].tail.SetImage(global.tail_img[n]);
+      }
+      global.star[i].tail.SetPosition(x - global.tail_hx[n], y - global.tail_hy[n], 0);
+      global.star[i].tail.SetOpacity(op);
     }
   }
 
