@@ -26,6 +26,8 @@ CORE_FADE   = 0.25;   # stars dim inside this radius (fraction of screen height)
 CORE_VANISH = 0.08;   # ...and vanish inside this one while pulled back
 INFLOW      = 1.6;    # backing off: share of stars sent to the edges, per unit of speed per second
 LEAVE_STEP  = 0.1;    # ...each fading out at this much per frame first (10 frames)
+SHAKE_PX    = 6;      # wrong passphrase: how far the probe shakes, in pixels
+SHAKE_DECAY = 0.85;   # ...and how fast it settles (per frame: 0.85 is about 0.25 s)
 
 # Polaris's top-left corner in sky.png, as fractions of its size.
 # Written by src/gen-plymouth.py: do not edit by hand.
@@ -259,8 +261,12 @@ fun spawn_ring(dir) {
 }
 
 # ---------------- red flash ----------------
-flash_sprite = Sprite(Image("flash.png").Scale(W, H));
-flash_sprite.SetPosition(0, 0, 50);
+# the probe's red silhouette, laid over it (and shaking with it): only the probe
+# flashes, so only its corner of the screen is redrawn
+flash_img = Image("logo-flash.png");
+flash_img = flash_img.Scale(flash_img.GetWidth() * logo_s, flash_img.GetHeight() * logo_s);
+flash_sprite = Sprite(flash_img);
+flash_sprite.SetPosition(logo_x, logo_y, 11);
 flash_sprite.SetOpacity(0);
 
 # ================= animation loop =================
@@ -397,18 +403,24 @@ fun refresh_callback() {
     }
   }
 
-  # probe shake (wrong passphrase)
-  global.shake = global.shake * 0.916;
-  ox = Math.Sin(global.t * 70) * global.shake;
-  global.logo_sprite.SetPosition(global.logo_x + ox, global.logo_y, 10);
+  # probe shake (wrong passphrase): settles, then stops for good (and so stops
+  # redrawing the probe) once under half a pixel
+  if (global.shake > 0) {
+    global.shake = global.shake * global.SHAKE_DECAY;
+    if (global.shake < 0.5) {
+      global.shake = 0;
+    }
+    place_probe(Math.Sin(global.t * 70) * global.shake);
+  }
 
-  # red flash (wrong passphrase)
-  if (global.flash_a > 0.005) {
+  # red flash (wrong passphrase), over the probe: its opacity changes in steps of
+  # 1/24 (about a dozen redraws of the probe in all), not every frame
+  if (global.flash_a > 0.02) {
     global.flash_a = global.flash_a * 0.933;
   } else {
     global.flash_a = 0;
   }
-  global.flash_sprite.SetOpacity(global.flash_a);
+  global.flash_sprite.SetOpacity(Math.Int(global.flash_a * 24 + 0.5) / 24);
 
   # hint text fade
   # (snapped once close, so it stops redrawing)
@@ -421,6 +433,12 @@ fun refresh_callback() {
 Plymouth.SetRefreshRate(FPS);
 Plymouth.SetRefreshFunction(refresh_callback);
 
+# the probe and its red flash, ox pixels from their place
+fun place_probe(ox) {
+  global.logo_sprite.SetPosition(global.logo_x + ox, global.logo_y, 10);
+  global.flash_sprite.SetPosition(global.logo_x + ox, global.logo_y, 11);
+}
+
 # ================= password input =================
 fun display_password_callback(prompt, bullets) {
   # asked again after Enter -> passphrase was wrong
@@ -428,11 +446,15 @@ fun display_password_callback(prompt, bullets) {
     global.submitted = 0;
     global.warping = 0;
     global.speed = -1.5;
-    global.flash_a = 0.35;
-    global.shake = 14;
+    global.flash_a = 0.6;
+    global.shake = global.SHAKE_PX;
     global.prev = 0;
   }
 
+  if (bullets != global.prev && global.shake > 0) {   # any key stops the shake
+    global.shake = 0;
+    place_probe(0);
+  }
   if (bullets > global.prev) {          # character typed
     global.speed += global.KEY_BOOST;
     if (global.speed > 5) {

@@ -10,7 +10,7 @@ An animated screen for unlocking an encrypted disk at boot: the probe in a long-
 | You type a character | Stars streak outward in a warp burst, the sky blue-shifts, and a signal ring pulses from the probe's dish |
 | Backspace | Stars pull back in, the sky red-shifts, and the ring collapses into the dish |
 | Enter | The warp speeds up and the sky turns blue while the disk unlocks |
-| Wrong passphrase | Red flash, the probe shakes, the sky red-shifts, the hint comes back |
+| Wrong passphrase | The probe flashes red and shakes, the sky red-shifts, the hint comes back |
 
 It never draws bullets, so the screen does not reveal how long your passphrase is. Press **Esc** at boot to get the plain text prompt instead.
 
@@ -67,7 +67,7 @@ Switch to a text console (**Ctrl+Alt+F3**, add **Fn** if your F-keys are media k
 
 1. The sky idles for ~3 s.
 2. Prompt **one**: type, try Backspace, press Enter, and watch the warp.
-3. Prompt **two** acts as if the passphrase was wrong: red flash and shake. Type again and press Enter to finish.
+3. Prompt **two** acts as if the passphrase was wrong: the probe flashes red and shakes. Type again and press Enter to finish.
 
 Your previous theme comes back when the preview ends. Return to your desktop with **Ctrl+Alt+F1** or **F2**; your session keeps running meanwhile.
 

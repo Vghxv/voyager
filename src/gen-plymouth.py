@@ -8,7 +8,8 @@
 
 Artwork, each at its SVG's own size: logo (the probe), ring (signal ring), star,
 tail (a warp star's tail, bright end at the head: the script stretches and
-turns it), flash (wrong-passphrase flash, stretched).
+turns it), and logo-flash (the probe's silhouette in FLASH_COLOR, laid over
+the probe on a wrong passphrase).
 
 The sky is voyager_sky.py's Big Dipper field:
 - sky.png        the sky with every star at rest, except Polaris;
@@ -31,7 +32,8 @@ from voyager_art import ROOT, magick, parse_size, render, rsvg, sky_args  # noqa
 from voyager_sky import (Scene, flatten, render_base, workspace,  # noqa: E402
                          PNG_NO_DATES, BLUE_SHIFT, RED_SHIFT)
 
-ASSETS = ("logo", "ring", "star", "tail", "flash")
+ASSETS = ("logo", "ring", "star", "tail")
+FLASH_COLOR = "#FF3355"  # the probe flashes this colour on a wrong passphrase
 SCRIPT = ROOT / "plymouth" / "voyager" / "voyager.script"
 
 
@@ -84,6 +86,8 @@ def main():
         png = out / f"{name}.png"
         rsvg(svg, w, h, png)
         print(f"wrote {png} ({w}x{h})")
+    magick(out / "logo.png", "-fill", FLASH_COLOR, "-colorize", "100", *PNG_NO_DATES, out / "logo-flash.png")
+    print(f"wrote {out / 'logo-flash.png'}")
 
     w, h = parse_size(a.size)
     fx, fy = render_sky(w, h, a.seed, out)
